@@ -1,0 +1,121 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "om412kxiyz1q5TFRZR+fHoFfjPI=",
+			"path": "github.com/ipfs/go-block-format",
+			"revision": "4c74b02625472060ca3e0df06510adc379f7f67b",
+			"revisionTime": "2017-07-04T18:35:49Z"
+		},
+		{
+			"checksumSHA1": "r121Zt7e5nVUpvvAiHsu+jfU1ws=",
+			"path": "github.com/ipfs/go-cid",
+			"revision": "e0f0e24c2d898a68bafebae4861a80d80b8bfb8e",
+			"revisionTime": "2017-07-04T16:56:40Z"
+		},
+		{
+			"checksumSHA1": "dkvkmkGeu/T8dt9rcy3FsopXFmY=",
+			"path": "github.com/ipfs/go-datastore",
+			"revision": "e8521f97048a5b92f2dfd74b413928cb7d7cce1c",
+			"revisionTime": "2017-07-04T16:41:00Z"
+		},
+		{
+			"checksumSHA1": "7lYFDjk0iwf82Eh1ej5r9c0zYhI=",
+			"path": "github.com/ipfs/go-datastore/query",
+			"revision": "e8521f97048a5b92f2dfd74b413928cb7d7cce1c",
+			"revisionTime": "2017-07-04T16:41:00Z"
+		},
+		{
+			"checksumSHA1": "NUbbNin9NFb3U3l/yYmGZsjhXc4=",
+			"path": "github.com/ipfs/go-ipfs-util",
+			"revision": "f25fcc891281327394bb48000ef0970d11baff2b",
+			"revisionTime": "2017-03-28T19:32:45Z"
+		},
+		{
+			"checksumSHA1": "ONbNLu6m93whCVZ7/JO4pnZvD5o=",
+			"path": "github.com/ipfs/go-ipld-cbor",
+			"revision": "c93825d4181270ae729ce15a532dbec442d3780c",
+			"revisionTime": "2017-07-05T13:42:35Z"
+		},
+		{
+			"checksumSHA1": "FeHcr4Feg3LRRhoMyAiSU7KBHnU=",
+			"path": "github.com/ipfs/go-ipld-format",
+			"revision": "aee5ee5391f261108a6d69e9b94ca244cb220b47",
+			"revisionTime": "2017-07-04T20:17:47Z"
+		},
+		{
+			"checksumSHA1": "5NJ0D29BrSO9yfr6jb2PxfbIfNQ=",
+			"path": "github.com/jbenet/go-base58",
+			"revision": "6237cf65f3a6f7111cd8a42be3590df99a66bc7d",
+			"revisionTime": "2015-03-17T08:51:56Z"
+		},
+		{
+			"checksumSHA1": "xQj3FslHWnACpagG+uBiPdik//E=",
+			"path": "github.com/jbenet/goprocess",
+			"revision": "b497e2f366b8624394fb2e89c10ab607bebdde0b",
+			"revisionTime": "2016-08-26T01:27:19Z"
+		},
+		{
+			"checksumSHA1": "3roLjFgjcXrm7icRIIxhm9C7d+0=",
+			"path": "github.com/multiformats/go-multibase",
+			"revision": "af68ad2dd723b6b513b17b5271da9dcd5f5949b7",
+			"revisionTime": "2017-05-02T00:33:12Z"
+		},
+		{
+			"checksumSHA1": "l9p2Ekza/jr2ER8pspPTZEq06G8=",
+			"path": "github.com/multiformats/go-multihash",
+			"revision": "a52a6a4768da72eba89ea7f59f70e9d42ddd3072",
+			"revisionTime": "2017-06-28T18:41:41Z"
+		},
+		{
+			"checksumSHA1": "zmC8/3V4ls53DJlNTKDZwPSC/dA=",
+			"path": "github.com/satori/go.uuid",
+			"revision": "5bf94b69c6b68ee1b541973bb8e1144db23a194b",
+			"revisionTime": "2017-03-21T23:07:31Z"
+		},
+		{
+			"checksumSHA1": "bbilAC3Am0MP1lPfSKblFsIvg4Q=",
+			"path": "github.com/spaolacci/murmur3",
+			"revision": "0d12bf811670bf6a1a63828dfbd003eded177fce",
+			"revisionTime": "2015-08-29T17:28:44Z"
+		},
+		{
+			"checksumSHA1": "6tZUL3LmonMgrFfams3d0Yf5GjQ=",
+			"path": "github.com/whyrusleeping/base32",
+			"revision": "040256406660c57e043d6cc8a9406d20c4fc7277",
+			"revisionTime": "2016-11-22T03:17:57Z"
+		},
+		{
+			"checksumSHA1": "f6pGAFMQ5psJWOvcorb+zHx5QIo=",
+			"path": "github.com/whyrusleeping/cbor/go",
+			"revision": "1f7eb02d86d710f364f892f37649f091865a2441",
+			"revisionTime": "2017-02-08T06:23:24Z"
+		},
+		{
+			"checksumSHA1": "pClJgcy1COeHxz/qRDFWnWgXTEI=",
+			"path": "golang.org/x/crypto/blake2b",
+			"revision": "a48ac81e47fd6f9ed1258f3b60ae9e75f93cb7ed",
+			"revisionTime": "2017-07-06T12:31:36Z"
+		},
+		{
+			"checksumSHA1": "zpNcdqMlVa0TOkKhBY1FqlB43LY=",
+			"path": "golang.org/x/crypto/blake2s",
+			"revision": "a48ac81e47fd6f9ed1258f3b60ae9e75f93cb7ed",
+			"revisionTime": "2017-07-06T12:31:36Z"
+		},
+		{
+			"checksumSHA1": "DDHnuGCrmkKSXdNzc8pmn6P5O28=",
+			"path": "golang.org/x/crypto/sha3",
+			"revision": "a48ac81e47fd6f9ed1258f3b60ae9e75f93cb7ed",
+			"revisionTime": "2017-07-06T12:31:36Z"
+		},
+		{
+			"checksumSHA1": "r4wx8cWrUya0KvxUY5O7xtpJqTs=",
+			"path": "leb.io/hashland/keccakpg",
+			"revision": "e13accbe55f7fa03c73c74ace4cca4c425e47260",
+			"revisionTime": "2016-11-30T20:14:28Z"
+		}
+	],
+	"rootPath": "github.com/meta-network/go-meta"
+}

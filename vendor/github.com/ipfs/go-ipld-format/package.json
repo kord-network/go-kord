@@ -1,0 +1,30 @@
+{
+  "author": "whyrusleeping",
+  "bugs": {
+    "url": "https://github.com/ipfs/go-ipld-format"
+  },
+  "gx": {
+    "dvcsimport": "github.com/ipfs/go-ipld-format"
+  },
+  "gxDependencies": [
+    {
+      "author": "whyrusleeping",
+      "hash": "Qma4RJSuh7mMeJQYCqMbKzekn6EwBo7HEs5AQYjVRMQATB",
+      "name": "go-cid",
+      "version": "0.7.16"
+    },
+    {
+      "author": "stebalien",
+      "hash": "QmXxGS5QsUxpR3iqL5DjmsYPHR1Yz74siRQ4ChJqWFosMh",
+      "name": "go-block-format",
+      "version": "0.1.2"
+    }
+  ],
+  "gxVersion": "0.10.0",
+  "language": "go",
+  "license": "",
+  "name": "go-ipld-format",
+  "releaseCmd": "git commit -a -m \"gx publish $VERSION\"",
+  "version": "0.4.10"
+}
+
