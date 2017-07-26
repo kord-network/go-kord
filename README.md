@@ -3,6 +3,7 @@
 [META protocol](https://github.com/meta-network/docs) implementation in Go.
 
 [![GoDoc](https://godoc.org/github.com/meta-network/go-meta?status.svg)](https://godoc.org/github.com/meta-network/go-meta)
+[![CircleCI](https://circleci.com/gh/meta-network/go-meta.svg?style=svg)](https://circleci.com/gh/meta-network/go-meta)
 
 ## Usage
 
