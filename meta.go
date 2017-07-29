@@ -102,6 +102,59 @@ func (o *Object) Type() string {
 	return o.typ
 }
 
+// GetString looks up the property with the given key, type asserts it as a
+// string and returns it.
+func (o *Object) GetString(key string) (string, error) {
+	v, err := o.Get(key)
+	if err != nil {
+		return "", err
+	}
+	s, ok := v.(string)
+	if !ok {
+		return "", fmt.Errorf("key %q has type %T, not string", key, v)
+	}
+	return s, nil
+}
+
+// GetLink looks up the property with the given key, type asserts it as a
+// link and returns it.
+func (o *Object) GetLink(key string) (*format.Link, error) {
+	v, err := o.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	l, ok := v.(*format.Link)
+	if !ok {
+		return nil, fmt.Errorf("key %q has type %T, not *format.Link", key, v)
+	}
+	return l, nil
+}
+
+// GetList looks up the property with the given key, type asserts it as a
+// generic list and returns it.
+func (o *Object) GetList(key string) ([]interface{}, error) {
+	v, err := o.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	l, ok := v.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("key %q has type %T, not []interface{}", key, v)
+	}
+	return l, nil
+}
+
+// Get returns the property with the given key.
+func (o *Object) Get(key string) (interface{}, error) {
+	v, rest, err := o.node.Resolve([]string{key})
+	if err != nil {
+		return nil, fmt.Errorf("error getting key %q: %s", key, err)
+	} else if len(rest) > 0 {
+		return nil, fmt.Errorf("error getting key %q: cannot resolve through link", key)
+	}
+	return v, nil
+}
+
 // MarshalJSON implements the json.Marshaler interface by encoding the
 // underlying CBOR node.
 func (o *Object) MarshalJSON() ([]byte, error) {
