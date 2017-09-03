@@ -21,7 +21,6 @@ package meta
 
 import (
 	"bytes"
-	"fmt"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-ipld-cbor"
@@ -29,21 +28,12 @@ import (
 	"github.com/whyrusleeping/cbor/go"
 )
 
-func Encode(properties Properties) (*Object, error) {
-	p := make(map[string]interface{}, len(properties))
-	for key, val := range properties {
-		switch val.(type) {
-		case string, []byte, *cid.Cid, map[string]string, map[string]*cid.Cid, []*cid.Cid, *Object:
-			p[key] = val
-		default:
-			return nil, fmt.Errorf("meta: unsupported property value: %T", val)
-		}
-	}
-
+// Encode returns the META object encoding of v.
+func Encode(v interface{}) (*Object, error) {
 	var buf bytes.Buffer
 	enc := cbor.NewEncoder(&buf)
 	enc.SetFilter(cbornode.EncoderFilter)
-	if err := enc.Encode(p); err != nil {
+	if err := enc.Encode(v); err != nil {
 		return nil, err
 	}
 	data := buf.Bytes()
@@ -61,10 +51,18 @@ func Encode(properties Properties) (*Object, error) {
 	return NewObject(cid, data)
 }
 
-func MustEncode(properties Properties) *Object {
-	obj, err := Encode(properties)
+// MustEncode is like Encode but panics if v cannot be encoded.
+func MustEncode(v interface{}) *Object {
+	obj, err := Encode(v)
 	if err != nil {
 		panic(err)
 	}
 	return obj
+}
+
+// Decode decodes the META object into the value pointed to by v.
+func (o *Object) Decode(v interface{}) error {
+	dec := cbor.NewDecoder(bytes.NewReader(o.RawData()))
+	dec.TagDecoders[cbornode.CBORTagLink] = &cbornode.IpldLinkDecoder{}
+	return dec.Decode(v)
 }

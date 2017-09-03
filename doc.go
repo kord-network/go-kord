@@ -29,7 +29,7 @@ byte representation which is the IPLD Canonical CBOR format
 
 To encode a set of properties:
 
-	obj, err := Encode(Properties{
+	obj, err := Encode(map[string]string{
 		"key1": "val1",
 		"key2": "val2",
 		"key3": "val3",
@@ -40,11 +40,11 @@ representation with `obj.RawData()`.
 
 Objects can be linked by assigning an object's CID as the value of a property:
 
-	jane := MustEncode(Properties{"name": "Jane"})
-	john := MustEncode(Properties{"name": "John"})
-	jack := MustEncode(Properties{"name": "Jack"})
+	jane := MustEncode(map[string]string{"name": "Jane"})
+	john := MustEncode(map[string]string{"name": "John"})
+	jack := MustEncode(map[string]string{"name": "Jack"})
 
-	me := MustEncode(Properties{
+	me := MustEncode(map[string]string{
 		"sister": jane.Cid(),
 		"children": []*cid.Cid{
 			john.Cid(),

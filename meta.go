@@ -29,10 +29,6 @@ import (
 	"github.com/ipfs/go-ipld-format"
 )
 
-// Properties represent the key-value pairs which make up a META objects
-// properties.
-type Properties map[string]interface{}
-
 // Object is a META object which uses IPLD DAG CBOR as the byte representation,
 // and IPLD CID as the object identifier.
 type Object struct {
