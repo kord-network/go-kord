@@ -22,22 +22,26 @@ package meta
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/ipfs/go-cid"
 )
 
 func TestObjectJSON(t *testing.T) {
-	children := []*cid.Cid{
-		MustEncode(Properties{"name": "child0"}).Cid(),
-		MustEncode(Properties{"name": "child1"}).Cid(),
+	type Person struct {
+		Name     string     `json:"name"`
+		Children []*cid.Cid `json:"children,omitempty"`
 	}
-	parent := MustEncode(Properties{
-		"name":     "parent",
-		"children": children,
+	obj := MustEncode(&Person{
+		Name: "parent",
+		Children: []*cid.Cid{
+			MustEncode(&Person{Name: "child0"}).Cid(),
+			MustEncode(&Person{Name: "child1"}).Cid(),
+		},
 	})
 
-	data, err := json.MarshalIndent(parent, "", "  ")
+	data, err := json.MarshalIndent(obj, "", "  ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,15 +50,47 @@ func TestObjectJSON(t *testing.T) {
 {
   "children": [
     {
-      "/": "zdpuAvQ9wYysgruG4D7iqv8Rvm6n3tLAtWkC6MJrGMdddyxuY"
+      "/": "zdpuB3PyNStxWJ9P7Qho6MYMPinMiKLfCERUdrVuRvdExT6nn"
     },
     {
-      "/": "zdpuAxdhwSiu1J3ZE5gxKrhpU9QxVcAqEJWrTySCg7K3GyPUC"
+      "/": "zdpuAxwfhw8WVtTSdumNdrVgWori8BuPHieBq1QkQi4FDtpWZ"
     }
   ],
   "name": "parent"
 }`[1:])
 	if !bytes.Equal(data, expected) {
-		t.Fatalf("unexpected JSON:\nexpected: %v\nactual:   %v", data, expected)
+		t.Fatalf("unexpected JSON:\nexpected: %s\nactual:   %s", data, expected)
+	}
+}
+
+func TestEncodeDecode(t *testing.T) {
+	type test struct {
+		Null   interface{}       `json:"null"`
+		Bool   bool              `json:"bool"`
+		Int    int64             `json:"int"`
+		Float  float64           `json:"float"`
+		String string            `json:"string"`
+		Array  []string          `json:"array"`
+		Map    map[string]string `json:"map"`
+	}
+	v := &test{
+		Null:   nil,
+		Bool:   true,
+		Int:    42,
+		Float:  42.24,
+		String: "42",
+		Array:  []string{"42", "42", "42"},
+		Map:    map[string]string{"foo": "42", "bar": "42"},
+	}
+	obj, err := Encode(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := &test{}
+	if err := obj.Decode(w); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(v, w) {
+		t.Fatalf("decoded object not equal:\nexpected %#v\nactual   %#v", v, w)
 	}
 }
