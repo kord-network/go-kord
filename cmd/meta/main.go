@@ -20,19 +20,26 @@
 package main
 
 import (
+	"bufio"
+	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/docopt/docopt-go"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore/fs"
+	_ "github.com/lib/pq"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/musicbrainz"
 	"github.com/meta-network/go-meta/xml"
 )
 
@@ -41,6 +48,8 @@ usage: meta import xml <file> [<context>...]
        meta import xsd <name> <uri> [<file>]
        meta dump [--format=<format>] <path>
        meta server [--port=<port>]
+       meta musicbrainz convert <postgres-uri>
+       meta musicbrainz index <sqlite3-uri>
 `[1:]
 
 type Main struct {
@@ -75,6 +84,8 @@ func (m *Main) Run(args Args) error {
 		return m.RunDump(args)
 	case args.Bool("server"):
 		return m.RunServer(args)
+	case args.Bool("musicbrainz"):
+		return m.RunMusicBrainz(args)
 	default:
 		return errors.New("unknown command")
 	}
@@ -185,6 +196,85 @@ func (m *Main) RunServer(args Args) error {
 	addr := "0.0.0.0:" + port
 	log.Info("starting META HTTP server", "addr", addr)
 	return http.ListenAndServe(addr, srv)
+}
+
+func (m *Main) RunMusicBrainz(args Args) error {
+	switch {
+	case args.Bool("convert"):
+		return m.RunMusicBrainzConvert(args)
+	case args.Bool("index"):
+		return m.RunMusicBrainzIndex(args)
+	default:
+		return errors.New("unknown musicbrainz command")
+	}
+}
+
+func (m *Main) RunMusicBrainzConvert(args Args) error {
+	db, err := sql.Open("postgres", args.String("<postgres-uri>"))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	// stream the CIDs to stdout
+	stream := make(chan *cid.Cid)
+	go func() {
+		for cid := range stream {
+			fmt.Fprintln(os.Stdout, cid.String())
+		}
+	}()
+
+	// shutdown gracefully on SIGINT or SIGTERM
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+		<-ch
+		log.Info("received signal, exiting...")
+	}()
+
+	return musicbrainz.NewConverter(db, m.store).ConvertArtists(ctx, stream)
+}
+
+func (m *Main) RunMusicBrainzIndex(args Args) error {
+	db, err := sql.Open("sqlite3", args.String("<sqlite3-uri>"))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	indexer, err := musicbrainz.NewIndexer(db, m.store)
+	if err != nil {
+		return err
+	}
+
+	// stream the CIDs from stdin
+	stream := make(chan *cid.Cid)
+	go func() {
+		defer close(stream)
+		s := bufio.NewScanner(os.Stdin)
+		for s.Scan() {
+			cid, err := cid.Parse(s.Text())
+			if err != nil {
+				log.Error("error parsing cid", "value", s.Text(), "err", err)
+				return
+			}
+			stream <- cid
+		}
+	}()
+
+	// shutdown gracefully on SIGINT or SIGTERM
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+		<-ch
+		log.Info("received signal, exiting...")
+	}()
+
+	return indexer.IndexArtists(ctx, stream)
 }
 
 func openStore() (*meta.Store, error) {
