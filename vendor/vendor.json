@@ -88,6 +88,54 @@
 			"revisionTime": "2015-03-21T14:36:51Z"
 		},
 		{
+			"checksumSHA1": "A3ymiEhz0WaT+sfK1aJhlqhf41o=",
+			"path": "github.com/lib/pq",
+			"revision": "e42267488fe361b9dc034be7a6bffef5b195bceb",
+			"revisionTime": "2017-08-10T06:12:20Z"
+		},
+		{
+			"checksumSHA1": "Gk3jTNQ5uGDUE0WMJFWcYz9PMps=",
+			"path": "github.com/lib/pq/oid",
+			"revision": "e42267488fe361b9dc034be7a6bffef5b195bceb",
+			"revisionTime": "2017-08-10T06:12:20Z"
+		},
+		{
+			"checksumSHA1": "kdvsDmguft5CZiHCmjaaBwoVT08=",
+			"path": "github.com/mattes/migrate",
+			"revision": "804f9c2d4f403bdea957346b5c8ede7d66b4ba37",
+			"revisionTime": "2017-08-14T21:01:06Z"
+		},
+		{
+			"checksumSHA1": "6QePtWUFN9x9U/Y6OzcENUUudmM=",
+			"path": "github.com/mattes/migrate/database",
+			"revision": "804f9c2d4f403bdea957346b5c8ede7d66b4ba37",
+			"revisionTime": "2017-08-14T21:01:06Z"
+		},
+		{
+			"checksumSHA1": "wXPn7mDehT7MjrBgzi0M1sduuLA=",
+			"path": "github.com/mattes/migrate/database/sqlite3",
+			"revision": "804f9c2d4f403bdea957346b5c8ede7d66b4ba37",
+			"revisionTime": "2017-08-14T21:01:06Z"
+		},
+		{
+			"checksumSHA1": "kIHQkF+Nm0LBPppYbchll3njidY=",
+			"path": "github.com/mattes/migrate/source",
+			"revision": "804f9c2d4f403bdea957346b5c8ede7d66b4ba37",
+			"revisionTime": "2017-08-14T21:01:06Z"
+		},
+		{
+			"checksumSHA1": "dj6swuhWKwZX5rG84l4k6bIYCOE=",
+			"path": "github.com/mattes/migrate/source/stub",
+			"revision": "804f9c2d4f403bdea957346b5c8ede7d66b4ba37",
+			"revisionTime": "2017-08-14T21:01:06Z"
+		},
+		{
+			"checksumSHA1": "vJOfjdXbjymKpuay2nyRnGncJUw=",
+			"path": "github.com/mattn/go-sqlite3",
+			"revision": "05548ff55570cdb9ac72ff4a25a3b5e77a6fb7e5",
+			"revisionTime": "2017-09-01T08:40:05Z"
+		},
+		{
 			"checksumSHA1": "3roLjFgjcXrm7icRIIxhm9C7d+0=",
 			"path": "github.com/multiformats/go-multibase",
 			"revision": "af68ad2dd723b6b513b17b5271da9dcd5f5949b7",
@@ -140,6 +188,12 @@
 			"path": "golang.org/x/crypto/sha3",
 			"revision": "a48ac81e47fd6f9ed1258f3b60ae9e75f93cb7ed",
 			"revisionTime": "2017-07-06T12:31:36Z"
+		},
+		{
+			"checksumSHA1": "Y+HGqEkYM15ir+J93MEaHdyFy0c=",
+			"path": "golang.org/x/net/context",
+			"revision": "59a0b19b5533c7977ddeb86b017bf507ed407b12",
+			"revisionTime": "2017-06-03T08:13:02Z"
 		},
 		{
 			"checksumSHA1": "r4wx8cWrUya0KvxUY5O7xtpJqTs=",
