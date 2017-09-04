@@ -83,12 +83,81 @@ graph := NewGraph(store, root)
 v, err := graph.Get("some", "path", "through", "the", "graph")
 ```
 
+## XML
+
+The `xml` directory contains a Go package which can be used to convert XML
+documents and schemas into META object graphs.
+
+## CLI
+
+The `cmd/meta` directory contains a Go program which can be used as a command
+line tool to perform the following:
+
+* convert XML documents and schemas into META object graphs
+* traverse META object graphs and print the result as a JSON encoded string
+* start a HTTP server with an API to convert XML and retreive META objects
+
+For simplicity, the CLI currently stores META objects in a `.meta` directory
+which it creates in the working directory of the executing process (this will
+later be enhanced to support storing objects in decentralised file storage like
+[Swarm](http://swarm-gateways.net/bzz:/theswarm.eth/) or
+[IPFS](https://ipfs.io/)).
+
+### Build
+
+To build the CLI, run:
+
+```
+go build -o bin/meta ./cmd/meta
+```
+
+You can then run it by executing `bin/meta`.
+
+### Usage
+
+#### Import XML Schema
+
+Import an XML Schema (xsd) document into the META store:
+
+```
+$ meta import xsd ds \
+    http://www.w3.org/2000/09/xmldsig# \
+    <(curl -fSL https://www.w3.org/TR/2002/REC-xmldsig-core-20020212/xmldsig-core-schema.xsd)
+```
+
+which outputs a CID of the resulting root object:
+
+```
+INFO [07-25|19:21:26] object created                           cid=zdpuAz5xgov4sKBWFXvXz5h9kLAX2Tqnt2yBD6Ea79Wq3exfu
+```
+
+#### Import XML document
+
+Import an XML document using the CID of an object representing the XML Schema
+as the context:
+
+```
+TODO
+```
+
+#### Print a META object
+
+```
+$ meta dump zdpuAz5xgov4sKBWFXvXz5h9kLAX2Tqnt2yBD6Ea79Wq3exfu
+{"@context":{"CanonicalizationMethod":"ds:CanonicalizationMethod", ..., ,"ds":"http://www.w3.org/2000/09/xmldsig#"}}
+```
+
+```
+$ meta dump zdpuAz5xgov4sKBWFXvXz5h9kLAX2Tqnt2yBD6Ea79Wq3exfu/@context/X509SKI
+"ds:X509SKI"
+```
+
 ## Testing
 
 To run the tests, run:
 
 ```
-$ go test .
+$ go test ./...
 ```
 
 ## Vendoring

@@ -3,6 +3,25 @@
 	"ignore": "test",
 	"package": [
 		{
+			"checksumSHA1": "F+YOz/6ymsuIxUy511OAdxjyhRI=",
+			"path": "github.com/docopt/docopt-go",
+			"revision": "784ddc588536785e7299f7272f39101f7faccc3f",
+			"revisionTime": "2016-02-16T23:20:12Z"
+		},
+		{
+			"checksumSHA1": "jYu7qwMf5Hc47JdZFx9aZPg9x3A=",
+			"path": "github.com/ethereum/go-ethereum/log",
+			"revision": "e7408b5552002df7c3ba6a2351f14c533dfc5a36",
+			"revisionTime": "2017-09-04T09:53:25Z"
+		},
+		{
+			"checksumSHA1": "KZ3QD2QgUS4RcoKiA3mn5pSlJxQ=",
+			"origin": "github.com/ethereum/go-ethereum/vendor/github.com/go-stack/stack",
+			"path": "github.com/go-stack/stack",
+			"revision": "e7408b5552002df7c3ba6a2351f14c533dfc5a36",
+			"revisionTime": "2017-09-04T09:53:25Z"
+		},
+		{
 			"checksumSHA1": "om412kxiyz1q5TFRZR+fHoFfjPI=",
 			"path": "github.com/ipfs/go-block-format",
 			"revision": "4c74b02625472060ca3e0df06510adc379f7f67b",
@@ -17,6 +36,12 @@
 		{
 			"checksumSHA1": "dkvkmkGeu/T8dt9rcy3FsopXFmY=",
 			"path": "github.com/ipfs/go-datastore",
+			"revision": "e8521f97048a5b92f2dfd74b413928cb7d7cce1c",
+			"revisionTime": "2017-07-04T16:41:00Z"
+		},
+		{
+			"checksumSHA1": "lxB4Gqxv/lp3sgz/cmjYE7M2vGQ=",
+			"path": "github.com/ipfs/go-datastore/fs",
 			"revision": "e8521f97048a5b92f2dfd74b413928cb7d7cce1c",
 			"revisionTime": "2017-07-04T16:41:00Z"
 		},
@@ -55,6 +80,12 @@
 			"path": "github.com/jbenet/goprocess",
 			"revision": "b497e2f366b8624394fb2e89c10ab607bebdde0b",
 			"revisionTime": "2016-08-26T01:27:19Z"
+		},
+		{
+			"checksumSHA1": "YRu+5A6reP5Ov4hvPrz3AFb1XEk=",
+			"path": "github.com/julienschmidt/httprouter",
+			"revision": "999ba04938b528fb4fb859231ee929958b8db4a6",
+			"revisionTime": "2015-03-21T14:36:51Z"
 		},
 		{
 			"checksumSHA1": "3roLjFgjcXrm7icRIIxhm9C7d+0=",
