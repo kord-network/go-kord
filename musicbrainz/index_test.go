@@ -37,73 +37,16 @@ import (
 
 // TestIndexArtists tests indexing a stream of MusicBrainz artists.
 func TestIndexArtists(t *testing.T) {
-	// load the test artists
-	f, err := os.Open("testdata/artists.json")
+	x, err := newTestIndex()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
-	var artists []*Artist
-	dec := json.NewDecoder(f)
-	for {
-		var artist *Artist
-		err := dec.Decode(&artist)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			t.Fatal(err)
-		}
-		artists = append(artists, artist)
-	}
-
-	// store the artists in a test store
-	store := meta.NewStore(datastore.NewMapDatastore())
-	cids := make([]*cid.Cid, len(artists))
-	for i, artist := range artists {
-		obj, err := meta.Encode(artist)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := store.Put(obj); err != nil {
-			t.Fatal(err)
-		}
-		cids[i] = obj.Cid()
-	}
-
-	// create a stream
-	stream := make(chan *cid.Cid, len(artists))
-	go func() {
-		defer close(stream)
-		for _, cid := range cids {
-			stream <- cid
-		}
-	}()
-
-	// create a test SQLite3 db
-	tmp, err := ioutil.TempDir("", "musicbrainz-index-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmp)
-	db, err := sql.Open("sqlite3", filepath.Join(tmp, "index.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	// index the artists
-	indexer, err := NewIndexer(db, store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := indexer.IndexArtists(context.Background(), stream); err != nil {
-		t.Fatal(err)
-	}
+	defer x.cleanup()
 
 	// check all the artists were indexed
-	for _, artist := range artists {
+	for _, artist := range x.artists {
 		// check the name, type and mbid indexes
-		rows, err := db.Query(
+		rows, err := x.db.Query(
 			`SELECT object_id FROM artist WHERE name = ? AND type = ? AND mbid = ?`,
 			artist.Name, artist.Type, artist.MBID,
 		)
@@ -126,7 +69,7 @@ func TestIndexArtists(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			obj, err := store.Get(cid)
+			obj, err := x.store.Get(cid)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -157,7 +100,7 @@ func TestIndexArtists(t *testing.T) {
 		// check the IPI index
 		if len(artist.IPI) > 0 {
 			var ipis []string
-			rows, err = db.Query(
+			rows, err = x.db.Query(
 				`SELECT ipi FROM artist_ipi WHERE object_id = ?`,
 				objectID,
 			)
@@ -183,7 +126,7 @@ func TestIndexArtists(t *testing.T) {
 		// check the ISNI index
 		if len(artist.ISNI) > 0 {
 			var isnis []string
-			rows, err = db.Query(
+			rows, err = x.db.Query(
 				`SELECT isni FROM artist_isni WHERE object_id = ?`,
 				objectID,
 			)
@@ -206,4 +149,91 @@ func TestIndexArtists(t *testing.T) {
 			}
 		}
 	}
+}
+
+type testIndex struct {
+	db      *sql.DB
+	store   *meta.Store
+	artists []*Artist
+	tmpDir  string
+}
+
+func (t *testIndex) cleanup() {
+	if t.db != nil {
+		t.db.Close()
+	}
+	if t.tmpDir != "" {
+		os.RemoveAll(t.tmpDir)
+	}
+}
+
+func newTestIndex() (x *testIndex, err error) {
+	x = &testIndex{}
+	defer func() {
+		if err != nil {
+			x.cleanup()
+		}
+	}()
+
+	// load the test artists
+	f, err := os.Open("testdata/artists.json")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	for {
+		var artist *Artist
+		err := dec.Decode(&artist)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		x.artists = append(x.artists, artist)
+	}
+
+	// store the artists in a test store
+	x.store = meta.NewStore(datastore.NewMapDatastore())
+	cids := make([]*cid.Cid, len(x.artists))
+	for i, artist := range x.artists {
+		obj, err := meta.Encode(artist)
+		if err != nil {
+			return nil, err
+		}
+		if err := x.store.Put(obj); err != nil {
+			return nil, err
+		}
+		cids[i] = obj.Cid()
+	}
+
+	// create a stream
+	stream := make(chan *cid.Cid, len(x.artists))
+	go func() {
+		defer close(stream)
+		for _, cid := range cids {
+			stream <- cid
+		}
+	}()
+
+	// create a test SQLite3 db
+	x.tmpDir, err = ioutil.TempDir("", "musicbrainz-index-test")
+	if err != nil {
+		return nil, err
+	}
+	x.db, err = sql.Open("sqlite3", filepath.Join(x.tmpDir, "index.db"))
+	if err != nil {
+		return nil, err
+	}
+
+	// index the artists
+	indexer, err := NewIndexer(x.db, x.store)
+	if err != nil {
+		return nil, err
+	}
+	if err := indexer.IndexArtists(context.Background(), stream); err != nil {
+		return nil, err
+	}
+	return x, nil
+
 }

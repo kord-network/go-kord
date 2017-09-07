@@ -47,7 +47,7 @@ var usage = `
 usage: meta import xml <file> [<context>...]
        meta import xsd <name> <uri> [<file>]
        meta dump [--format=<format>] <path>
-       meta server [--port=<port>]
+       meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>]
        meta musicbrainz convert <postgres-uri>
        meta musicbrainz index <sqlite3-uri>
 `[1:]
@@ -68,7 +68,7 @@ func main() {
 		log.Crit("error opening meta store", "err", err)
 	}
 
-	args, _ := docopt.Parse(usage, os.Args[1:], true, "0.0.1", true)
+	args, _ := docopt.Parse(usage, os.Args[1:], true, "0.0.1", false)
 
 	m := NewMain(store)
 	if err := m.Run(args); err != nil {
@@ -188,7 +188,19 @@ func (m *Main) RunDump(args Args) error {
 }
 
 func (m *Main) RunServer(args Args) error {
-	srv := NewServer(m.store)
+	var musicbrainzDB *sql.DB
+	if uri := args.String("--musicbrainz-index"); uri != "" {
+		db, err := sql.Open("sqlite3", uri)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		musicbrainzDB = db
+	}
+	srv, err := NewServer(m.store, musicbrainzDB)
+	if err != nil {
+		return err
+	}
 	port := args.String("--port")
 	if port == "" {
 		port = "5000"
