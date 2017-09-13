@@ -106,11 +106,11 @@ func (g *Resolver) Artist(args artistArgs) ([]*artistResolver, error) {
 		if err := rows.Scan(&objectID); err != nil {
 			return nil, err
 		}
-		cid, err := cid.Parse(objectID)
+		id, err := cid.Parse(objectID)
 		if err != nil {
 			return nil, err
 		}
-		obj, err := g.store.Get(cid)
+		obj, err := g.store.Get(id)
 		if err != nil {
 			return nil, err
 		}
