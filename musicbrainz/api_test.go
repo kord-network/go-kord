@@ -49,8 +49,9 @@ func TestArtistAPI(t *testing.T) {
 	defer s.Close()
 
 	// define a function to execute and assert an artist GraphQL query
-	assertQuery := func(artist *Artist, query string, args ...interface{}) {
-		data, _ := json.Marshal(map[string]string{"query": fmt.Sprintf(query, args...)})
+	assertQuery := func(expected []*Artist, query string, args ...interface{}) {
+		query = fmt.Sprintf(query, args...)
+		data, _ := json.Marshal(map[string]string{"query": query})
 		req, err := http.NewRequest("POST", s.URL+"/graphql", bytes.NewReader(data))
 		if err != nil {
 			t.Fatal(err)
@@ -77,26 +78,37 @@ func TestArtistAPI(t *testing.T) {
 		if err := json.Unmarshal(r.Data, &a); err != nil {
 			t.Fatal(err)
 		}
-		if len(a.Artists) != 1 {
-			t.Fatalf("expected 1 artist, got %d", len(a.Artists))
+		if len(a.Artists) != len(expected) {
+			t.Fatalf("expected query %q to return %d artists, got %d", query, len(expected), len(a.Artists))
 		}
-		if a.Artists[0].Name != artist.Name {
-			t.Fatalf("unexpected artist name: expected %q, got %q", artist.Name, a.Artists[0].Name)
+		for i, artist := range expected {
+			if a.Artists[i].Name != artist.Name {
+				t.Fatalf("unexpected artist name: expected %q, got %q", artist.Name, a.Artists[i].Name)
+			}
 		}
 	}
 
 	for _, artist := range x.artists {
 		// check getting the artist by name
-		assertQuery(artist, `{ artist(name:%q) { name } }`, artist.Name)
+		assertQuery([]*Artist{artist}, `{ artist(name:%q) { name } }`, artist.Name)
 
-		// check getting the artist by IPI
+		// check getting the artist by IPI returns just the artist,
+		// with the exception of IPI "00435760746" which should
+		// return two artists "Future" and "Lmars"
 		for _, ipi := range artist.IPI {
-			assertQuery(artist, `{ artist(ipi:%q) { name } }`, ipi)
+			expected := []*Artist{artist}
+			if ipi == "00435760746" {
+				expected = []*Artist{
+					{Name: "Future"},
+					{Name: "Lmars"},
+				}
+			}
+			assertQuery(expected, `{ artist(ipi:%q) { name } }`, ipi)
 		}
 
 		// check getting the artist by ISNI
 		for _, isni := range artist.ISNI {
-			assertQuery(artist, `{ artist(isni:%q) { name } }`, isni)
+			assertQuery([]*Artist{artist}, `{ artist(isni:%q) { name } }`, isni)
 		}
 	}
 }
