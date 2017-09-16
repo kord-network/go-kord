@@ -25,8 +25,8 @@ import (
 	"github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-ipld-cbor"
 	"github.com/ipfs/go-ipld-format"
+	"github.com/lmars/go-ipld-cbor"
 )
 
 // Object is a META object which uses IPLD DAG CBOR as the byte representation,

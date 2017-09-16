@@ -11,15 +11,15 @@
 		{
 			"checksumSHA1": "jYu7qwMf5Hc47JdZFx9aZPg9x3A=",
 			"path": "github.com/ethereum/go-ethereum/log",
-			"revision": "e7408b5552002df7c3ba6a2351f14c533dfc5a36",
-			"revisionTime": "2017-09-04T09:53:25Z"
+			"revision": "30810aace493dab715cc1c01127cb5a3c3a535cd",
+			"revisionTime": "2017-09-15T21:58:26Z"
 		},
 		{
 			"checksumSHA1": "KZ3QD2QgUS4RcoKiA3mn5pSlJxQ=",
 			"origin": "github.com/ethereum/go-ethereum/vendor/github.com/go-stack/stack",
 			"path": "github.com/go-stack/stack",
-			"revision": "e7408b5552002df7c3ba6a2351f14c533dfc5a36",
-			"revisionTime": "2017-09-04T09:53:25Z"
+			"revision": "30810aace493dab715cc1c01127cb5a3c3a535cd",
+			"revisionTime": "2017-09-15T21:58:26Z"
 		},
 		{
 			"checksumSHA1": "om412kxiyz1q5TFRZR+fHoFfjPI=",
@@ -58,12 +58,6 @@
 			"revisionTime": "2017-03-28T19:32:45Z"
 		},
 		{
-			"checksumSHA1": "ONbNLu6m93whCVZ7/JO4pnZvD5o=",
-			"path": "github.com/ipfs/go-ipld-cbor",
-			"revision": "c93825d4181270ae729ce15a532dbec442d3780c",
-			"revisionTime": "2017-07-05T13:42:35Z"
-		},
-		{
 			"checksumSHA1": "FeHcr4Feg3LRRhoMyAiSU7KBHnU=",
 			"path": "github.com/ipfs/go-ipld-format",
 			"revision": "aee5ee5391f261108a6d69e9b94ca244cb220b47",
@@ -98,6 +92,18 @@
 			"path": "github.com/lib/pq/oid",
 			"revision": "e42267488fe361b9dc034be7a6bffef5b195bceb",
 			"revisionTime": "2017-08-10T06:12:20Z"
+		},
+		{
+			"checksumSHA1": "Sspt+gus1QrkIVZgwCD5ulccTbQ=",
+			"path": "github.com/lmars/cbor/go",
+			"revision": "9ebf922d575edd4473ba990f4ca6837aa69e02ad",
+			"revisionTime": "2017-09-11T21:57:08Z"
+		},
+		{
+			"checksumSHA1": "aHudIIL9mTxcqsL0qff75ViUKBY=",
+			"path": "github.com/lmars/go-ipld-cbor",
+			"revision": "741c3f5e8a0d9b3a8512a1a2be0b763e9fd6cd2c",
+			"revisionTime": "2017-09-16T11:30:23Z"
 		},
 		{
 			"checksumSHA1": "kdvsDmguft5CZiHCmjaaBwoVT08=",
@@ -266,12 +272,6 @@
 			"path": "github.com/whyrusleeping/base32",
 			"revision": "040256406660c57e043d6cc8a9406d20c4fc7277",
 			"revisionTime": "2016-11-22T03:17:57Z"
-		},
-		{
-			"checksumSHA1": "f6pGAFMQ5psJWOvcorb+zHx5QIo=",
-			"path": "github.com/whyrusleeping/cbor/go",
-			"revision": "1f7eb02d86d710f364f892f37649f091865a2441",
-			"revisionTime": "2017-02-08T06:23:24Z"
 		},
 		{
 			"checksumSHA1": "pClJgcy1COeHxz/qRDFWnWgXTEI=",

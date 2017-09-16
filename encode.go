@@ -23,9 +23,9 @@ import (
 	"bytes"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-ipld-cbor"
+	"github.com/lmars/cbor/go"
+	"github.com/lmars/go-ipld-cbor"
 	"github.com/multiformats/go-multihash"
-	"github.com/whyrusleeping/cbor/go"
 )
 
 // Encode returns the META object encoding of v.

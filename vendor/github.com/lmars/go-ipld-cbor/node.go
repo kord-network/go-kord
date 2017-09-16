@@ -12,8 +12,8 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	cid "github.com/ipfs/go-cid"
 	node "github.com/ipfs/go-ipld-format"
+	cbor "github.com/lmars/cbor/go"
 	mh "github.com/multiformats/go-multihash"
-	cbor "github.com/whyrusleeping/cbor/go"
 )
 
 const CBORTagLink = 42
