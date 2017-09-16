@@ -59,7 +59,7 @@ func TestObjectJSON(t *testing.T) {
   "name": "parent"
 }`[1:])
 	if !bytes.Equal(data, expected) {
-		t.Fatalf("unexpected JSON:\nexpected: %s\nactual:   %s", data, expected)
+		t.Fatalf("unexpected JSON:\nexpected: %s\nactual:   %s", expected, data)
 	}
 }
 
