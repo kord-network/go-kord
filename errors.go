@@ -34,6 +34,11 @@ func (e ErrPathNotFound) Error() string {
 	return fmt.Sprintf("meta: path not found: %s", strings.Join(e.Path, "/"))
 }
 
+func IsPathNotFound(err error) bool {
+	_, ok := err.(ErrPathNotFound)
+	return ok
+}
+
 type ErrInvalidCidVersion struct {
 	Version uint64
 }
