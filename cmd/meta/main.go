@@ -30,7 +30,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -49,12 +48,11 @@ var usage = `
 usage: meta import xml <file> [<context>...]
        meta import xsd <name> <uri> [<file>]
        meta dump [--format=<format>] <path>
-       meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>]
-       meta server [--port=<port>] [--cwr-index=<sqlite3-uri>]
+       meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>] [--cwr-index=<sqlite3-uri>]
        meta musicbrainz convert <postgres-uri>
        meta musicbrainz index <sqlite3-uri>
-       meta cwr convert <file>
-			 meta cwr index <sqlite3-uri>
+       meta cwr convert <file> <cwr-python-dir>
+       meta cwr index <sqlite3-uri>
 `[1:]
 
 type Main struct {
@@ -195,23 +193,25 @@ func (m *Main) RunDump(args Args) error {
 }
 
 func (m *Main) RunServer(args Args) error {
-	var DB *sql.DB
+	var musicbrainzDB *sql.DB = nil
+	var cwrDB *sql.DB = nil
 	if uri := args.String("--musicbrainz-index"); uri != "" {
 		db, err := sql.Open("sqlite3", uri)
 		if err != nil {
 			return err
 		}
 		defer db.Close()
-		DB = db
-	} else if uri := args.String("--cwr-index"); uri != "" {
+		musicbrainzDB = db
+	}
+	if uri := args.String("--cwr-index"); uri != "" {
 		db, err := sql.Open("sqlite3", uri)
 		if err != nil {
 			return err
 		}
 		defer db.Close()
-		DB = db
+		cwrDB = db
 	}
-	srv, err := NewServer(m.store, DB)
+	srv, err := NewServer(m.store, musicbrainzDB, cwrDB)
 	if err != nil {
 		return err
 	}
@@ -244,12 +244,6 @@ func (m *Main) RunMusicBrainzConvert(args Args) error {
 
 	// stream the CIDs to stdout
 	stream := make(chan *cid.Cid)
-	go func() {
-		for cid := range stream {
-			fmt.Fprintln(os.Stdout, cid.String())
-		}
-	}()
-
 	// shutdown gracefully on SIGINT or SIGTERM
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -259,8 +253,14 @@ func (m *Main) RunMusicBrainzConvert(args Args) error {
 		<-ch
 		log.Info("received signal, exiting...")
 	}()
-
-	return musicbrainz.NewConverter(db, m.store).ConvertArtists(ctx, stream)
+	go func() {
+		err = musicbrainz.NewConverter(db, m.store).ConvertArtists(ctx, stream)
+		close(stream)
+	}()
+	for cid := range stream {
+		fmt.Fprintln(os.Stdout, cid.String())
+	}
+	return err
 }
 
 func (m *Main) RunMusicBrainzIndex(args Args) error {
@@ -315,14 +315,8 @@ func (m *Main) RunCwr(args Args) error {
 }
 
 func (m *Main) RunCwrConvert(args Args) error {
-
 	// stream the CIDs to stdout
 	stream := make(chan *cid.Cid)
-	go func() {
-		for cid := range stream {
-			fmt.Fprintln(os.Stdout, cid.String())
-		}
-	}()
 	// shutdown gracefully on SIGINT or SIGTERM
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -332,15 +326,19 @@ func (m *Main) RunCwrConvert(args Args) error {
 		<-ch
 		log.Info("received signal, exiting...")
 	}()
-	cwrFilePath, err := filepath.Abs(args.String("<file>"))
+	cwrFileReader, err := os.Open(args.String("<file>"))
 	if err != nil {
 		return err
 	}
-	cwrFileReader, err := os.Open(cwrFilePath)
-	if err != nil {
-		return err
+	defer cwrFileReader.Close()
+	go func() {
+		err = cwr.NewConverter(m.store).ConvertRegisteredWork(ctx, stream, cwrFileReader, args.String("<cwr-python-dir>"))
+		close(stream)
+	}()
+	for cid := range stream {
+		fmt.Fprintln(os.Stdout, cid.String())
 	}
-	return cwr.NewConverter(m.store).ConvertRegisteredWork(ctx, stream, cwrFileReader)
+	return err
 }
 
 func (m *Main) RunCwrIndex(args Args) error {

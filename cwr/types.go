@@ -47,3 +47,13 @@ type RegisteredWork struct {
 	CatalogueNumber         string `json:"catalogueNumber,omitempty"`
 	PriorityFlag            string `json:"priorityFlag,omitempty"`
 }
+
+type Cwr struct {
+	Transmission struct {
+		Groups []struct {
+			Transactions [][]struct {
+				RegisteredWork
+			} `json:"transactions"`
+		} `json:"groups"`
+	} `json:"transmission"`
+}

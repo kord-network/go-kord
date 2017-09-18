@@ -55,15 +55,11 @@ func newTestIndex() (x *testIndex, err error) {
 			x.cleanup()
 		}
 	}()
-	cwrFilePath, err := filepath.Abs("testdata/testfile.cwr")
+	cwrFileReader, err := os.Open("testdata/testfile.cwr")
 	if err != nil {
 		return nil, err
 	}
-	cwrFileReader, err := os.Open(cwrFilePath)
-	if err != nil {
-		return nil, err
-	}
-	x.registeredWorks, err = ParseCWRFile(cwrFileReader)
+	x.registeredWorks, err = ParseCWRFile(cwrFileReader, "CWR-DataApi")
 	if err != nil {
 		return nil, err
 	}

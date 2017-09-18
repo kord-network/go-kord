@@ -11,13 +11,19 @@ certain keys.
 
 The `Converter` type is used to read a CWR file , convert to META objects and append to a META stream.
 It is done in 2 phases:
+
 Phase 1 -
+
   Convert CWR format files to standard JSON files (CWR-JSON).
-  This is done using [CWR-DataApi python project](http://cwr-dataapi.readthedocs.io/en/latest/)
-  There is an [updated fixed forked version](https://github.com/orenyodfat/CWR-DataApi) as a git submodule in this project.
-  (there is an open pull request against CWR-DataApi original repo .We should switch back when it is merged) 
-  See [readme](https://github.com/orenyodfat/CWR-DataApi/blob/develop/README.rst) for python prerequisites & installing .
+  This is done using [CWR-DataApi python project](http://cwr-dataapi.readthedocs.io/en/latest/).
+
+  There is an [updated fixed forked version](https://github.com/orenyodfat/CWR-DataApi) as a git submodule in this project
+  (there is an open pull request against CWR-DataApi original repo).
+
+  See [readme](https://github.com/orenyodfat/CWR-DataApi/blob/develop/README.rst) for python prerequisites & installing.
+
 Phase 2 -
+
   Extract and convert CWR transactions from CWR-JSON to META objects.
 
 The `Indexer` type reads META objects from a stream and indexes them in
@@ -33,8 +39,11 @@ API queries.
 To run the conversion on a local `cwr` file:
 
 ```
-$ meta cwr convert <cwrfile> > registeredwork.meta
+$ meta cwr convert <cwrfile> <cwr-python-dir> > registeredwork.meta
 ```
+cwrfile        - the input cwrfile to convert
+
+cwr-python-dir - python CWR-DataApi directory
 
 ### Indexing
 

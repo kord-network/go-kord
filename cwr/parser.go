@@ -25,74 +25,41 @@ import (
 	"errors"
 	"io"
 	"os/exec"
-	"path/filepath"
-	"runtime"
-	"strings"
 )
 
 // ParseCWRFile parse a give cwr file and returns an array of registeredWorks
-func ParseCWRFile(cwrFileReader io.Reader) (registeredWorks []*RegisteredWork, err error) {
+func ParseCWRFile(cwrFileReader io.Reader, CWRDataApiPath string) (registeredWorks []*RegisteredWork, err error) {
 	//phase 1 : Transform cwr formatted file to cwr-json file using CWR-DataApi python script.
-	//get the absolute path the cwrfile.
-	_, b, _, ok := runtime.Caller(0)
-	if !ok {
-		return nil, errors.New("error getting base path")
-	}
-	basePath := filepath.Dir(b)
-	cwr2jsonpy := basePath + "/CWR-DataApi/cwr2json.py"
+	cmd := exec.Command("python3", CWRDataApiPath+"/cwr2json.py")
+	cmd.Stdin = cwrFileReader
 
-	cmd := exec.Command("python3", cwr2jsonpy)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
-	var outbuf, errbuf bytes.Buffer
-	cmd.Stdout = &outbuf
-	cmd.Stderr = &errbuf
+	var pythonStdout, pythonErrbuf bytes.Buffer
+	cmd.Stdout = &pythonStdout
+	cmd.Stderr = &pythonErrbuf
 
 	err = cmd.Start()
 	if err != nil {
-		return nil, err
+		return nil, errors.New(pythonErrbuf.String())
 	}
-
-	go func() {
-		defer stdin.Close()
-		buf := new(bytes.Buffer)
-		// file, _ := os.Open(cwrFilePath)
-		buf.ReadFrom(cwrFileReader)
-		for {
-			line, err := buf.ReadString('\n')
-			if err != nil {
-				break
-			}
-			line = line + "\n"
-			io.WriteString(stdin, line)
-		}
-	}()
 	err = cmd.Wait()
 	if err != nil {
+		return nil, errors.New(pythonErrbuf.String())
+	}
+	var cwr *Cwr
+	if err := json.NewDecoder(bytes.NewReader(pythonStdout.Bytes())).Decode(&cwr); err != nil {
 		return nil, err
 	}
-	var data map[string]interface{}
-	if err := json.Unmarshal(outbuf.Bytes(), &data); err != nil {
-		return nil, err
-	}
-	for _, group := range data["transmission"].(map[string]interface{})["groups"].([]interface{}) {
-		for _, tx := range group.(map[string]interface{})["transactions"].([]interface{}) {
+	for _, group := range cwr.Transmission.Groups {
+		for _, tx := range group.Transactions {
 			var registeredWork *RegisteredWork
-
-			for _, record := range tx.([]interface{}) {
-
-				if record.(map[string]interface{})["record_type"] == "REV" ||
-					record.(map[string]interface{})["record_type"] == "NWR" {
-
+			for _, record := range tx {
+				if record.RecordType == "REV" ||
+					record.RecordType == "NWR" {
 					registeredWorkBytes, err := json.Marshal(record)
 					if err != nil {
 						return nil, err
 					}
-					dec := json.NewDecoder(strings.NewReader(string(registeredWorkBytes)))
-					err = dec.Decode(&registeredWork)
-					if err != nil {
+					if err := json.NewDecoder(bytes.NewReader(registeredWorkBytes)).Decode(&registeredWork); err != nil {
 						return nil, err
 					}
 					registeredWorks = append(registeredWorks, registeredWork)

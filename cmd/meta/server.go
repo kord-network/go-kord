@@ -39,22 +39,24 @@ type Server struct {
 	store  *meta.Store
 }
 
-func NewServer(store *meta.Store, DB *sql.DB) (*Server, error) {
+func NewServer(store *meta.Store, musicbrainzDB *sql.DB, cwrDB *sql.DB) (*Server, error) {
 	srv := &Server{
 		router: httprouter.New(),
 		store:  store,
 	}
 	srv.router.GET("/object/:cid", srv.HandleGetObject)
 	srv.router.POST("/import/xml", srv.HandleImportXML)
-	if DB != nil {
-		musicbrainzApi, err := musicbrainz.NewAPI(DB, store)
+	if musicbrainzDB != nil {
+		musicbrainzApi, err := musicbrainz.NewAPI(musicbrainzDB, store)
 		if err != nil {
 			return nil, err
 		}
 		srv.router.Handler("GET", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
 		srv.router.Handler("POST", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
+	}
 
-		cwrApi, err := cwr.NewAPI(DB, store)
+	if cwrDB != nil {
+		cwrApi, err := cwr.NewAPI(cwrDB, store)
 		if err != nil {
 			return nil, err
 		}
