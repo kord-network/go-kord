@@ -14,7 +14,8 @@ It is done in 2 phases:
 Phase 1 -
   Convert CWR format files to standard JSON files (CWR-JSON).
   This is done using [CWR-DataApi python project](http://cwr-dataapi.readthedocs.io/en/latest/)
-  There is an [updated fixed forked version](https://github.com/orenyodfat/CWR-DataApi) as a git submodule in this project.  
+  There is an [updated fixed forked version](https://github.com/orenyodfat/CWR-DataApi) as a git submodule in this project.
+  (there is an open pull request against CWR-DataApi original repo .We should switch back when it is merged) 
   See [readme](https://github.com/orenyodfat/CWR-DataApi/blob/develop/README.rst) for python prerequisites & installing .
 Phase 2 -
   Extract and convert CWR transactions from CWR-JSON to META objects.
