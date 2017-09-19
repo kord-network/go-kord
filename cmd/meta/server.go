@@ -29,6 +29,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/julienschmidt/httprouter"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/cwr"
 	"github.com/meta-network/go-meta/musicbrainz"
 	"github.com/meta-network/go-meta/xml"
 )
@@ -38,7 +39,7 @@ type Server struct {
 	store  *meta.Store
 }
 
-func NewServer(store *meta.Store, musicbrainzDB *sql.DB) (*Server, error) {
+func NewServer(store *meta.Store, musicbrainzDB *sql.DB, cwrDB *sql.DB) (*Server, error) {
 	srv := &Server{
 		router: httprouter.New(),
 		store:  store,
@@ -46,12 +47,21 @@ func NewServer(store *meta.Store, musicbrainzDB *sql.DB) (*Server, error) {
 	srv.router.GET("/object/:cid", srv.HandleGetObject)
 	srv.router.POST("/import/xml", srv.HandleImportXML)
 	if musicbrainzDB != nil {
-		api, err := musicbrainz.NewAPI(musicbrainzDB, store)
+		musicbrainzApi, err := musicbrainz.NewAPI(musicbrainzDB, store)
 		if err != nil {
 			return nil, err
 		}
-		srv.router.Handler("GET", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", api))
-		srv.router.Handler("POST", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", api))
+		srv.router.Handler("GET", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
+		srv.router.Handler("POST", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
+	}
+
+	if cwrDB != nil {
+		cwrApi, err := cwr.NewAPI(cwrDB, store)
+		if err != nil {
+			return nil, err
+		}
+		srv.router.Handler("GET", "/cwr/*path", http.StripPrefix("/cwr", cwrApi))
+		srv.router.Handler("POST", "/cwr/*path", http.StripPrefix("/cwr", cwrApi))
 	}
 	return srv, nil
 }

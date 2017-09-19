@@ -1,0 +1,4 @@
+[submodule "cwr/CWR-DataApi"]
+	path = cwr/CWR-DataApi
+	url = https://github.com/orenyodfat/CWR-DataApi
+	branch = develop

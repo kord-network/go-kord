@@ -39,6 +39,7 @@ import (
 	"github.com/ipfs/go-datastore/fs"
 	_ "github.com/lib/pq"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/cwr"
 	"github.com/meta-network/go-meta/musicbrainz"
 	"github.com/meta-network/go-meta/xml"
 )
@@ -47,9 +48,11 @@ var usage = `
 usage: meta import xml <file> [<context>...]
        meta import xsd <name> <uri> [<file>]
        meta dump [--format=<format>] <path>
-       meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>]
+       meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>] [--cwr-index=<sqlite3-uri>]
        meta musicbrainz convert <postgres-uri>
        meta musicbrainz index <sqlite3-uri>
+       meta cwr convert <file> <cwr-python-dir>
+       meta cwr index <sqlite3-uri>
 `[1:]
 
 type Main struct {
@@ -86,6 +89,8 @@ func (m *Main) Run(args Args) error {
 		return m.RunServer(args)
 	case args.Bool("musicbrainz"):
 		return m.RunMusicBrainz(args)
+	case args.Bool("cwr"):
+		return m.RunCwr(args)
 	default:
 		return errors.New("unknown command")
 	}
@@ -188,7 +193,8 @@ func (m *Main) RunDump(args Args) error {
 }
 
 func (m *Main) RunServer(args Args) error {
-	var musicbrainzDB *sql.DB
+	var musicbrainzDB *sql.DB = nil
+	var cwrDB *sql.DB = nil
 	if uri := args.String("--musicbrainz-index"); uri != "" {
 		db, err := sql.Open("sqlite3", uri)
 		if err != nil {
@@ -197,7 +203,15 @@ func (m *Main) RunServer(args Args) error {
 		defer db.Close()
 		musicbrainzDB = db
 	}
-	srv, err := NewServer(m.store, musicbrainzDB)
+	if uri := args.String("--cwr-index"); uri != "" {
+		db, err := sql.Open("sqlite3", uri)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		cwrDB = db
+	}
+	srv, err := NewServer(m.store, musicbrainzDB, cwrDB)
 	if err != nil {
 		return err
 	}
@@ -230,12 +244,6 @@ func (m *Main) RunMusicBrainzConvert(args Args) error {
 
 	// stream the CIDs to stdout
 	stream := make(chan *cid.Cid)
-	go func() {
-		for cid := range stream {
-			fmt.Fprintln(os.Stdout, cid.String())
-		}
-	}()
-
 	// shutdown gracefully on SIGINT or SIGTERM
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -245,8 +253,14 @@ func (m *Main) RunMusicBrainzConvert(args Args) error {
 		<-ch
 		log.Info("received signal, exiting...")
 	}()
-
-	return musicbrainz.NewConverter(db, m.store).ConvertArtists(ctx, stream)
+	go func() {
+		err = musicbrainz.NewConverter(db, m.store).ConvertArtists(ctx, stream)
+		close(stream)
+	}()
+	for cid := range stream {
+		fmt.Fprintln(os.Stdout, cid.String())
+	}
+	return err
 }
 
 func (m *Main) RunMusicBrainzIndex(args Args) error {
@@ -287,6 +301,85 @@ func (m *Main) RunMusicBrainzIndex(args Args) error {
 	}()
 
 	return indexer.IndexArtists(ctx, stream)
+}
+
+func (m *Main) RunCwr(args Args) error {
+	switch {
+	case args.Bool("convert"):
+		return m.RunCwrConvert(args)
+	case args.Bool("index"):
+		return m.RunCwrIndex(args)
+	default:
+		return errors.New("unknown cwr command")
+	}
+}
+
+func (m *Main) RunCwrConvert(args Args) error {
+	// stream the CIDs to stdout
+	stream := make(chan *cid.Cid)
+	// shutdown gracefully on SIGINT or SIGTERM
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+		<-ch
+		log.Info("received signal, exiting...")
+	}()
+	cwrFileReader, err := os.Open(args.String("<file>"))
+	if err != nil {
+		return err
+	}
+	defer cwrFileReader.Close()
+	go func() {
+		err = cwr.NewConverter(m.store).ConvertRegisteredWork(ctx, stream, cwrFileReader, args.String("<cwr-python-dir>"))
+		close(stream)
+	}()
+	for cid := range stream {
+		fmt.Fprintln(os.Stdout, cid.String())
+	}
+	return err
+}
+
+func (m *Main) RunCwrIndex(args Args) error {
+
+	db, err := sql.Open("sqlite3", args.String("<sqlite3-uri>"))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	indexer, err := cwr.NewIndexer(db, m.store)
+	if err != nil {
+		return err
+	}
+
+	// stream the CIDs from stdin
+	stream := make(chan *cid.Cid)
+	go func() {
+		defer close(stream)
+		s := bufio.NewScanner(os.Stdin)
+		for s.Scan() {
+			cid, err := cid.Parse(s.Text())
+			if err != nil {
+				log.Error("error parsing cid", "value", s.Text(), "err", err)
+				return
+			}
+			stream <- cid
+		}
+	}()
+
+	// shutdown gracefully on SIGINT or SIGTERM
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+		<-ch
+		log.Info("received signal, exiting...")
+	}()
+
+	return indexer.IndexRegisteredWorks(ctx, stream)
 }
 
 func openStore() (*meta.Store, error) {
