@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+	(c) Digital Data Exchange, LLC (DDEX)
+	This file forms part of the DDEX Standard defining Release Profiles for Common Release Types (Version 1.4)	
+-->
+<ern:NewReleaseMessage xmlns:ern="http://ddex.net/xml/ern/382"
+	xmlns:xs="http://www.w3.org/2001/XMLSchema-instance"
+	xs:schemaLocation="http://ddex.net/xml/ern/382 file:../XSD/release-notification.xsd"
+	MessageSchemaVersionId="ern/382"
+	ReleaseProfileVersionId="CommonReleaseTypes/13/AudioBook" LanguageAndScriptCode="en">
+	
+	<MessageHeader>
+		<MessageThreadId>THREAD01</MessageThreadId>
+		<MessageId>MESSAGE03</MessageId>
+		<MessageSender>
+			<PartyId>DPID_OF_THE_SENDER</PartyId>
+		</MessageSender>
+		<MessageRecipient>
+			<PartyId>DPID_OF_THE_RECIPIENT</PartyId>
+		</MessageRecipient>
+		<MessageCreatedDateTime>2012-12-11T15:50:00+00:00</MessageCreatedDateTime>
+	</MessageHeader>
+	
+	<UpdateIndicator>OriginalMessage</UpdateIndicator>
+	
+	<!-- The IsBackfill flag is optional and should only be used for indicating that an XML file is part of
+		a special backfill of a (typically large) catalogue -->
+	<IsBackfill>true</IsBackfill>
+	
+	<ResourceList>
+		<SoundRecording>
+			<SoundRecordingType>MusicalWorkSoundRecording</SoundRecordingType>
+			<SoundRecordingId>
+				<ISRC>CASE00000001</ISRC>
+			</SoundRecordingId>
+			<IndirectSoundRecordingId>
+				<ISWC>T1234567890</ISWC>
+			</IndirectSoundRecordingId>			<ResourceReference>A1</ResourceReference>
+			<ReferenceTitle>
+				<TitleText>Can you feel ...the Monkey Claw!</TitleText>
+			</ReferenceTitle>
+			<Duration>PT13M31S</Duration>
+			<SoundRecordingDetailsByTerritory>
+				<ExcludedTerritoryCode>MX</ExcludedTerritoryCode>
+				<Title TitleType="FormalTitle">
+					<TitleText>Can you feel ...the Monkey Claw!</TitleText>
+				</Title>
+				<Title TitleType="DisplayTitle">
+					<TitleText>Can you feel ...the Monkey Claw!</TitleText>
+				</Title>
+				<DisplayArtist SequenceNumber="1">
+					<PartyName>
+						<FullName>Monkey Claw</FullName>
+					</PartyName>
+					<ArtistRole>MainArtist</ArtistRole>
+				</DisplayArtist>
+				<ResourceContributor SequenceNumber="1">
+					<PartyName>
+						<FullName>Steve Albino</FullName>
+					</PartyName>
+					<ResourceContributorRole>Producer</ResourceContributorRole>
+				</ResourceContributor>
+				<IndirectResourceContributor SequenceNumber="1">
+					<PartyName>
+						<FullName>Bob Black</FullName>
+					</PartyName>
+					<IndirectResourceContributorRole>Composer</IndirectResourceContributorRole>
+				</IndirectResourceContributor>
+
+				<!-- No DisplayArtistName is shown shere as the DisplayArtistName is the same as for the Release -->					
+				
+				<ResourceReleaseDate>2011</ResourceReleaseDate>
+				<PLine>
+					<Year>2010</Year>
+					<PLineText>(P) 2010 Iron Crown Music</PLineText>
+				</PLine>
+				<Genre>
+					<GenreText>Metal</GenreText>
+					<SubGenre>Progressive Metal</SubGenre>
+				</Genre>
+				<ParentalWarningType>NotExplicit</ParentalWarningType>
+				<!-- TechnicalSoundRecordingDetails are only to be provided when relevant Resource Files are communicated -->
+				<TechnicalSoundRecordingDetails>
+					<TechnicalResourceDetailsReference>T1</TechnicalResourceDetailsReference>
+					<File>
+						<FileName>A1UCASE0000000001X_01_01.wav</FileName>
+					</File>
+				</TechnicalSoundRecordingDetails>
+			</SoundRecordingDetailsByTerritory>
+		</SoundRecording>
+		<Image>
+			<ImageType>FrontCoverImage</ImageType>
+			<ImageId>
+				<ProprietaryId Namespace="DPID:PADPIDA0000000001A">PId0001</ProprietaryId>
+			</ImageId>
+			<ResourceReference>A2</ResourceReference>
+			<ImageDetailsByTerritory>
+				<TerritoryCode>Worldwide</TerritoryCode>
+				<ParentalWarningType>NotExplicit</ParentalWarningType>
+				<!-- TechnicalImageDetails are only to be provided when relevant Resource Files are communicated -->
+				<TechnicalImageDetails>
+					<TechnicalResourceDetailsReference>T2</TechnicalResourceDetailsReference>
+					<File>
+						<FileName>A1UCASE0000000001X.jpeg</FileName>
+					</File>
+				</TechnicalImageDetails>
+			</ImageDetailsByTerritory>
+		</Image>
+	</ResourceList>
+	<ReleaseList>
+		<Release IsMainRelease="true">
+			<ReleaseId>
+				<GRid>A1UCASE0000000001X</GRid>
+				<ISRC>CASE00000001</ISRC>
+			</ReleaseId>
+			<ReleaseReference>R0</ReleaseReference>
+			<ReferenceTitle>
+				<TitleText>The Tin Drum</TitleText>
+			</ReferenceTitle>
+			<ReleaseResourceReferenceList>
+				<ReleaseResourceReference ReleaseResourceType="PrimaryResource"
+					>A1</ReleaseResourceReference>
+				<ReleaseResourceReference ReleaseResourceType="SecondaryResource"
+					>A2</ReleaseResourceReference>
+			</ReleaseResourceReferenceList>
+			<ReleaseType>AudioBookRelease</ReleaseType>
+			<ReleaseDetailsByTerritory>
+				<TerritoryCode>Worldwide</TerritoryCode>
+				<DisplayArtistName>Hellen Mirren</DisplayArtistName>
+				<LabelName>Audio Book Label Inc.</LabelName>
+				<Title TitleType="DisplayTitle">
+					<TitleText>Grass' Tin Drum red by Hellen Mirren</TitleText>
+				</Title>
+
+				<ParentalWarningType>NotExplicit</ParentalWarningType>
+				<ResourceGroup>
+					<ResourceGroup>
+						<Title TitleType="GroupingTitle">
+							<TitleText>Component 1</TitleText>
+						</Title>
+						<SequenceNumber>1</SequenceNumber>
+						<ResourceGroupContentItem>
+							<SequenceNumber>1</SequenceNumber>
+							<ResourceType>SoundRecording</ResourceType>
+							<ReleaseResourceReference ReleaseResourceType="PrimaryResource"
+								>A1</ReleaseResourceReference>
+						</ResourceGroupContentItem>
+					</ResourceGroup>
+					<ResourceGroupContentItem>
+						<ResourceType>Image</ResourceType>
+						<ReleaseResourceReference ReleaseResourceType="SecondaryResource"
+							>A2</ReleaseResourceReference>
+					</ResourceGroupContentItem>
+				</ResourceGroup>
+				<Genre>
+					<GenreText>Novel</GenreText>
+				</Genre>
+				<ReleaseDate IsApproximate="true">2010-01-01</ReleaseDate>
+			</ReleaseDetailsByTerritory>
+			<PLine>
+				<Year>2010</Year>
+				<PLineText>(P) 2010 Audio Book Label Inc.</PLineText>
+			</PLine>
+			<CLine>
+				<Year>2010</Year>
+				<CLineText>(C) 2010 Audio Book Label Inc.</CLineText>
+			</CLine>
+			<GlobalOriginalReleaseDate>1955-01-01</GlobalOriginalReleaseDate>
+		</Release>
+		<Release>
+			<ReleaseId>
+				<GRid>A1UCASE0000000001X</GRid>
+				<ISRC>CASE00000001</ISRC>
+			</ReleaseId>
+			<ReleaseReference>R1</ReleaseReference>
+			<ReferenceTitle>
+				<TitleText>The Tin Drum</TitleText>
+			</ReferenceTitle>
+			<ReleaseResourceReferenceList>
+				<ReleaseResourceReference ReleaseResourceType="PrimaryResource"
+					>A1</ReleaseResourceReference>
+			</ReleaseResourceReferenceList>
+			<ReleaseType>TrackRelease</ReleaseType>
+			<ReleaseDetailsByTerritory>
+				<ExcludedTerritoryCode>MX</ExcludedTerritoryCode>
+				<DisplayArtistName>Monkey Claw</DisplayArtistName>
+				<LabelName>Audio Book Label Inc.</LabelName>
+				<Title TitleType="DisplayTitle">
+					<TitleText>Grass' Tin Drum red by Hellen Mirren</TitleText>
+				</Title>
+				<ParentalWarningType>NotExplicit</ParentalWarningType>
+				<ResourceGroup>
+					<ResourceGroupContentItem>
+						<SequenceNumber>1</SequenceNumber>
+						<ResourceType>SoundRecording</ResourceType>
+						<ReleaseResourceReference ReleaseResourceType="PrimaryResource"
+							>A1</ReleaseResourceReference>
+					</ResourceGroupContentItem>
+				</ResourceGroup>
+				<Genre>
+					<GenreText>Novel</GenreText>
+				</Genre>
+				<ReleaseDate IsApproximate="true">2010-01-01</ReleaseDate>
+			</ReleaseDetailsByTerritory>
+			<PLine>
+				<Year>2010</Year>
+				<PLineText>(P) 2010 Audio Book Label Inc.</PLineText>
+			</PLine>
+			<CLine>
+				<Year>2010</Year>
+				<CLineText>(C) 2010 Audio Book Label Inc.</CLineText>
+			</CLine>
+			<GlobalOriginalReleaseDate>2010-01-01</GlobalOriginalReleaseDate>		
+		</Release>
+	</ReleaseList>
+</ern:NewReleaseMessage>

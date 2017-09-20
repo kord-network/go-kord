@@ -20,12 +20,15 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -70,6 +73,64 @@ func TestCWRCommands(t *testing.T) {
 	}
 	if strings.TrimSpace(string(out)) != expected {
 		t.Fatalf("unexpected index output, expected %q, got %q", expected, out)
+	}
+}
+
+// TestERNCommands tests running the 'meta ern convert' and
+// 'meta ern index' commands.
+func TestERNCommands(t *testing.T) {
+	m := newTestMain(t)
+
+	// check 'meta ern convert' prints multiple CIDs
+	stdout := m.run("ern", "convert",
+		"../../ern/testdata/Profile_AudioAlbumMusicOnly.xml",
+		"../../ern/testdata/Profile_AudioAlbum_WithBooklet.xml",
+		"../../ern/testdata/Profile_AudioBook.xml",
+		"../../ern/testdata/Profile_AudioSingle.xml",
+		"../../ern/testdata/Profile_AudioSingle_WithCompoundArtistsAndTerritorialOverride.xml",
+	)
+	var ids []string
+	s := bufio.NewScanner(strings.NewReader(stdout))
+	for s.Scan() {
+		id, err := cid.Parse(s.Text())
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id.String())
+	}
+	expected := []string{
+		"zdpuB3GGepjkoZLLBTPLAkTvzvLw2zSNDUFtSo7NyogUAbprQ",
+		"zdpuAn1okygE1mZxNQbvGqtHPBWpEzfsrgUTuMjvCaBtnAQoN",
+		"zdpuAxnsxCEpnNk6mQQXmdAJvUN95dX5WENJXmMuAgwCQ4aKb",
+		"zdpuAxVUi1d2eqfPhxJzGjrJEUf1Bbr8JFPXgPFNYXNMHcaWj",
+		"zdpuAq11sKUZFqvDYfZhUwvhymofqAbz7cQ5VyBZYpVv453XR",
+	}
+	if !reflect.DeepEqual(ids, expected) {
+		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
+	}
+
+	// create a path to store the index
+	tmpDir, err := ioutil.TempDir("", "meta-main-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	db := filepath.Join(tmpDir, "index.db")
+
+	// run 'meta ern index' with the CIDs as stdin
+	stream := strings.NewReader(stdout)
+	m.runWithStdin(stream, "ern", "index", db)
+
+	// check the index was populated
+	cmd := exec.Command("sqlite3", db, "SELECT cid FROM ern ORDER BY cid")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("error checking index: %s: %s", err, out)
+	}
+	gotIDs := strings.Split(strings.TrimSpace(string(out)), "\n")
+	sort.Strings(expected)
+	if !reflect.DeepEqual(gotIDs, expected) {
+		t.Fatalf("unexpected index output:\nexpected: %v\ngot:      %q", expected, gotIDs)
 	}
 }
 
