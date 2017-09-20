@@ -22,7 +22,7 @@ package cwr
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
 	"os/exec"
 )
@@ -33,20 +33,16 @@ func ParseCWRFile(cwrFileReader io.Reader, CWRDataApiPath string) (registeredWor
 	cmd := exec.Command("python3", CWRDataApiPath+"/cwr2json.py")
 	cmd.Stdin = cwrFileReader
 
-	var pythonStdout, pythonErrbuf bytes.Buffer
-	cmd.Stdout = &pythonStdout
-	cmd.Stderr = &pythonErrbuf
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 
-	err = cmd.Start()
-	if err != nil {
-		return nil, errors.New(pythonErrbuf.String())
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("cwr2json.py failed: %s: %s", err, stderr.String())
 	}
-	err = cmd.Wait()
-	if err != nil {
-		return nil, errors.New(pythonErrbuf.String())
-	}
-	var cwr *Cwr
-	if err := json.NewDecoder(bytes.NewReader(pythonStdout.Bytes())).Decode(&cwr); err != nil {
+
+	var cwr Cwr
+	if err := json.Unmarshal(stdout.Bytes(), &cwr); err != nil {
 		return nil, err
 	}
 	for _, group := range cwr.Transmission.Groups {
