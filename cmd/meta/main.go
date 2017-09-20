@@ -38,8 +38,10 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore/fs"
 	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/cwr"
+	"github.com/meta-network/go-meta/ern"
 	"github.com/meta-network/go-meta/musicbrainz"
 	"github.com/meta-network/go-meta/xml"
 )
@@ -53,6 +55,8 @@ usage: meta import xml <file> [<context>...]
        meta musicbrainz index <sqlite3-uri>
        meta cwr convert <file> <cwr-python-dir>
        meta cwr index <sqlite3-uri>
+       meta ern convert <files>...
+       meta ern index <sqlite3-uri>
 `[1:]
 
 type Main struct {
@@ -94,6 +98,8 @@ func (m *Main) Run(cmdArgs ...string) error {
 		return m.RunMusicBrainz(args)
 	case args.Bool("cwr"):
 		return m.RunCwr(args)
+	case args.Bool("ern"):
+		return m.RunERN(args)
 	default:
 		return errors.New("unknown command")
 	}
@@ -395,6 +401,75 @@ func (m *Main) RunCwrIndex(args Args) error {
 	return indexer.IndexRegisteredWorks(ctx, stream)
 }
 
+func (m *Main) RunERN(args Args) error {
+	switch {
+	case args.Bool("convert"):
+		return m.RunERNConvert(args)
+	case args.Bool("index"):
+		return m.RunERNIndex(args)
+	default:
+		return errors.New("unknown ern command")
+	}
+}
+
+func (m *Main) RunERNConvert(args Args) error {
+	converter := ern.NewConverter(m.store)
+	files := args.List("<files>")
+	for _, file := range files {
+		f, err := os.Open(file)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		cid, err := converter.ConvertERN(f)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(m.stdout, cid.String())
+	}
+	return nil
+}
+
+func (m *Main) RunERNIndex(args Args) error {
+	db, err := sql.Open("sqlite3", args.String("<sqlite3-uri>"))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	indexer, err := ern.NewIndexer(db, m.store)
+	if err != nil {
+		return err
+	}
+
+	// stream the CIDs from stdin
+	stream := make(chan *cid.Cid)
+	go func() {
+		defer close(stream)
+		s := bufio.NewScanner(m.stdin)
+		for s.Scan() {
+			cid, err := cid.Parse(s.Text())
+			if err != nil {
+				log.Error("error parsing cid", "value", s.Text(), "err", err)
+				return
+			}
+			stream <- cid
+		}
+	}()
+
+	// shutdown gracefully on SIGINT or SIGTERM
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+		<-ch
+		log.Info("received signal, exiting...")
+	}()
+
+	return indexer.Index(ctx, stream)
+}
+
 func openStore() (*meta.Store, error) {
 	metaDir := ".meta"
 	if err := os.MkdirAll(metaDir, 0755); err != nil {
@@ -422,6 +497,21 @@ func (a Args) String(name string) string {
 		panic(fmt.Sprintf("invalid string arg: %s", name))
 	}
 	return s
+}
+
+func (a Args) List(name string) []string {
+	v, ok := a[name]
+	if !ok {
+		panic(fmt.Sprintf("missing arg: %s", name))
+	}
+	if v == nil {
+		return nil
+	}
+	l, ok := v.([]string)
+	if !ok {
+		panic(fmt.Sprintf("invalid list arg: %s", name))
+	}
+	return l
 }
 
 func (a Args) Bool(name string) bool {
