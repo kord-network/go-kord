@@ -187,6 +187,9 @@ func (g *Graph) Get(path ...string) (interface{}, error) {
 		return nil, err
 	}
 	if len(rest) == 0 {
+		if l, ok := v.(*format.Link); ok {
+			v = l.Cid
+		}
 		return v, nil
 	}
 
