@@ -56,11 +56,13 @@ usage: meta import xml <file> [<context>...]
 `[1:]
 
 type Main struct {
-	store *meta.Store
+	store  *meta.Store
+	stdin  io.Reader
+	stdout io.Writer
 }
 
-func NewMain(store *meta.Store) *Main {
-	return &Main{store}
+func NewMain(store *meta.Store, stdin io.Reader, stdout io.Writer) *Main {
+	return &Main{store, stdin, stdout}
 }
 
 func main() {
@@ -71,15 +73,16 @@ func main() {
 		log.Crit("error opening meta store", "err", err)
 	}
 
-	args, _ := docopt.Parse(usage, os.Args[1:], true, "0.0.1", false)
-
-	m := NewMain(store)
-	if err := m.Run(args); err != nil {
+	m := NewMain(store, os.Stdin, os.Stdout)
+	if err := m.Run(os.Args[1:]...); err != nil {
 		log.Crit("error running meta command", "err", err)
 	}
 }
 
-func (m *Main) Run(args Args) error {
+func (m *Main) Run(cmdArgs ...string) error {
+	v, _ := docopt.Parse(usage, cmdArgs, true, "0.0.1", false)
+	args := Args(v)
+
 	switch {
 	case args.Bool("import"):
 		return m.RunImport(args)
@@ -182,14 +185,14 @@ func (m *Main) RunDump(args Args) error {
 		return err
 	}
 	if len(path) == 1 {
-		return json.NewEncoder(os.Stdout).Encode(obj)
+		return json.NewEncoder(m.stdout).Encode(obj)
 	}
 	graph := meta.NewGraph(m.store, obj)
 	v, err := graph.Get(path[1:]...)
 	if err != nil {
 		return err
 	}
-	return json.NewEncoder(os.Stdout).Encode(v)
+	return json.NewEncoder(m.stdout).Encode(v)
 }
 
 func (m *Main) RunServer(args Args) error {
@@ -242,8 +245,6 @@ func (m *Main) RunMusicBrainzConvert(args Args) error {
 	}
 	defer db.Close()
 
-	// stream the CIDs to stdout
-	stream := make(chan *cid.Cid)
 	// shutdown gracefully on SIGINT or SIGTERM
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -253,14 +254,21 @@ func (m *Main) RunMusicBrainzConvert(args Args) error {
 		<-ch
 		log.Info("received signal, exiting...")
 	}()
+
+	// run the converter in a goroutine
+	stream := make(chan *cid.Cid)
+	errC := make(chan error, 1)
 	go func() {
-		err = musicbrainz.NewConverter(db, m.store).ConvertArtists(ctx, stream)
-		close(stream)
+		defer close(stream)
+		errC <- musicbrainz.NewConverter(db, m.store).ConvertArtists(ctx, stream)
 	}()
+
+	// output the resulting CIDs to stdout
 	for cid := range stream {
-		fmt.Fprintln(os.Stdout, cid.String())
+		fmt.Fprintln(m.stdout, cid.String())
 	}
-	return err
+
+	return <-errC
 }
 
 func (m *Main) RunMusicBrainzIndex(args Args) error {
@@ -279,7 +287,7 @@ func (m *Main) RunMusicBrainzIndex(args Args) error {
 	stream := make(chan *cid.Cid)
 	go func() {
 		defer close(stream)
-		s := bufio.NewScanner(os.Stdin)
+		s := bufio.NewScanner(m.stdin)
 		for s.Scan() {
 			cid, err := cid.Parse(s.Text())
 			if err != nil {
@@ -315,8 +323,6 @@ func (m *Main) RunCwr(args Args) error {
 }
 
 func (m *Main) RunCwrConvert(args Args) error {
-	// stream the CIDs to stdout
-	stream := make(chan *cid.Cid)
 	// shutdown gracefully on SIGINT or SIGTERM
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -326,19 +332,26 @@ func (m *Main) RunCwrConvert(args Args) error {
 		<-ch
 		log.Info("received signal, exiting...")
 	}()
-	cwrFileReader, err := os.Open(args.String("<file>"))
+	file, err := os.Open(args.String("<file>"))
 	if err != nil {
 		return err
 	}
-	defer cwrFileReader.Close()
+	defer file.Close()
+
+	// run the converter in a goroutine
+	stream := make(chan *cid.Cid)
+	errC := make(chan error, 1)
 	go func() {
-		err = cwr.NewConverter(m.store).ConvertRegisteredWork(ctx, stream, cwrFileReader, args.String("<cwr-python-dir>"))
-		close(stream)
+		defer close(stream)
+		errC <- cwr.NewConverter(m.store).ConvertRegisteredWork(ctx, stream, file, args.String("<cwr-python-dir>"))
 	}()
+
+	// output the resulting CIDs to stdout
 	for cid := range stream {
-		fmt.Fprintln(os.Stdout, cid.String())
+		fmt.Fprintln(m.stdout, cid.String())
 	}
-	return err
+
+	return <-errC
 }
 
 func (m *Main) RunCwrIndex(args Args) error {
@@ -358,7 +371,7 @@ func (m *Main) RunCwrIndex(args Args) error {
 	stream := make(chan *cid.Cid)
 	go func() {
 		defer close(stream)
-		s := bufio.NewScanner(os.Stdin)
+		s := bufio.NewScanner(m.stdin)
 		for s.Scan() {
 			cid, err := cid.Parse(s.Text())
 			if err != nil {

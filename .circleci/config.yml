@@ -29,6 +29,7 @@ jobs:
             sudo apt-get -y upgrade
             sudo apt-get install -y python3-pip
       - run: sudo pip3 install -r cwr/CWR-DataApi/requirements.txt
+      - run: sudo apt-get install --yes sqlite3
       - run: go get -v -t -d ./...
       - run: go test -v ./...
 
