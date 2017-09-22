@@ -19,19 +19,11 @@
 
 package musicbrainz
 
-import (
-	"database/sql"
-	"fmt"
-
-	"github.com/mattes/migrate"
-	"github.com/mattes/migrate/database/sqlite3"
-	"github.com/mattes/migrate/source"
-	"github.com/mattes/migrate/source/stub"
-)
+import "github.com/meta-network/go-meta/migrate"
 
 // migrations is a set of database migrations to run on a SQLite3 database
-// to prepare it for META indexing.
-var migrations = NewMigrations()
+// to prepare it for indexing a META stream of MusicBrainz artists.
+var migrations = migrate.NewMigrations()
 
 func init() {
 	// migration 1 creates indexes for the following artist properties:
@@ -70,51 +62,4 @@ CREATE TABLE artist_isni (
 CREATE INDEX artist_isni_idx ON artist_isni (isni);
 `,
 	)
-}
-
-// Migrations is a set of SQLite3 database migrations.
-type Migrations struct {
-	*source.Migrations
-}
-
-// NewMigrations returns a new set of migrations.
-func NewMigrations() *Migrations {
-	return &Migrations{source.NewMigrations()}
-}
-
-// Add adds the given SQL to the set of migrations with the given version.
-func (m *Migrations) Add(version uint, sql string) {
-	ok := m.Migrations.Append(&source.Migration{
-		Version:    version,
-		Identifier: sql,
-		Direction:  source.Up,
-	})
-	if !ok {
-		panic(fmt.Sprintf("failed to add migration: %v", m))
-	}
-}
-
-// Run runs the set of migrations on the given SQLite3 database.
-func (m *Migrations) Run(db *sql.DB) error {
-	dbDriver, err := sqlite3.WithInstance(db, &sqlite3.Config{})
-	if err != nil {
-		return err
-	}
-
-	srcDriver, err := (&stub.Stub{}).Open("stub://")
-	if err != nil {
-		return err
-	}
-	srcDriver.(*stub.Stub).Migrations = m.Migrations
-
-	migrations, err := migrate.NewWithInstance("stub", srcDriver, "sqlite3", dbDriver)
-	if err != nil {
-		return err
-	}
-
-	if err := migrations.Up(); err != nil && err != migrate.ErrNoChange {
-		return err
-	}
-
-	return nil
 }
