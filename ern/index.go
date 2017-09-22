@@ -266,15 +266,22 @@ func (i *Indexer) indexSoundRecording(ernID *cid.Cid, obj *meta.Object) error {
 	// load each potential ID separately
 	var ids []string
 	for _, field := range []string{"ISRC", "CatalogNumber", "ProprietaryId"} {
-		if v, err := graph.Get("SoundRecordingId", field, "@value"); err == nil {
-			ids = append(ids, v.(string))
+		v, err := graph.Get("SoundRecordingId", field, "@value")
+		if meta.IsPathNotFound(err) {
+			continue
+		} else if err != nil {
+			return err
 		}
+		ids = append(ids, v.(string))
 	}
 
 	// load the ReferenceTitle
 	var title string
-	if v, err := graph.Get("ReferenceTitle", "TitleText", "@value"); err == nil {
+	v, err := graph.Get("ReferenceTitle", "TitleText", "@value")
+	if err == nil {
 		title = v.(string)
+	} else if !meta.IsPathNotFound(err) {
+		return err
 	}
 
 	// return an error if there is neither an ID nor a ReferenceTitle
