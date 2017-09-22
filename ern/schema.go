@@ -19,11 +19,11 @@
 
 package ern
 
-import "github.com/meta-network/go-meta/musicbrainz"
+import "github.com/meta-network/go-meta/migrate"
 
 // migrations is a set of database migrations to run on a SQLite3 database
-// to prepare it for META indexing.
-var migrations = musicbrainz.NewMigrations()
+// to prepare it for indexing a META stream of ERNs.
+var migrations = migrate.NewMigrations()
 
 func init() {
 	// migration 1 creates indexes and associations for ERN Releases,
