@@ -261,7 +261,8 @@ func (m *Main) RunMusicBrainzConvert(args Args) error {
 		log.Info("received signal, exiting...")
 	}()
 
-	// run the converter in a goroutine
+	// run the converter in a goroutine so that we only exit once all CIDs
+	// have been read from the stream
 	stream := make(chan *cid.Cid)
 	errC := make(chan error, 1)
 	go func() {
@@ -344,7 +345,8 @@ func (m *Main) RunCwrConvert(args Args) error {
 	}
 	defer file.Close()
 
-	// run the converter in a goroutine
+	// run the converter in a goroutine so that we only exit once all CIDs
+	// have been read from the stream
 	stream := make(chan *cid.Cid)
 	errC := make(chan error, 1)
 	go func() {
