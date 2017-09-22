@@ -6,7 +6,7 @@ a GraphQL API for querying the index.
 
 ## Overview
 
-This module converts CWR transactions, as appears in CWR formatted files, to META objects and index these with certain keys.
+This module converts CWR transactions, as they appear in CWR formatted files, to META objects and indexes them on certain keys.
 
 The `Converter` type is used to read a CWR file, convert to META objects and append to a META stream.
 It is done in 2 phases:
