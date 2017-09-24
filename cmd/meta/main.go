@@ -20,7 +20,10 @@
 package main
 
 import (
+	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ipfs/go-datastore/fs"
@@ -36,7 +39,17 @@ func main() {
 		log.Crit("error opening meta store", "err", err)
 	}
 
-	if err := cli.New(store, os.Stdin, os.Stdout).Run(os.Args[1:]...); err != nil {
+	// shutdown gracefully on SIGINT or SIGTERM
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		defer cancel()
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+		<-ch
+		log.Info("received signal, exiting...")
+	}()
+
+	if err := cli.New(store, os.Stdin, os.Stdout).Run(ctx, os.Args[1:]...); err != nil {
 		log.Crit("error running meta command", "err", err)
 	}
 }

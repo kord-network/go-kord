@@ -29,9 +29,7 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/docopt/docopt-go"
 	"github.com/ethereum/go-ethereum/log"
@@ -68,40 +66,40 @@ func New(store *meta.Store, stdin io.Reader, stdout io.Writer) *CLI {
 	return &CLI{store, stdin, stdout}
 }
 
-func (cli *CLI) Run(cmdArgs ...string) error {
+func (cli *CLI) Run(ctx context.Context, cmdArgs ...string) error {
 	v, _ := docopt.Parse(usage, cmdArgs, true, "0.0.1", false)
 	args := Args(v)
 
 	switch {
 	case args.Bool("import"):
-		return cli.RunImport(args)
+		return cli.RunImport(ctx, args)
 	case args.Bool("dump"):
-		return cli.RunDump(args)
+		return cli.RunDump(ctx, args)
 	case args.Bool("server"):
-		return cli.RunServer(args)
+		return cli.RunServer(ctx, args)
 	case args.Bool("musicbrainz"):
-		return cli.RunMusicBrainz(args)
+		return cli.RunMusicBrainz(ctx, args)
 	case args.Bool("cwr"):
-		return cli.RunCwr(args)
+		return cli.RunCwr(ctx, args)
 	case args.Bool("ern"):
-		return cli.RunERN(args)
+		return cli.RunERN(ctx, args)
 	default:
 		return errors.New("unknown command")
 	}
 }
 
-func (cli *CLI) RunImport(args Args) error {
+func (cli *CLI) RunImport(ctx context.Context, args Args) error {
 	switch {
 	case args.Bool("xml"):
-		return cli.RunImportXML(args)
+		return cli.RunImportXML(ctx, args)
 	case args.Bool("xsd"):
-		return cli.RunImportXMLSchema(args)
+		return cli.RunImportXMLSchema(ctx, args)
 	default:
 		return errors.New("unknown import format")
 	}
 }
 
-func (cli *CLI) RunImportXML(args Args) error {
+func (cli *CLI) RunImportXML(ctx context.Context, args Args) error {
 	f, err := os.Open(args.String("<file>"))
 	if err != nil {
 		return err
@@ -129,7 +127,7 @@ func (cli *CLI) RunImportXML(args Args) error {
 	return nil
 }
 
-func (cli *CLI) RunImportXMLSchema(args Args) error {
+func (cli *CLI) RunImportXMLSchema(ctx context.Context, args Args) error {
 	var src io.Reader
 	if path := args.String("<file>"); path != "" {
 		f, err := os.Open(path)
@@ -165,7 +163,7 @@ func (cli *CLI) RunImportXMLSchema(args Args) error {
 	return nil
 }
 
-func (cli *CLI) RunDump(args Args) error {
+func (cli *CLI) RunDump(ctx context.Context, args Args) error {
 	path := strings.Split(args.String("<path>"), "/")
 	cid, err := cid.Decode(path[0])
 	if err != nil {
@@ -186,7 +184,7 @@ func (cli *CLI) RunDump(args Args) error {
 	return json.NewEncoder(cli.stdout).Encode(v)
 }
 
-func (cli *CLI) RunServer(args Args) error {
+func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 	var musicbrainzDB *sql.DB = nil
 	var cwrDB *sql.DB = nil
 	if uri := args.String("--musicbrainz-index"); uri != "" {
@@ -218,33 +216,23 @@ func (cli *CLI) RunServer(args Args) error {
 	return http.ListenAndServe(addr, srv)
 }
 
-func (cli *CLI) RunMusicBrainz(args Args) error {
+func (cli *CLI) RunMusicBrainz(ctx context.Context, args Args) error {
 	switch {
 	case args.Bool("convert"):
-		return cli.RunMusicBrainzConvert(args)
+		return cli.RunMusicBrainzConvert(ctx, args)
 	case args.Bool("index"):
-		return cli.RunMusicBrainzIndex(args)
+		return cli.RunMusicBrainzIndex(ctx, args)
 	default:
 		return errors.New("unknown musicbrainz command")
 	}
 }
 
-func (cli *CLI) RunMusicBrainzConvert(args Args) error {
+func (cli *CLI) RunMusicBrainzConvert(ctx context.Context, args Args) error {
 	db, err := sql.Open("postgres", args.String("<postgres-uri>"))
 	if err != nil {
 		return err
 	}
 	defer db.Close()
-
-	// shutdown gracefully on SIGINT or SIGTERM
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		defer cancel()
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-		<-ch
-		log.Info("received signal, exiting...")
-	}()
 
 	// run the converter in a goroutine so that we only exit once all CIDs
 	// have been read from the stream
@@ -263,7 +251,7 @@ func (cli *CLI) RunMusicBrainzConvert(args Args) error {
 	return <-errC
 }
 
-func (cli *CLI) RunMusicBrainzIndex(args Args) error {
+func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, args Args) error {
 	db, err := sql.Open("sqlite3", args.String("<sqlite3-uri>"))
 	if err != nil {
 		return err
@@ -290,40 +278,21 @@ func (cli *CLI) RunMusicBrainzIndex(args Args) error {
 		}
 	}()
 
-	// shutdown gracefully on SIGINT or SIGTERM
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		defer cancel()
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-		<-ch
-		log.Info("received signal, exiting...")
-	}()
-
 	return indexer.IndexArtists(ctx, stream)
 }
 
-func (cli *CLI) RunCwr(args Args) error {
+func (cli *CLI) RunCwr(ctx context.Context, args Args) error {
 	switch {
 	case args.Bool("convert"):
-		return cli.RunCwrConvert(args)
+		return cli.RunCwrConvert(ctx, args)
 	case args.Bool("index"):
-		return cli.RunCwrIndex(args)
+		return cli.RunCwrIndex(ctx, args)
 	default:
 		return errors.New("unknown cwr command")
 	}
 }
 
-func (cli *CLI) RunCwrConvert(args Args) error {
-	// shutdown gracefully on SIGINT or SIGTERM
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		defer cancel()
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-		<-ch
-		log.Info("received signal, exiting...")
-	}()
+func (cli *CLI) RunCwrConvert(ctx context.Context, args Args) error {
 	file, err := os.Open(args.String("<file>"))
 	if err != nil {
 		return err
@@ -347,7 +316,7 @@ func (cli *CLI) RunCwrConvert(args Args) error {
 	return <-errC
 }
 
-func (cli *CLI) RunCwrIndex(args Args) error {
+func (cli *CLI) RunCwrIndex(ctx context.Context, args Args) error {
 
 	db, err := sql.Open("sqlite3", args.String("<sqlite3-uri>"))
 	if err != nil {
@@ -375,31 +344,21 @@ func (cli *CLI) RunCwrIndex(args Args) error {
 		}
 	}()
 
-	// shutdown gracefully on SIGINT or SIGTERM
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		defer cancel()
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-		<-ch
-		log.Info("received signal, exiting...")
-	}()
-
 	return indexer.IndexRegisteredWorks(ctx, stream)
 }
 
-func (cli *CLI) RunERN(args Args) error {
+func (cli *CLI) RunERN(ctx context.Context, args Args) error {
 	switch {
 	case args.Bool("convert"):
-		return cli.RunERNConvert(args)
+		return cli.RunERNConvert(ctx, args)
 	case args.Bool("index"):
-		return cli.RunERNIndex(args)
+		return cli.RunERNIndex(ctx, args)
 	default:
 		return errors.New("unknown ern command")
 	}
 }
 
-func (cli *CLI) RunERNConvert(args Args) error {
+func (cli *CLI) RunERNConvert(ctx context.Context, args Args) error {
 	converter := ern.NewConverter(cli.store)
 	files := args.List("<files>")
 	for _, file := range files {
@@ -417,7 +376,7 @@ func (cli *CLI) RunERNConvert(args Args) error {
 	return nil
 }
 
-func (cli *CLI) RunERNIndex(args Args) error {
+func (cli *CLI) RunERNIndex(ctx context.Context, args Args) error {
 	db, err := sql.Open("sqlite3", args.String("<sqlite3-uri>"))
 	if err != nil {
 		return err
@@ -442,16 +401,6 @@ func (cli *CLI) RunERNIndex(args Args) error {
 			}
 			stream <- cid
 		}
-	}()
-
-	// shutdown gracefully on SIGINT or SIGTERM
-	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		defer cancel()
-		ch := make(chan os.Signal, 1)
-		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
-		<-ch
-		log.Info("received signal, exiting...")
 	}()
 
 	return indexer.Index(ctx, stream)
