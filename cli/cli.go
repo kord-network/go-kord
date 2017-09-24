@@ -213,7 +213,19 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 	}
 	addr := "0.0.0.0:" + port
 	log.Info("starting META HTTP server", "addr", addr)
-	return http.ListenAndServe(addr, srv)
+	httpSrv := http.Server{
+		Addr:    addr,
+		Handler: srv,
+	}
+	go func() {
+		<-ctx.Done()
+		log.Info("stopping HTTP server")
+		httpSrv.Close()
+	}()
+	if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
 }
 
 func (cli *CLI) RunMusicBrainz(ctx context.Context, args Args) error {
