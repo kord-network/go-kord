@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 )
 
@@ -31,6 +32,9 @@ import (
 func ParseCWRFile(cwrFileReader io.Reader, CWRDataApiPath string) (registeredWorks []*RegisteredWork, err error) {
 	//phase 1 : Transform cwr formatted file to cwr-json file using CWR-DataApi python script.
 	cmd := exec.Command("python3", CWRDataApiPath+"/cwr2json.py")
+	cmd.Env = append(os.Environ(),
+		"PYTHONIOENCODING=ISO-8859-1",
+	)
 	cmd.Stdin = cwrFileReader
 
 	var stdout, stderr bytes.Buffer
