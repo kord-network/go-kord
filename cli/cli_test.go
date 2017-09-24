@@ -22,6 +22,7 @@ package cli
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io"
 	"io/ioutil"
 	"os"
@@ -149,7 +150,7 @@ func newTestCLI(t *testing.T) *testCLI {
 func (c *testCLI) runWithStdin(stdin io.Reader, args ...string) string {
 	var stdout bytes.Buffer
 	cli := New(c.store, stdin, &stdout)
-	if err := cli.Run(args...); err != nil {
+	if err := cli.Run(context.Background(), args...); err != nil {
 		c.t.Fatal(err)
 	}
 	return stdout.String()
