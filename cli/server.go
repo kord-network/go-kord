@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package main
+package cli
 
 import (
 	"database/sql"

@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package main
+package cli
 
 import (
 	"bufio"
@@ -40,10 +40,10 @@ import (
 // TestCWRCommands tests running the 'meta cwr convert' and
 // 'meta cwr index' commands.
 func TestCWRCommands(t *testing.T) {
-	m := newTestMain(t)
+	c := newTestCLI(t)
 
 	// check 'meta cwr convert' prints a CID
-	stdout := m.run("cwr", "convert", "../../cwr/testdata/testfile.cwr", "../../cwr/CWR-DataApi")
+	stdout := c.run("cwr", "convert", "../cwr/testdata/testfile.cwr", "../cwr/CWR-DataApi")
 	id, err := cid.Parse(strings.TrimSpace(stdout))
 	if err != nil {
 		t.Fatal(err)
@@ -63,7 +63,7 @@ func TestCWRCommands(t *testing.T) {
 
 	// run 'meta cwr index' with the CID as stdin
 	stream := strings.NewReader(stdout)
-	m.runWithStdin(stream, "cwr", "index", db)
+	c.runWithStdin(stream, "cwr", "index", db)
 
 	// check the index was populated
 	cmd := exec.Command("sqlite3", db, "SELECT object_id FROM registered_work")
@@ -79,15 +79,15 @@ func TestCWRCommands(t *testing.T) {
 // TestERNCommands tests running the 'meta ern convert' and
 // 'meta ern index' commands.
 func TestERNCommands(t *testing.T) {
-	m := newTestMain(t)
+	c := newTestCLI(t)
 
 	// check 'meta ern convert' prints multiple CIDs
-	stdout := m.run("ern", "convert",
-		"../../ern/testdata/Profile_AudioAlbumMusicOnly.xml",
-		"../../ern/testdata/Profile_AudioAlbum_WithBooklet.xml",
-		"../../ern/testdata/Profile_AudioBook.xml",
-		"../../ern/testdata/Profile_AudioSingle.xml",
-		"../../ern/testdata/Profile_AudioSingle_WithCompoundArtistsAndTerritorialOverride.xml",
+	stdout := c.run("ern", "convert",
+		"../ern/testdata/Profile_AudioAlbumMusicOnly.xml",
+		"../ern/testdata/Profile_AudioAlbum_WithBooklet.xml",
+		"../ern/testdata/Profile_AudioBook.xml",
+		"../ern/testdata/Profile_AudioSingle.xml",
+		"../ern/testdata/Profile_AudioSingle_WithCompoundArtistsAndTerritorialOverride.xml",
 	)
 	var ids []string
 	s := bufio.NewScanner(strings.NewReader(stdout))
@@ -119,7 +119,7 @@ func TestERNCommands(t *testing.T) {
 
 	// run 'meta ern index' with the CIDs as stdin
 	stream := strings.NewReader(stdout)
-	m.runWithStdin(stream, "ern", "index", db)
+	c.runWithStdin(stream, "ern", "index", db)
 
 	// check the index was populated
 	cmd := exec.Command("sqlite3", db, "SELECT cid FROM ern ORDER BY cid")
@@ -134,27 +134,27 @@ func TestERNCommands(t *testing.T) {
 	}
 }
 
-type testMain struct {
+type testCLI struct {
 	t     *testing.T
 	store *meta.Store
 }
 
-func newTestMain(t *testing.T) *testMain {
-	return &testMain{
+func newTestCLI(t *testing.T) *testCLI {
+	return &testCLI{
 		t:     t,
 		store: meta.NewStore(datastore.NewMapDatastore()),
 	}
 }
 
-func (m *testMain) runWithStdin(stdin io.Reader, args ...string) string {
+func (c *testCLI) runWithStdin(stdin io.Reader, args ...string) string {
 	var stdout bytes.Buffer
-	main := NewMain(m.store, stdin, &stdout)
-	if err := main.Run(args...); err != nil {
-		m.t.Fatal(err)
+	cli := New(c.store, stdin, &stdout)
+	if err := cli.Run(args...); err != nil {
+		c.t.Fatal(err)
 	}
 	return stdout.String()
 }
 
-func (m *testMain) run(args ...string) string {
-	return m.runWithStdin(nil, args...)
+func (c *testCLI) run(args ...string) string {
+	return c.runWithStdin(nil, args...)
 }
