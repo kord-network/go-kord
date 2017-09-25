@@ -44,12 +44,12 @@ func TestCWRCommands(t *testing.T) {
 	c := newTestCLI(t)
 
 	// check 'meta cwr convert' prints a CID
-	stdout := c.run("cwr", "convert", "../cwr/testdata/testfile.cwr", "../cwr/CWR-DataApi")
-	id, err := cid.Parse(strings.TrimSpace(stdout))
+	stdout := c.run("cwr", "convert", "../cwr/testdata/testfile.cwr")
+	id, err := cid.Parse(strings.Split(stdout, "\n")[0])
 	if err != nil {
 		t.Fatal(err)
 	}
-	expected := "zdpuAxGP3BcFkXyNp1y59FEdMZmqbgxkLdvFynFrpdQ1jpgK3"
+	expected := "zdpuAogWXacrn8NVMiXV8VXGxyNuPQooCcFQWvYeWis1s5618"
 	if id.String() != expected {
 		t.Fatalf("unexpected CID, expected %q, got %q", expected, id)
 	}

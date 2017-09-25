@@ -20,48 +20,64 @@
 package cwr
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
-	"os/exec"
+	"strings"
 )
 
-// ParseCWRFile parse a give cwr file and returns an array of registeredWorks
-func ParseCWRFile(cwrFileReader io.Reader, CWRDataApiPath string) (registeredWorks []*RegisteredWork, err error) {
-	//phase 1 : Transform cwr formatted file to cwr-json file using CWR-DataApi python script.
-	cmd := exec.Command("python3", CWRDataApiPath+"/cwr2json.py")
-	cmd.Stdin = cwrFileReader
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("cwr2json.py failed: %s: %s", err, stderr.String())
+func getSlice(s string, from int, to int) string {
+	if len(s) < from || len(s) < to {
+		return ""
 	}
+	return s[from:to]
+}
+func ParseCWRFile(cwrFileReader io.Reader) (records []*Record, err error) {
+	scanner := bufio.NewScanner(cwrFileReader)
 
-	var cwr Cwr
-	if err := json.Unmarshal(stdout.Bytes(), &cwr); err != nil {
-		return nil, err
-	}
-	for _, group := range cwr.Transmission.Groups {
-		for _, tx := range group.Transactions {
-			var registeredWork *RegisteredWork
-			for _, record := range tx {
-				if record.RecordType == "REV" ||
-					record.RecordType == "NWR" {
-					registeredWorkBytes, err := json.Marshal(record)
-					if err != nil {
-						return nil, err
-					}
-					if err := json.NewDecoder(bytes.NewReader(registeredWorkBytes)).Decode(&registeredWork); err != nil {
-						return nil, err
-					}
-					registeredWorks = append(registeredWorks, registeredWork)
-				}
+	for scanner.Scan() {
+		var record *Record
+		var recordBytes []byte
+		if strings.HasPrefix(scanner.Text(), "NWR") ||
+			strings.HasPrefix(scanner.Text(), "REV") {
+			registeredWork := RegisteredWork{}
+			registeredWork.RecordType = getSlice(scanner.Text(), 0, 19)
+			registeredWork.Title = strings.TrimSpace(getSlice(scanner.Text(), 19, 79))
+			registeredWork.LanguageCode = getSlice(scanner.Text(), 79, 81)
+			registeredWork.SubmitteWorkNumber = getSlice(scanner.Text(), 81, 95)
+			registeredWork.ISWC = getSlice(scanner.Text(), 95, 106)
+			registeredWork.CopyRightDate = getSlice(scanner.Text(), 106, 113)
+			registeredWork.DistributionCategory = getSlice(scanner.Text(), 127, 129)
+			registeredWork.Duration = getSlice(scanner.Text(), 129, 135)
+			registeredWork.RecordedIndicator = getSlice(scanner.Text(), 135, 136)
+			registeredWork.TextMusicRelationship = getSlice(scanner.Text(), 136, 139)
+			registeredWork.CompositeType = getSlice(scanner.Text(), 140, 142)
+			registeredWork.VersionType = getSlice(scanner.Text(), 142, 145)
+			registeredWork.PriorityFlag = getSlice(scanner.Text(), 259, 260)
+			recordBytes, err = json.Marshal(registeredWork)
+			if err != nil {
+				return nil, err
 			}
 		}
+		if strings.HasPrefix(scanner.Text(), "SPU") {
+			publisherControllBySubmitter := PublisherControllBySubmitter{}
+			publisherControllBySubmitter.RecordType = getSlice(scanner.Text(), 0, 19)
+			publisherControllBySubmitter.PublisherSequenceNumber = getSlice(scanner.Text(), 19, 21)
+			recordBytes, err = json.Marshal(publisherControllBySubmitter)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if len(recordBytes) > 0 {
+			if err := json.NewDecoder(bytes.NewReader(recordBytes)).Decode(&record); err != nil {
+				return nil, err
+			}
+			records = append(records, record)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
 	}
 	return
 }

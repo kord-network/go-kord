@@ -21,14 +21,6 @@ jobs:
     steps:
       - checkout
       # specify any bash command here prefixed with `run: `
-      - run: git submodule update --init
-      - run:
-          name: Install python dep and python3-pip
-          command: |
-            sudo apt-get update
-            sudo apt-get -y upgrade
-            sudo apt-get install -y python3-pip
-      - run: sudo pip3 install -r cwr/CWR-DataApi/requirements.txt
       - run: sudo apt-get install --yes sqlite3
       - run: go get -v -t -d ./...
       - run: go test -v ./...
