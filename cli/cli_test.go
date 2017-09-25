@@ -100,11 +100,11 @@ func TestERNCommands(t *testing.T) {
 		ids = append(ids, id.String())
 	}
 	expected := []string{
-		"zdpuB3GGepjkoZLLBTPLAkTvzvLw2zSNDUFtSo7NyogUAbprQ",
-		"zdpuAn1okygE1mZxNQbvGqtHPBWpEzfsrgUTuMjvCaBtnAQoN",
-		"zdpuAxnsxCEpnNk6mQQXmdAJvUN95dX5WENJXmMuAgwCQ4aKb",
-		"zdpuAxVUi1d2eqfPhxJzGjrJEUf1Bbr8JFPXgPFNYXNMHcaWj",
-		"zdpuAq11sKUZFqvDYfZhUwvhymofqAbz7cQ5VyBZYpVv453XR",
+		"zdpuAqJJKxdPMDU6q4BoFMQjavn6TiNxtFJ9dSgTWJDtGyqLL",
+		"zdpuAvQkHEjLxYJvYL1bBA7ri7rWxauj2NqDE7rJKtwEbmG2w",
+		"zdpuArVpjL6zsTmemaenfeVCTBCmJYBnz7pjK2SDGJ64EGbR8",
+		"zdpuAy8P7JNdYv9Y1CD8dBeY3Pwjm5PzpLbSV3KQgyLcw1JiS",
+		"zdpuB1bfxL28n5Bgx9vsG6huuYttNGSigXVACk18K17BTYtYT",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
