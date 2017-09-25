@@ -56,7 +56,7 @@ You can then query the index with the `sqlite3` CLI and dump the resulting
 META objects using `meta dump`, for example searching for "PUNK CLUB":
 
 ```
-$ sqlite3 registeredwork.db "SELECT object_id FROM artist WHERE title = 'PUNK CLUB'"
+$ sqlite3 registeredwork.db "SELECT object_id FROM registered_work WHERE title = 'PUNK CLUB'"
 zdpuAoVMEcareeS4TXPr7YAYNztY1ybbvobV8t7XMkzS9rMeq
 
 $ meta dump zdpuAoVMEcareeS4TXPr7YAYNztY1ybbvobV8t7XMkzS9rMeq/iswc
