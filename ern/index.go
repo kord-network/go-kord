@@ -168,14 +168,14 @@ func (i *Indexer) indexMessageHeader(ernID *cid.Cid, obj *meta.Object) error {
 			return nil, err
 		}
 		var partyName struct {
-			FullName string `json:"FullName"`
+			Value string `json:"@value"`
 		}
-		if err := decode(&partyName, field, "PartyName"); err != nil {
+		if err := decode(&partyName, field, "PartyName", "FullName"); err != nil {
 			return nil, err
 		}
 		_, err = i.db.Exec(
 			"INSERT INTO party (cid, id, name) VALUES ($1, $2, $3)",
-			id.String(), partyID.Value, partyName.FullName,
+			id.String(), partyID.Value, partyName.Value,
 		)
 		if err != nil && !isUniqueErr(err) {
 			return nil, err

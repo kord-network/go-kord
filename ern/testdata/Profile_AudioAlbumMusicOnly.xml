@@ -15,9 +15,15 @@
 		<MessageId>MESSAGE01</MessageId>
 		<MessageSender>
 			<PartyId>DPID_OF_THE_SENDER</PartyId>
+			<PartyName>
+				<FullName>NAME_OF_THE_SENDER</FullName>
+			</PartyName>
 		</MessageSender>
 		<MessageRecipient>
 			<PartyId>DPID_OF_THE_RECIPIENT</PartyId>
+			<PartyName>
+				<FullName>NAME_OF_THE_RECIPIENT</FullName>
+			</PartyName>
 		</MessageRecipient>
 		<MessageCreatedDateTime>2012-12-11T15:50:00+00:00</MessageCreatedDateTime>
 	</MessageHeader>
