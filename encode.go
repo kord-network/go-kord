@@ -21,6 +21,7 @@ package meta
 
 import (
 	"bytes"
+	"errors"
 
 	"github.com/ipfs/go-cid"
 	"github.com/lmars/cbor/go"
@@ -61,7 +62,12 @@ func MustEncode(v interface{}) *Object {
 }
 
 // Decode decodes the META object into the value pointed to by v.
-func (o *Object) Decode(v interface{}) error {
+func (o *Object) Decode(v interface{}) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New(r.(string))
+		}
+	}()
 	dec := cbor.NewDecoder(bytes.NewReader(o.RawData()))
 	dec.TagDecoders[cbornode.CBORTagLink] = &cbornode.IpldLinkDecoder{}
 	return dec.Decode(v)
