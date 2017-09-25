@@ -129,7 +129,12 @@ func (i *Indexer) indexMessageHeader(ernID *cid.Cid, obj *meta.Object) error {
 	graph := meta.NewGraph(i.store, obj)
 
 	// decode decodes whatever is stored at path into the given value
-	decode := func(v interface{}, path ...string) error {
+	decode := func(v interface{}, path ...string) (err error) {
+		defer func() {
+			if err != nil {
+				err = fmt.Errorf("error decoding %s into %T: %s", path, v, err)
+			}
+		}()
 		x, err := graph.Get(path...)
 		if meta.IsPathNotFound(err) {
 			return nil
