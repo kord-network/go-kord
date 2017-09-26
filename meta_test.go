@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/ipfs/go-cid"
@@ -98,13 +99,14 @@ func TestEncodeDecode(t *testing.T) {
 
 func benchmarkEncode(n int, t *testing.B) {
 	type test struct {
-		Array []string `json:"array"`
+		String string `json:"string"`
 	}
 	v := &test{}
-	for j := 0; j < n; j++ {
-		v.Array = append(v.Array, "t")
-	}
+
+	v.String = strings.Repeat("t", n)
+
 	t.ReportAllocs()
+	t.ResetTimer()
 	for i := 0; i < t.N; i++ {
 
 		_, err := Encode(v)
@@ -118,13 +120,14 @@ func benchmarkEncode(n int, t *testing.B) {
 
 func benchmarkJsonEncode(n int, t *testing.B) {
 	type test struct {
-		Array []string `json:"array"`
+		String string `json:"string"`
 	}
 	v := &test{}
-	for j := 0; j < n; j++ {
-		v.Array = append(v.Array, "t")
-	}
+
+	v.String = strings.Repeat("t", n)
+
 	t.ReportAllocs()
+	t.ResetTimer()
 	for i := 0; i < t.N; i++ {
 
 		_, err := json.Marshal(v)
