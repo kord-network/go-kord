@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/ipfs/go-cid"
@@ -94,3 +95,54 @@ func TestEncodeDecode(t *testing.T) {
 		t.Fatalf("decoded object not equal:\nexpected %#v\nactual   %#v", v, w)
 	}
 }
+
+func benchmarkEncode(n int, t *testing.B) {
+	type test struct {
+		Array []string `json:"array"`
+	}
+	v := &test{}
+	for j := 0; j < n; j++ {
+		v.Array = append(v.Array, "t")
+	}
+	t.ReportAllocs()
+	for i := 0; i < t.N; i++ {
+
+		_, err := Encode(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	stats := new(runtime.MemStats)
+	runtime.ReadMemStats(stats)
+}
+
+func benchmarkJsonEncode(n int, t *testing.B) {
+	type test struct {
+		Array []string `json:"array"`
+	}
+	v := &test{}
+	for j := 0; j < n; j++ {
+		v.Array = append(v.Array, "t")
+	}
+	t.ReportAllocs()
+	for i := 0; i < t.N; i++ {
+
+		_, err := json.Marshal(v)
+
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	stats := new(runtime.MemStats)
+	runtime.ReadMemStats(stats)
+}
+
+func BenchmarkEncode1(b *testing.B)    { benchmarkEncode(1, b) }
+func BenchmarkEncode10(b *testing.B)   { benchmarkEncode(10, b) }
+func BenchmarkEncode100(b *testing.B)  { benchmarkEncode(100, b) }
+func BenchmarkEncode1000(b *testing.B) { benchmarkEncode(1000, b) }
+
+func BenchmarkJsonEncode1(b *testing.B)    { benchmarkJsonEncode(1, b) }
+func BenchmarkJsonEncode10(b *testing.B)   { benchmarkJsonEncode(10, b) }
+func BenchmarkJsonEncode100(b *testing.B)  { benchmarkJsonEncode(100, b) }
+func BenchmarkJsonEncode1000(b *testing.B) { benchmarkJsonEncode(1000, b) }
