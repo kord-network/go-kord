@@ -22,7 +22,6 @@ package cwr
 import (
 	"context"
 	"database/sql"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ipfs/go-cid"
@@ -79,7 +78,7 @@ func (i *Indexer) index(cwrRecord *meta.Object) error {
 	if err != nil {
 		return err
 	}
-	if strings.HasPrefix(recordType, "NWR") || strings.HasPrefix(recordType, "REV") {
+	if recordType == "NWR" || recordType == "REV" {
 
 		registeredWork := &RegisteredWork{}
 		if err := cwrRecord.Decode(registeredWork); err != nil {
@@ -89,7 +88,7 @@ func (i *Indexer) index(cwrRecord *meta.Object) error {
 			return err
 		}
 	}
-	if strings.HasPrefix(recordType, "SPU") {
+	if recordType == "SPU" {
 
 		publisherControlledBySubmitter := &PublisherControllBySubmitter{}
 		if err := cwrRecord.Decode(publisherControlledBySubmitter); err != nil {
@@ -111,10 +110,7 @@ func (i *Indexer) indexRegisteredWork(cid string, registeredWork *RegisteredWork
 		`INSERT INTO registered_work (object_id, title, iswc, composite_type,record_type) VALUES ($1, $2, $3, $4, $5)`,
 		cid, registeredWork.Title, registeredWork.ISWC, registeredWork.CompositeType, registeredWork.RecordType,
 	)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // indexPublisherControlledBySubmiter indexes the given SPU record on its publisher_sequence_n and record_type
@@ -125,8 +121,5 @@ func (i *Indexer) indexPublisherControlledBySubmiter(cid string, publisherContro
 		`INSERT INTO publisher_control (object_id, publisher_sequence_n, record_type) VALUES ($1, $2, $3)`,
 		cid, publisherControlledBySubmitter.PublisherSequenceNumber, publisherControlledBySubmitter.RecordType,
 	)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }

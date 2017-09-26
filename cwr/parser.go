@@ -21,13 +21,11 @@ package cwr
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/json"
 	"io"
 	"strings"
 )
 
-func getSlice(s string, from int, to int) string {
+func substring(s string, from int, to int) string {
 	if len(s) < from || len(s) < to {
 		return ""
 	}
@@ -37,42 +35,34 @@ func ParseCWRFile(cwrFileReader io.Reader) (records []*Record, err error) {
 	scanner := bufio.NewScanner(cwrFileReader)
 
 	for scanner.Scan() {
-		var record *Record
-		var recordBytes []byte
+		var record *Record = &Record{}
+
 		if strings.HasPrefix(scanner.Text(), "NWR") ||
 			strings.HasPrefix(scanner.Text(), "REV") {
-			registeredWork := RegisteredWork{}
-			registeredWork.RecordType = getSlice(scanner.Text(), 0, 19)
-			registeredWork.Title = strings.TrimSpace(getSlice(scanner.Text(), 19, 79))
-			registeredWork.LanguageCode = getSlice(scanner.Text(), 79, 81)
-			registeredWork.SubmitteWorkNumber = getSlice(scanner.Text(), 81, 95)
-			registeredWork.ISWC = getSlice(scanner.Text(), 95, 106)
-			registeredWork.CopyRightDate = getSlice(scanner.Text(), 106, 113)
-			registeredWork.DistributionCategory = getSlice(scanner.Text(), 127, 129)
-			registeredWork.Duration = getSlice(scanner.Text(), 129, 135)
-			registeredWork.RecordedIndicator = getSlice(scanner.Text(), 135, 136)
-			registeredWork.TextMusicRelationship = getSlice(scanner.Text(), 136, 139)
-			registeredWork.CompositeType = getSlice(scanner.Text(), 140, 142)
-			registeredWork.VersionType = getSlice(scanner.Text(), 142, 145)
-			registeredWork.PriorityFlag = getSlice(scanner.Text(), 259, 260)
-			recordBytes, err = json.Marshal(registeredWork)
-			if err != nil {
-				return nil, err
-			}
+			record.RecordType = substring(scanner.Text(), 0, 3)
+			record.TransactionSequenceN = substring(scanner.Text(), 3, 12)
+			record.RecordSequenceN = substring(scanner.Text(), 12, 19)
+			record.Title = strings.TrimSpace(substring(scanner.Text(), 19, 79))
+			record.LanguageCode = substring(scanner.Text(), 79, 81)
+			record.SubmitteWorkNumber = substring(scanner.Text(), 81, 95)
+			record.ISWC = substring(scanner.Text(), 95, 106)
+			record.CopyRightDate = substring(scanner.Text(), 106, 113)
+			record.DistributionCategory = substring(scanner.Text(), 127, 129)
+			record.Duration = substring(scanner.Text(), 129, 135)
+			record.RecordedIndicator = substring(scanner.Text(), 135, 136)
+			record.TextMusicRelationship = substring(scanner.Text(), 136, 139)
+			record.CompositeType = substring(scanner.Text(), 140, 142)
+			record.VersionType = substring(scanner.Text(), 142, 145)
+			record.PriorityFlag = substring(scanner.Text(), 259, 260)
 		}
 		if strings.HasPrefix(scanner.Text(), "SPU") {
-			publisherControllBySubmitter := PublisherControllBySubmitter{}
-			publisherControllBySubmitter.RecordType = getSlice(scanner.Text(), 0, 19)
-			publisherControllBySubmitter.PublisherSequenceNumber = getSlice(scanner.Text(), 19, 21)
-			recordBytes, err = json.Marshal(publisherControllBySubmitter)
-			if err != nil {
-				return nil, err
-			}
+			record.RecordType = substring(scanner.Text(), 0, 3)
+			record.TransactionSequenceN = substring(scanner.Text(), 3, 12)
+			record.RecordSequenceN = substring(scanner.Text(), 12, 19)
+			record.PublisherSequenceNumber = substring(scanner.Text(), 19, 21)
 		}
-		if len(recordBytes) > 0 {
-			if err := json.NewDecoder(bytes.NewReader(recordBytes)).Decode(&record); err != nil {
-				return nil, err
-			}
+
+		if record.RecordType != "" {
 			records = append(records, record)
 		}
 	}

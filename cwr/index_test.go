@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/ipfs/go-cid"
@@ -119,8 +118,8 @@ func TestIndexRegisteredWorks(t *testing.T) {
 	// check all the registeredWorks were indexed
 	for _, record := range x.records {
 		// check the title, iswc, composite_type indexes
-		if !strings.HasPrefix(record.RecordType, "NWR") &&
-			!strings.HasPrefix(record.RecordType, "REV") {
+		if record.RecordType != "NWR" &&
+			record.RecordType != "REV" {
 			continue
 		}
 
@@ -187,7 +186,7 @@ func TestIndexPublisherControl(t *testing.T) {
 	// check all the publisherControlledBySubmitter were indexed
 	for _, record := range x.records {
 		// check the publisher_sequence_number indexes
-		if !strings.HasPrefix(record.RecordType, "SPU") {
+		if record.RecordType != "SPU" {
 			continue
 		}
 		rows, err := x.db.Query(

@@ -158,8 +158,8 @@ func (g *Resolver) RegisteredWork(args registeredWorkArgs) ([]*registeredWorkRes
 	return resolvers, nil
 }
 
-// RegisteredWork is a GraphQL resolver function which retrieves object IDs from the
-// SQLite3 index using either an RegisteredWork RecordType, Title ,ISWC,or CompositeType, and loads the
+// PublisherControl is a GraphQL resolver function which retrieves object IDs from the
+// SQLite3 index using either an PublihserControl RecordType or publisher_sequence_n and loads the
 // associated META objects from the META store.
 func (g *Resolver) PublisherControl(args publisherControlArgs) ([]*publisherControlResolver, error) {
 	var rows *sql.Rows

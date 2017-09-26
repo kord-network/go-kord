@@ -45,13 +45,21 @@ func TestCWRCommands(t *testing.T) {
 
 	// check 'meta cwr convert' prints a CID
 	stdout := c.run("cwr", "convert", "../cwr/testdata/testfile.cwr")
-	id, err := cid.Parse(strings.Split(stdout, "\n")[0])
-	if err != nil {
-		t.Fatal(err)
+	var ids []string
+	s := bufio.NewScanner(strings.NewReader(stdout))
+	for s.Scan() {
+		id, err := cid.Parse(s.Text())
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, id.String())
 	}
-	expected := "zdpuAogWXacrn8NVMiXV8VXGxyNuPQooCcFQWvYeWis1s5618"
-	if id.String() != expected {
-		t.Fatalf("unexpected CID, expected %q, got %q", expected, id)
+	expected := []string{
+		"zdpuAt8b81NQEtnaSJK9G4Fx3KXpuGBTd7Jm54vDTojQAuh8M",
+		"zdpuB1FVqhXaGGMWBTx4iQr34BRBEoBngF9nSktkwVrx9zCBv",
+	}
+	if !reflect.DeepEqual(ids, expected) {
+		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
 	// create a path to store the index
@@ -62,18 +70,20 @@ func TestCWRCommands(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 	db := filepath.Join(tmpDir, "index.db")
 
-	// run 'meta cwr index' with the CID as stdin
+	// run 'meta cwr index' with the CIDs as stdin
 	stream := strings.NewReader(stdout)
 	c.runWithStdin(stream, "cwr", "index", db)
 
 	// check the index was populated
-	cmd := exec.Command("sqlite3", db, "SELECT object_id FROM registered_work")
+	cmd := exec.Command("sqlite3", db, "SELECT object_id FROM registered_work UNION SELECT object_id FROM publisher_control ORDER BY object_id")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error checking index: %s: %s", err, out)
 	}
-	if strings.TrimSpace(string(out)) != expected {
-		t.Fatalf("unexpected index output, expected %q, got %q", expected, out)
+	gotIDs := strings.Split(strings.TrimSpace(string(out)), "\n")
+	sort.Strings(expected)
+	if !reflect.DeepEqual(gotIDs, expected) {
+		t.Fatalf("unexpected index output:\nexpected: %v\ngot:      %q", expected, gotIDs)
 	}
 }
 

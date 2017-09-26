@@ -24,6 +24,8 @@ package cwr
 // NWR or REV record
 type RegisteredWork struct {
 	RecordType              string `json:"record_type,omitempty"`
+	TransactionSequenceN    string `json:"transactionSequenceN,omitempty"`
+	RecordSequenceN         string `json:"recordSequenceN,omitempty"`
 	Title                   string `json:"title,omitempty"`
 	LanguageCode            string `json:"languageCode,omitempty"`
 	SubmitteWorkNumber      string `json:"submitterWorkNumber,omitempty"`
@@ -52,11 +54,15 @@ type RegisteredWork struct {
 // SPU Record
 type PublisherControllBySubmitter struct {
 	RecordType              string `json:"record_type,omitempty"`
+	TransactionSequenceN    string `json:"transactionSequenceN,omitempty"`
+	RecordSequenceN         string `json:"recordSequenceN,omitempty"`
 	PublisherSequenceNumber string `json:"publisher_sequence_n,omitempty"`
 }
 
 type Record struct {
 	RecordType              string `json:"record_type,omitempty"`
+	TransactionSequenceN    string `json:"transactionSequenceN,omitempty"`
+	RecordSequenceN         string `json:"recordSequenceN,omitempty"`
 	Title                   string `json:"title,omitempty"`
 	LanguageCode            string `json:"languageCode,omitempty"`
 	SubmitteWorkNumber      string `json:"submitterWorkNumber,omitempty"`
