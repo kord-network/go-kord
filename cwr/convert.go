@@ -45,15 +45,15 @@ func NewConverter(store *meta.Store) *Converter {
 // ConvertRegisteredWork reads all registeredWork , converts them to META
 // objects, stores them in the META store and sends their CIDs to the given
 // stream.
-func (c *Converter) ConvertRegisteredWork(ctx context.Context, outStream chan *cid.Cid, cwrFileReader io.Reader, cwr2JsonPython string) error {
-	// get all artists from the db
-	registeredWorks, err := ParseCWRFile(cwrFileReader, cwr2JsonPython)
+func (c *Converter) ConvertRegisteredWork(ctx context.Context, outStream chan *cid.Cid, cwrFileReader io.Reader) error {
+	// get records from the db
+	records, err := ParseCWRFile(cwrFileReader)
 	if err != nil {
 		return err
 	}
-	for _, registerdWork := range registeredWorks {
+	for _, record := range records {
 		// convert the registerdWork to a META object
-		obj, err := meta.Encode(registerdWork)
+		obj, err := meta.Encode(record)
 		if err != nil {
 			return err
 		}

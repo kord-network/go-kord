@@ -21,8 +21,11 @@ package cwr
 
 // RegisteredWork represents a CWR work registratin , see
 // see http://musicmark.com/documents/cwr11-1494_cwr_user_manual_2011-09-23_e_2011-09-23_en.pdf
+// NWR or REV record
 type RegisteredWork struct {
 	RecordType              string `json:"record_type,omitempty"`
+	TransactionSequenceN    string `json:"transactionSequenceN,omitempty"`
+	RecordSequenceN         string `json:"recordSequenceN,omitempty"`
 	Title                   string `json:"title,omitempty"`
 	LanguageCode            string `json:"languageCode,omitempty"`
 	SubmitteWorkNumber      string `json:"submitterWorkNumber,omitempty"`
@@ -48,12 +51,40 @@ type RegisteredWork struct {
 	PriorityFlag            string `json:"priorityFlag,omitempty"`
 }
 
-type Cwr struct {
-	Transmission struct {
-		Groups []struct {
-			Transactions [][]struct {
-				RegisteredWork
-			} `json:"transactions"`
-		} `json:"groups"`
-	} `json:"transmission"`
+// SPU Record
+type PublisherControllBySubmitter struct {
+	RecordType              string `json:"record_type,omitempty"`
+	TransactionSequenceN    string `json:"transactionSequenceN,omitempty"`
+	RecordSequenceN         string `json:"recordSequenceN,omitempty"`
+	PublisherSequenceNumber string `json:"publisher_sequence_n,omitempty"`
+}
+
+type Record struct {
+	RecordType              string `json:"record_type,omitempty"`
+	TransactionSequenceN    string `json:"transactionSequenceN,omitempty"`
+	RecordSequenceN         string `json:"recordSequenceN,omitempty"`
+	Title                   string `json:"title,omitempty"`
+	LanguageCode            string `json:"languageCode,omitempty"`
+	SubmitteWorkNumber      string `json:"submitterWorkNumber,omitempty"`
+	ISWC                    string `json:"iswc,omitempty"`
+	CopyRightDate           string `json:"copyRightDate,omitempty"`
+	DistributionCategory    string `json:"distributionCategory,omitempty"`
+	Duration                string `json:"duration,omitempty"`
+	RecordedIndicator       string `json:"recordedIndicator,omitempty"`
+	TextMusicRelationship   string `json:"textMusicRelationship,omitempty"`
+	CompositeType           string `json:"composite_type,omitempty"`
+	VersionType             string `json:"versionType,omitempty"`
+	MusicArrangement        string `json:"musicArrangement,omitempty"`
+	LyricAdaptation         string `json:"lyricAdaptation,omitempty"`
+	ContactName             string `json:"contactName,omitempty"`
+	ContactId               string `json:"contactId,omitempty"`
+	WorkType                string `json:"workType,omitempty"`
+	GrandRightsIndicator    string `json:"grandRightsIndicator,omitempty"`
+	CompositeComponentCount string `json:"compositeComponentCount,omitempty"`
+	DateOfPublication       string `json:"dateOfPublication,omitempty"`
+	ExceptionalClause       string `json:"exceptionalClause,omitempty"`
+	OpusNumber              string `json:"opusNumber,omitempty"`
+	CatalogueNumber         string `json:"catalogueNumber,omitempty"`
+	PriorityFlag            string `json:"priorityFlag,omitempty"`
+	PublisherSequenceNumber string `json:"publisher_sequence_n,omitempty"`
 }

@@ -33,10 +33,10 @@ import (
 )
 
 type testIndex struct {
-	db              *sql.DB
-	store           *meta.Store
-	registeredWorks []*RegisteredWork
-	tmpDir          string
+	db      *sql.DB
+	store   *meta.Store
+	records []*Record
+	tmpDir  string
 }
 
 func (t *testIndex) cleanup() {
@@ -59,16 +59,16 @@ func newTestIndex() (x *testIndex, err error) {
 	if err != nil {
 		return nil, err
 	}
-	x.registeredWorks, err = ParseCWRFile(cwrFileReader, "CWR-DataApi")
+	x.records, err = ParseCWRFile(cwrFileReader)
 	if err != nil {
 		return nil, err
 	}
 
-	// store the registeredWork in a test store
+	// store the record in a test store
 	x.store = meta.NewStore(datastore.NewMapDatastore())
-	cids := make([]*cid.Cid, len(x.registeredWorks))
-	for i, registerdWork := range x.registeredWorks {
-		obj, err := meta.Encode(registerdWork)
+	cids := make([]*cid.Cid, len(x.records))
+	for i, record := range x.records {
+		obj, err := meta.Encode(record)
 		if err != nil {
 			return nil, err
 		}
@@ -78,8 +78,7 @@ func newTestIndex() (x *testIndex, err error) {
 		cids[i] = obj.Cid()
 	}
 
-	// create a stream
-	stream := make(chan *cid.Cid, len(x.registeredWorks))
+	stream := make(chan *cid.Cid, len(x.records))
 	go func() {
 		defer close(stream)
 		for _, cid := range cids {
@@ -97,12 +96,12 @@ func newTestIndex() (x *testIndex, err error) {
 		return nil, err
 	}
 
-	// index the RegisteredWork
+	// index the record
 	indexer, err := NewIndexer(x.db, x.store)
 	if err != nil {
 		return nil, err
 	}
-	if err := indexer.IndexRegisteredWorks(context.Background(), stream); err != nil {
+	if err := indexer.Index(context.Background(), stream); err != nil {
 		return nil, err
 	}
 	return x, nil
@@ -117,11 +116,16 @@ func TestIndexRegisteredWorks(t *testing.T) {
 	}
 	defer x.cleanup()
 	// check all the registeredWorks were indexed
-	for _, registeredWork := range x.registeredWorks {
+	for _, record := range x.records {
 		// check the title, iswc, composite_type indexes
+		if record.RecordType != "NWR" &&
+			record.RecordType != "REV" {
+			continue
+		}
+
 		rows, err := x.db.Query(
 			`SELECT object_id FROM registered_work WHERE title = ? AND iswc = ? AND composite_type = ? AND record_type = ?`,
-			registeredWork.Title, registeredWork.ISWC, registeredWork.CompositeType, registeredWork.RecordType,
+			record.Title, record.ISWC, record.CompositeType, record.RecordType,
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -131,7 +135,7 @@ func TestIndexRegisteredWorks(t *testing.T) {
 		for rows.Next() {
 			// if we've already set objectID then we have a duplicate
 			if objectID != "" {
-				t.Fatalf("duplicate entries for registered work %q", registeredWork.Title)
+				t.Fatalf("duplicate entries for registered work %q", record.Title)
 			}
 			if err := rows.Scan(&objectID); err != nil {
 				t.Fatal(err)
@@ -148,10 +152,10 @@ func TestIndexRegisteredWorks(t *testing.T) {
 			}
 			// check the object has the correct fields
 			for key, expected := range map[string]string{
-				"title":          registeredWork.Title,
-				"iswc":           registeredWork.ISWC,
-				"composite_type": registeredWork.CompositeType,
-				"record_type":    registeredWork.RecordType,
+				"title":          record.Title,
+				"iswc":           record.ISWC,
+				"composite_type": record.CompositeType,
+				"record_type":    record.RecordType,
 			} {
 				actual, err := obj.GetString(key)
 				if err != nil {
@@ -165,7 +169,71 @@ func TestIndexRegisteredWorks(t *testing.T) {
 
 		// check we got an object and no db errors
 		if objectID == "" {
-			t.Fatalf("registered work %q not found", registeredWork.Title)
+			t.Fatalf("registered work %q not found", record.Title)
+		} else if err := rows.Err(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// TestIndexPublisherControl tests indexing a stream of cwr publisher control records.
+func TestIndexPublisherControl(t *testing.T) {
+	x, err := newTestIndex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer x.cleanup()
+	// check all the publisherControlledBySubmitter were indexed
+	for _, record := range x.records {
+		// check the publisher_sequence_number indexes
+		if record.RecordType != "SPU" {
+			continue
+		}
+		rows, err := x.db.Query(
+			`SELECT object_id FROM publisher_control WHERE publisher_sequence_n = ? AND record_type = ?`,
+			record.PublisherSequenceNumber, record.RecordType,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer rows.Close()
+		var objectID string
+		for rows.Next() {
+			// if we've already set objectID then we have a duplicate
+			if objectID != "" {
+				t.Fatalf("duplicate entries for SPU publisher sequence number %q", record.PublisherSequenceNumber)
+			}
+			if err := rows.Scan(&objectID); err != nil {
+				t.Fatal(err)
+			}
+
+			// check we can get the object from the store
+			cid, err := cid.Parse(objectID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			obj, err := x.store.Get(cid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// check the object has the correct fields
+			for key, expected := range map[string]string{
+				"publisher_sequence_n": record.PublisherSequenceNumber,
+				"record_type":          record.RecordType,
+			} {
+				actual, err := obj.GetString(key)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if actual != expected {
+					t.Fatalf("expected object %s to be %q, got %q", key, expected, actual)
+				}
+			}
+		}
+
+		// check we got an object and no db errors
+		if objectID == "" {
+			t.Fatalf("SPU %q not found", record.PublisherSequenceNumber)
 		} else if err := rows.Err(); err != nil {
 			t.Fatal(err)
 		}

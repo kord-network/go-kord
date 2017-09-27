@@ -107,10 +107,6 @@ later be enhanced to support storing objects in decentralised file storage like
 
 git clone https://github.com/meta-network/go-meta
 
-cd go-meta
-
-git submodule update --init
-
 ### Build
 
 To build the CLI, run:

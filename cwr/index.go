@@ -29,7 +29,7 @@ import (
 )
 
 // Indexer is a META indexer which indexes a stream of META objects
-// representing registered works (represented in cwr files) into a SQLite3 database, getting the
+// representing records (represented in cwr files) into a SQLite3 database, getting the
 // associated META objects from a META store.
 type Indexer struct {
 	indexDB *sql.DB
@@ -50,9 +50,8 @@ func NewIndexer(indexDB *sql.DB, store *meta.Store) (*Indexer, error) {
 	}, nil
 }
 
-// IndexRegisteredWorks indexes a stream of META object links which are expected to
-// point at registered works.
-func (i *Indexer) IndexRegisteredWorks(ctx context.Context, stream chan *cid.Cid) error {
+// Index indexes a stream of cwr records META objects
+func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) error {
 	for {
 		select {
 		case cid, ok := <-stream:
@@ -63,11 +62,7 @@ func (i *Indexer) IndexRegisteredWorks(ctx context.Context, stream chan *cid.Cid
 			if err != nil {
 				return err
 			}
-			registeredWork := &RegisteredWork{}
-			if err := obj.Decode(registeredWork); err != nil {
-				return err
-			}
-			if err := i.indexRegisteredWork(cid.String(), registeredWork); err != nil {
+			if err := i.index(obj); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -76,7 +71,38 @@ func (i *Indexer) IndexRegisteredWorks(ctx context.Context, stream chan *cid.Cid
 	}
 }
 
-// indexRegisteredWork indexes the given artist on its title,iswc,CompositeType and record_type
+// index indexes a cwr records based on the record type (NWR/REV/SPU)
+func (i *Indexer) index(cwrRecord *meta.Object) error {
+
+	recordType, err := cwrRecord.GetString("record_type")
+	if err != nil {
+		return err
+	}
+	if recordType == "NWR" || recordType == "REV" {
+
+		registeredWork := &RegisteredWork{}
+		if err := cwrRecord.Decode(registeredWork); err != nil {
+			return err
+		}
+		if err := i.indexRegisteredWork(cwrRecord.Cid().String(), registeredWork); err != nil {
+			return err
+		}
+	}
+	if recordType == "SPU" {
+
+		publisherControlledBySubmitter := &PublisherControllBySubmitter{}
+		if err := cwrRecord.Decode(publisherControlledBySubmitter); err != nil {
+			return err
+		}
+		if err := i.indexPublisherControlledBySubmiter(cwrRecord.Cid().String(), publisherControlledBySubmitter); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// indexRegisteredWork indexes the given registeredWork record on its title,iswc,CompositeType and record_type
 // properties.
 func (i *Indexer) indexRegisteredWork(cid string, registeredWork *RegisteredWork) error {
 	log.Info("indexing registered work", "title", registeredWork.Title, "iswc", registeredWork.ISWC, "CompositeType", registeredWork.CompositeType, "Record Type", registeredWork.RecordType)
@@ -84,8 +110,16 @@ func (i *Indexer) indexRegisteredWork(cid string, registeredWork *RegisteredWork
 		`INSERT INTO registered_work (object_id, title, iswc, composite_type,record_type) VALUES ($1, $2, $3, $4, $5)`,
 		cid, registeredWork.Title, registeredWork.ISWC, registeredWork.CompositeType, registeredWork.RecordType,
 	)
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
+}
+
+// indexPublisherControlledBySubmiter indexes the given SPU record on its publisher_sequence_n and record_type
+// properties.
+func (i *Indexer) indexPublisherControlledBySubmiter(cid string, publisherControlledBySubmitter *PublisherControllBySubmitter) error {
+	log.Info("indexing publisherControlledBySubmitter ", "publisher_sequence_n", publisherControlledBySubmitter.PublisherSequenceNumber, "Record Type", publisherControlledBySubmitter.RecordType)
+	_, err := i.indexDB.Exec(
+		`INSERT INTO publisher_control (object_id, publisher_sequence_n, record_type) VALUES ($1, $2, $3)`,
+		cid, publisherControlledBySubmitter.PublisherSequenceNumber, publisherControlledBySubmitter.RecordType,
+	)
+	return err
 }

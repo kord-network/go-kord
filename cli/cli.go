@@ -50,7 +50,7 @@ usage: meta import xml <file> [<context>...]
        meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>] [--cwr-index=<sqlite3-uri>]
        meta musicbrainz convert <postgres-uri>
        meta musicbrainz index <sqlite3-uri>
-       meta cwr convert <file> <cwr-python-dir>
+       meta cwr convert <file>
        meta cwr index <sqlite3-uri>
        meta ern convert <files>...
        meta ern index <sqlite3-uri>
@@ -317,7 +317,7 @@ func (cli *CLI) RunCwrConvert(ctx context.Context, args Args) error {
 	errC := make(chan error, 1)
 	go func() {
 		defer close(stream)
-		errC <- cwr.NewConverter(cli.store).ConvertRegisteredWork(ctx, stream, file, args.String("<cwr-python-dir>"))
+		errC <- cwr.NewConverter(cli.store).ConvertRegisteredWork(ctx, stream, file)
 	}()
 
 	// output the resulting CIDs to stdout
@@ -356,7 +356,7 @@ func (cli *CLI) RunCwrIndex(ctx context.Context, args Args) error {
 		}
 	}()
 
-	return indexer.IndexRegisteredWorks(ctx, stream)
+	return indexer.Index(ctx, stream)
 }
 
 func (cli *CLI) RunERN(ctx context.Context, args Args) error {

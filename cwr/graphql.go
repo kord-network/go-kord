@@ -40,10 +40,19 @@ type Query {
   composite_type: String,
   record_type: String
   ): [RegisteredWork]!
+
+  publisher_control(
+  publisher_sequence_n: String,
+  record_type: String
+  ): [PublisherControl]!
 }
 
 
-
+type PublisherControl {
+	cid:                      String!
+	record_type:              String!
+	publisher_sequence_n:     String!
+}
 
 type RegisteredWork {
 	cid:                      String!
@@ -96,6 +105,11 @@ type registeredWorkArgs struct {
 	CompositeType *string
 }
 
+type publisherControlArgs struct {
+	RecordType         *string
+	PublisherSequenceN *string
+}
+
 // RegisteredWork is a GraphQL resolver function which retrieves object IDs from the
 // SQLite3 index using either an RegisteredWork RecordType, Title ,ISWC,or CompositeType, and loads the
 // associated META objects from the META store.
@@ -142,6 +156,68 @@ func (g *Resolver) RegisteredWork(args registeredWorkArgs) ([]*registeredWorkRes
 		return nil, err
 	}
 	return resolvers, nil
+}
+
+// PublisherControl is a GraphQL resolver function which retrieves object IDs from the
+// SQLite3 index using either an PublihserControl RecordType or publisher_sequence_n and loads the
+// associated META objects from the META store.
+func (g *Resolver) PublisherControl(args publisherControlArgs) ([]*publisherControlResolver, error) {
+	var rows *sql.Rows
+	var err error
+	switch {
+	case args.PublisherSequenceN != nil:
+		rows, err = g.db.Query("SELECT object_id FROM publisher_control WHERE publisher_sequence_n = ?", *args.PublisherSequenceN)
+	case args.RecordType != nil:
+		rows, err = g.db.Query("SELECT object_id FROM publisher_control WHERE record_type = ?", *args.RecordType)
+	default:
+		return nil, errors.New("missing record_type or PublisherSequenceN argument")
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var resolvers []*publisherControlResolver
+	for rows.Next() {
+		var objectID string
+		if err := rows.Scan(&objectID); err != nil {
+			return nil, err
+		}
+		cid, err := cid.Parse(objectID)
+		if err != nil {
+			return nil, err
+		}
+		obj, err := g.store.Get(cid)
+		if err != nil {
+			return nil, err
+		}
+		var publisherControllBySubmitter PublisherControllBySubmitter
+		if err := obj.Decode(&publisherControllBySubmitter); err != nil {
+			return nil, err
+		}
+		resolvers = append(resolvers, &publisherControlResolver{objectID, &publisherControllBySubmitter})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return resolvers, nil
+}
+
+// registeredWorkResolver defines GraphQL resolver functions for registeredWork fields.
+type publisherControlResolver struct {
+	cid              string
+	publisherControl *PublisherControllBySubmitter
+}
+
+func (p *publisherControlResolver) Cid() string {
+	return p.cid
+}
+
+func (p *publisherControlResolver) RecordType() string {
+	return p.publisherControl.RecordType
+}
+
+func (p *publisherControlResolver) PublisherSequenceN() string {
+	return p.publisherControl.PublisherSequenceNumber
 }
 
 // registeredWorkResolver defines GraphQL resolver functions for registeredWork fields.

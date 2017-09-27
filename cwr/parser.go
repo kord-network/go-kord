@@ -20,48 +20,54 @@
 package cwr
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
+	"bufio"
 	"io"
-	"os/exec"
+	"strings"
 )
 
-// ParseCWRFile parse a give cwr file and returns an array of registeredWorks
-func ParseCWRFile(cwrFileReader io.Reader, CWRDataApiPath string) (registeredWorks []*RegisteredWork, err error) {
-	//phase 1 : Transform cwr formatted file to cwr-json file using CWR-DataApi python script.
-	cmd := exec.Command("python3", CWRDataApiPath+"/cwr2json.py")
-	cmd.Stdin = cwrFileReader
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("cwr2json.py failed: %s: %s", err, stderr.String())
+func substring(s string, from int, to int) string {
+	if len(s) < from || len(s) < to {
+		return ""
 	}
+	return s[from:to]
+}
+func ParseCWRFile(cwrFileReader io.Reader) (records []*Record, err error) {
+	scanner := bufio.NewScanner(cwrFileReader)
 
-	var cwr Cwr
-	if err := json.Unmarshal(stdout.Bytes(), &cwr); err != nil {
-		return nil, err
-	}
-	for _, group := range cwr.Transmission.Groups {
-		for _, tx := range group.Transactions {
-			var registeredWork *RegisteredWork
-			for _, record := range tx {
-				if record.RecordType == "REV" ||
-					record.RecordType == "NWR" {
-					registeredWorkBytes, err := json.Marshal(record)
-					if err != nil {
-						return nil, err
-					}
-					if err := json.NewDecoder(bytes.NewReader(registeredWorkBytes)).Decode(&registeredWork); err != nil {
-						return nil, err
-					}
-					registeredWorks = append(registeredWorks, registeredWork)
-				}
-			}
+	for scanner.Scan() {
+		var record *Record = &Record{}
+
+		if strings.HasPrefix(scanner.Text(), "NWR") ||
+			strings.HasPrefix(scanner.Text(), "REV") {
+			record.RecordType = substring(scanner.Text(), 0, 3)
+			record.TransactionSequenceN = substring(scanner.Text(), 3, 12)
+			record.RecordSequenceN = substring(scanner.Text(), 12, 19)
+			record.Title = strings.TrimSpace(substring(scanner.Text(), 19, 79))
+			record.LanguageCode = substring(scanner.Text(), 79, 81)
+			record.SubmitteWorkNumber = substring(scanner.Text(), 81, 95)
+			record.ISWC = substring(scanner.Text(), 95, 106)
+			record.CopyRightDate = substring(scanner.Text(), 106, 113)
+			record.DistributionCategory = substring(scanner.Text(), 127, 129)
+			record.Duration = substring(scanner.Text(), 129, 135)
+			record.RecordedIndicator = substring(scanner.Text(), 135, 136)
+			record.TextMusicRelationship = substring(scanner.Text(), 136, 139)
+			record.CompositeType = substring(scanner.Text(), 140, 142)
+			record.VersionType = substring(scanner.Text(), 142, 145)
+			record.PriorityFlag = substring(scanner.Text(), 259, 260)
 		}
+		if strings.HasPrefix(scanner.Text(), "SPU") {
+			record.RecordType = substring(scanner.Text(), 0, 3)
+			record.TransactionSequenceN = substring(scanner.Text(), 3, 12)
+			record.RecordSequenceN = substring(scanner.Text(), 12, 19)
+			record.PublisherSequenceNumber = substring(scanner.Text(), 19, 21)
+		}
+
+		if record.RecordType != "" {
+			records = append(records, record)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
 	}
 	return
 }

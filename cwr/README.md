@@ -9,21 +9,6 @@ a GraphQL API for querying the index.
 This module converts CWR transactions, as they appear in CWR formatted files, to META objects and indexes them on certain keys.
 
 The `Converter` type is used to read a CWR file, convert to META objects and append to a META stream.
-It is done in 2 phases:
-
-Phase 1 -
-
-  Convert CWR format files to standard JSON files (CWR-JSON).
-  This is done using [CWR-DataApi python project](http://cwr-dataapi.readthedocs.io/en/latest/).
-
-  There is an [updated fixed forked version](https://github.com/orenyodfat/CWR-DataApi) as a git submodule in this project
-  (there is an open pull request against CWR-DataApi original repo).
-
-  See [readme](https://github.com/orenyodfat/CWR-DataApi/blob/develop/README.rst) for python prerequisites & installing.
-
-Phase 2 -
-
-  Extract and convert CWR transactions from CWR-JSON to META objects.
 
 The `Indexer` type reads META objects from a stream and indexes them in
 a SQLite3 database.
@@ -38,11 +23,10 @@ API queries.
 To run the conversion on a local `cwr` file:
 
 ```
-$ meta cwr convert <cwrfile> <cwr-python-dir> > registeredwork.meta
+$ meta cwr convert <cwrfile> > registeredwork.meta
 ```
 cwrfile        - the input cwrfile to convert
 
-cwr-python-dir - python CWR-DataApi directory
 
 ### Indexing
 
@@ -56,7 +40,7 @@ You can then query the index with the `sqlite3` CLI and dump the resulting
 META objects using `meta dump`, for example searching for "PUNK CLUB":
 
 ```
-$ sqlite3 registeredwork.db "SELECT object_id FROM artist WHERE title = 'PUNK CLUB'"
+$ sqlite3 registeredwork.db "SELECT object_id FROM registered_work WHERE title = 'PUNK CLUB'"
 zdpuAoVMEcareeS4TXPr7YAYNztY1ybbvobV8t7XMkzS9rMeq
 
 $ meta dump zdpuAoVMEcareeS4TXPr7YAYNztY1ybbvobV8t7XMkzS9rMeq/iswc

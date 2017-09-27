@@ -26,13 +26,18 @@ import "github.com/meta-network/go-meta/migrate"
 var migrations = migrate.NewMigrations()
 
 func init() {
-	// migration 1 creates indexes for the following artist properties:
+	// migration 1 creates indexes for the following cwr records:
 	//
+	//  RegisteredWork (NWR/REV)
 	// * Title -
 	// * ISWC -
 	// * CompositeType -
 	// * record_type  -
 	//
+	//  PublisherControl (SPU)
+	// * publisher_sequence_n -
+	// * record_type  -
+
 	migrations.Add(1, `
 CREATE TABLE registered_work (
 	object_id      text NOT NULL,
@@ -47,6 +52,16 @@ CREATE INDEX registered_work_title_idx         ON registered_work (title);
 CREATE INDEX registered_work_iswc_idx          ON registered_work (iswc);
 CREATE INDEX registered_work_composite_type_idx ON registered_work (composite_type);
 CREATE INDEX registered_work_record_type_idx   ON registered_work (record_type);
+
+CREATE TABLE publisher_control (
+	object_id            text NOT NULL,
+	publisher_sequence_n text NOT NULL,
+	record_type          text NOT NULL
+);
+
+CREATE INDEX publisher_control_object_id_idx            ON publisher_control (object_id);
+CREATE INDEX publisher_control_publisher_sequence_n_idx ON publisher_control (publisher_sequence_n);
+CREATE INDEX publisher_control_record_type_idx          ON publisher_control (record_type);
 `,
 	)
 }
