@@ -21,6 +21,7 @@ package meta
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"reflect"
 	"runtime"
@@ -102,50 +103,52 @@ func benchmarkEncode(n int, t *testing.B) {
 		String string `json:"string"`
 	}
 	v := &test{}
-
 	v.String = strings.Repeat("t", n)
 
 	t.ReportAllocs()
 	t.ResetTimer()
-	for i := 0; i < t.N; i++ {
 
+	for i := 0; i < t.N; i++ {
 		_, err := Encode(v)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
+
 	stats := new(runtime.MemStats)
 	runtime.ReadMemStats(stats)
 }
 
-func benchmarkJsonEncode(n int, t *testing.B) {
+func benchmarkJSONEncode(n int, t *testing.B) {
 	type test struct {
 		String string `json:"string"`
 	}
 	v := &test{}
-
 	v.String = strings.Repeat("t", n)
 
 	t.ReportAllocs()
 	t.ResetTimer()
+
 	for i := 0; i < t.N; i++ {
-
-		_, err := json.Marshal(v)
-
+		obj, err := json.Marshal(v)
 		if err != nil {
 			t.Fatal(err)
 		}
+		_ = sha256.Sum256(obj)
 	}
+
 	stats := new(runtime.MemStats)
 	runtime.ReadMemStats(stats)
 }
 
-func BenchmarkEncode1(b *testing.B)    { benchmarkEncode(1, b) }
-func BenchmarkEncode10(b *testing.B)   { benchmarkEncode(10, b) }
-func BenchmarkEncode100(b *testing.B)  { benchmarkEncode(100, b) }
-func BenchmarkEncode1000(b *testing.B) { benchmarkEncode(1000, b) }
+func BenchmarkEncode1(b *testing.B)     { benchmarkEncode(1, b) }
+func BenchmarkEncode10(b *testing.B)    { benchmarkEncode(10, b) }
+func BenchmarkEncode100(b *testing.B)   { benchmarkEncode(100, b) }
+func BenchmarkEncode1000(b *testing.B)  { benchmarkEncode(1000, b) }
+func BenchmarkEncode10000(b *testing.B) { benchmarkEncode(10000, b) }
 
-func BenchmarkJsonEncode1(b *testing.B)    { benchmarkJsonEncode(1, b) }
-func BenchmarkJsonEncode10(b *testing.B)   { benchmarkJsonEncode(10, b) }
-func BenchmarkJsonEncode100(b *testing.B)  { benchmarkJsonEncode(100, b) }
-func BenchmarkJsonEncode1000(b *testing.B) { benchmarkJsonEncode(1000, b) }
+func BenchmarkJSONEncode1(b *testing.B)     { benchmarkJSONEncode(1, b) }
+func BenchmarkJSONEncode10(b *testing.B)    { benchmarkJSONEncode(10, b) }
+func BenchmarkJSONEncode100(b *testing.B)   { benchmarkJSONEncode(100, b) }
+func BenchmarkJSONEncode1000(b *testing.B)  { benchmarkJSONEncode(1000, b) }
+func BenchmarkJSONEncode10000(b *testing.B) { benchmarkJSONEncode(10000, b) }

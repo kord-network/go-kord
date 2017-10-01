@@ -45,8 +45,22 @@ type Query {
   publisher_sequence_n: String,
   record_type: String
   ): [PublisherControl]!
+
+	transmission_header(
+  sender_type: String,
+	sender_id: String,
+  record_type: String,
+	sender_name: String
+  ): [TransmissionHeader]!
 }
 
+type TransmissionHeader {
+	cid:                      String!
+	record_type:              String!
+	sender_type:              String!
+	sender_id:                String!
+	sender_name:              String!
+}
 
 type PublisherControl {
 	cid:                      String!
@@ -110,6 +124,13 @@ type publisherControlArgs struct {
 	PublisherSequenceN *string
 }
 
+type transmissionHeaderArgs struct {
+	RecordType *string
+	SenderType *string
+	SenderID   *string
+	SenderName *string
+}
+
 // RegisteredWork is a GraphQL resolver function which retrieves object IDs from the
 // SQLite3 index using either an RegisteredWork RecordType, Title ,ISWC,or CompositeType, and loads the
 // associated META objects from the META store.
@@ -159,7 +180,7 @@ func (g *Resolver) RegisteredWork(args registeredWorkArgs) ([]*registeredWorkRes
 }
 
 // PublisherControl is a GraphQL resolver function which retrieves object IDs from the
-// SQLite3 index using either an PublihserControl RecordType or publisher_sequence_n and loads the
+// SQLite3 index using either a PublihserControl RecordType or publisher_sequence_n and loads the
 // associated META objects from the META store.
 func (g *Resolver) PublisherControl(args publisherControlArgs) ([]*publisherControlResolver, error) {
 	var rows *sql.Rows
@@ -202,7 +223,81 @@ func (g *Resolver) PublisherControl(args publisherControlArgs) ([]*publisherCont
 	return resolvers, nil
 }
 
-// registeredWorkResolver defines GraphQL resolver functions for registeredWork fields.
+// TransmissionHeader is a GraphQL resolver function which retrieves object IDs from the
+// SQLite3 index using either a transmission header RecordType,sender_type,sender_type or sender_name and loads the
+// associated META objects from the META store.
+func (g *Resolver) TransmissionHeader(args transmissionHeaderArgs) ([]*transmissionHeaderResolver, error) {
+	var rows *sql.Rows
+	var err error
+	switch {
+	case args.SenderType != nil:
+		rows, err = g.db.Query("SELECT object_id FROM transmission_header WHERE sender_type = ?", *args.SenderType)
+	case args.SenderID != nil:
+		rows, err = g.db.Query("SELECT object_id FROM transmission_header WHERE sender_id = ?", *args.SenderID)
+	case args.RecordType != nil:
+		rows, err = g.db.Query("SELECT object_id FROM transmission_header WHERE record_type = ?", *args.RecordType)
+	case args.SenderName != nil:
+		rows, err = g.db.Query("SELECT object_id FROM transmission_header WHERE sender_name = ?", *args.SenderName)
+	default:
+		return nil, errors.New("missing record_type,sender_type,sender_id,record_type or sender_name argument")
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var resolvers []*transmissionHeaderResolver
+	for rows.Next() {
+		var objectID string
+		if err := rows.Scan(&objectID); err != nil {
+			return nil, err
+		}
+		cid, err := cid.Parse(objectID)
+		if err != nil {
+			return nil, err
+		}
+		obj, err := g.store.Get(cid)
+		if err != nil {
+			return nil, err
+		}
+		var transmissionHeader TransmissionHeader
+		if err := obj.Decode(&transmissionHeader); err != nil {
+			return nil, err
+		}
+		resolvers = append(resolvers, &transmissionHeaderResolver{objectID, &transmissionHeader})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return resolvers, nil
+}
+
+// transmissionHeaderResolver defines GraphQL resolver functions for transmissionHeader fields.
+type transmissionHeaderResolver struct {
+	cid                string
+	transmissionHeader *TransmissionHeader
+}
+
+func (t *transmissionHeaderResolver) Cid() string {
+	return t.cid
+}
+
+func (t *transmissionHeaderResolver) RecordType() string {
+	return t.transmissionHeader.RecordType
+}
+
+func (t *transmissionHeaderResolver) SenderID() string {
+	return t.transmissionHeader.SenderID
+}
+
+func (t *transmissionHeaderResolver) SenderType() string {
+	return t.transmissionHeader.SenderType
+}
+
+func (t *transmissionHeaderResolver) SenderName() string {
+	return t.transmissionHeader.SenderName
+}
+
+// publisherControlResolver defines GraphQL resolver functions for publisherControl fields.
 type publisherControlResolver struct {
 	cid              string
 	publisherControl *PublisherControllBySubmitter
@@ -254,8 +349,8 @@ func (r *registeredWorkResolver) CompositeType() string {
 	return r.registeredWork.CompositeType
 }
 
-func (r *registeredWorkResolver) ContactId() string {
-	return r.registeredWork.ContactId
+func (r *registeredWorkResolver) ContactID() string {
+	return r.registeredWork.ContactID
 }
 
 func (r *registeredWorkResolver) ContactName() string {

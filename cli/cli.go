@@ -50,7 +50,7 @@ usage: meta import xml <file> [<context>...]
        meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>] [--cwr-index=<sqlite3-uri>]
        meta musicbrainz convert <postgres-uri>
        meta musicbrainz index <sqlite3-uri>
-       meta cwr convert <file>
+       meta cwr convert <files>...
        meta cwr index <sqlite3-uri>
        meta ern convert <files>...
        meta ern index <sqlite3-uri>
@@ -305,27 +305,21 @@ func (cli *CLI) RunCwr(ctx context.Context, args Args) error {
 }
 
 func (cli *CLI) RunCwrConvert(ctx context.Context, args Args) error {
-	file, err := os.Open(args.String("<file>"))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// run the converter in a goroutine so that we only exit once all CIDs
-	// have been read from the stream
-	stream := make(chan *cid.Cid)
-	errC := make(chan error, 1)
-	go func() {
-		defer close(stream)
-		errC <- cwr.NewConverter(cli.store).ConvertRegisteredWork(ctx, stream, file)
-	}()
-
-	// output the resulting CIDs to stdout
-	for cid := range stream {
+	converter := cwr.NewConverter(cli.store)
+	files := args.List("<files>")
+	for _, file := range files {
+		f, err := os.Open(file)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		cid, err := converter.ConvertCWR(f)
+		if err != nil {
+			return err
+		}
 		fmt.Fprintln(cli.stdout, cid.String())
 	}
-
-	return <-errC
+	return nil
 }
 
 func (cli *CLI) RunCwrIndex(ctx context.Context, args Args) error {

@@ -40,7 +40,7 @@ type RegisteredWork struct {
 	MusicArrangement        string `json:"musicArrangement,omitempty"`
 	LyricAdaptation         string `json:"lyricAdaptation,omitempty"`
 	ContactName             string `json:"contactName,omitempty"`
-	ContactId               string `json:"contactId,omitempty"`
+	ContactID               string `json:"contactId,omitempty"`
 	WorkType                string `json:"workType,omitempty"`
 	GrandRightsIndicator    string `json:"grandRightsIndicator,omitempty"`
 	CompositeComponentCount string `json:"compositeComponentCount,omitempty"`
@@ -51,7 +51,33 @@ type RegisteredWork struct {
 	PriorityFlag            string `json:"priorityFlag,omitempty"`
 }
 
-// SPU Record
+// TransmissionHeader Record - HDR
+type TransmissionHeader struct {
+	RecordType string `json:"record_type,omitempty"`
+	SenderType string `json:"sender_type,omitempty"`
+	SenderID   string `json:"sender_id,omitempty"`
+	SenderName string `json:"sender_name,omitempty"`
+}
+
+// GroupTrailer Record - GRT
+type GroupTrailer struct {
+	RecordType string `json:"record_type,omitempty"`
+	GroupID    string `json:"group_id,omitempty"`
+}
+
+// GroupHeader Record - GRH
+type GroupHeader struct {
+	RecordType      string `json:"record_type,omitempty"`
+	TransactionType string `json:"transaction_type,omitempty"`
+	GroupID         string `json:"group_id,omitempty"`
+}
+
+// TransmissionTrailer Record - TRL
+type TransmissionTrailer struct {
+	RecordType string `json:"record_type,omitempty"`
+}
+
+// PublisherControllBySubmitter Record - SPU
 type PublisherControllBySubmitter struct {
 	RecordType              string `json:"record_type,omitempty"`
 	TransactionSequenceN    string `json:"transactionSequenceN,omitempty"`
@@ -59,6 +85,7 @@ type PublisherControllBySubmitter struct {
 	PublisherSequenceNumber string `json:"publisher_sequence_n,omitempty"`
 }
 
+// Record - include all CWR records fields
 type Record struct {
 	RecordType              string `json:"record_type,omitempty"`
 	TransactionSequenceN    string `json:"transactionSequenceN,omitempty"`
@@ -77,7 +104,7 @@ type Record struct {
 	MusicArrangement        string `json:"musicArrangement,omitempty"`
 	LyricAdaptation         string `json:"lyricAdaptation,omitempty"`
 	ContactName             string `json:"contactName,omitempty"`
-	ContactId               string `json:"contactId,omitempty"`
+	ContactID               string `json:"contactId,omitempty"`
 	WorkType                string `json:"workType,omitempty"`
 	GrandRightsIndicator    string `json:"grandRightsIndicator,omitempty"`
 	CompositeComponentCount string `json:"compositeComponentCount,omitempty"`
@@ -87,4 +114,9 @@ type Record struct {
 	CatalogueNumber         string `json:"catalogueNumber,omitempty"`
 	PriorityFlag            string `json:"priorityFlag,omitempty"`
 	PublisherSequenceNumber string `json:"publisher_sequence_n,omitempty"`
+	TransactionType         string `json:"transaction_type,omitempty"`
+	GroupID                 string `json:"group_id,omitempty"`
+	SenderType              string `json:"sender_type,omitempty"`
+	SenderID                string `json:"sender_id,omitempty"`
+	SenderName              string `json:"sender_name,omitempty"`
 }

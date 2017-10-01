@@ -44,7 +44,9 @@ func TestCWRCommands(t *testing.T) {
 	c := newTestCLI(t)
 
 	// check 'meta cwr convert' prints a CID
-	stdout := c.run("cwr", "convert", "../cwr/testdata/testfile.cwr")
+	stdout := c.run("cwr", "convert",
+		"../cwr/testdata/example_double_nwr.cwr",
+		"../cwr/testdata/example_nwr.cwr")
 	var ids []string
 	s := bufio.NewScanner(strings.NewReader(stdout))
 	for s.Scan() {
@@ -55,8 +57,8 @@ func TestCWRCommands(t *testing.T) {
 		ids = append(ids, id.String())
 	}
 	expected := []string{
-		"zdpuAt8b81NQEtnaSJK9G4Fx3KXpuGBTd7Jm54vDTojQAuh8M",
-		"zdpuB1FVqhXaGGMWBTx4iQr34BRBEoBngF9nSktkwVrx9zCBv",
+		"zdpuArZ8uwrUEqsdPeXaeVhV2DWcKdheUkkMqB3y5K6YrYsPJ",
+		"zdpuAp3SkXdHUVRY2LH59gKfWHMMWdCXyQNqVxHwmomwjjJ2b",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
@@ -75,7 +77,7 @@ func TestCWRCommands(t *testing.T) {
 	c.runWithStdin(stream, "cwr", "index", db)
 
 	// check the index was populated
-	cmd := exec.Command("sqlite3", db, "SELECT object_id FROM registered_work UNION SELECT object_id FROM publisher_control ORDER BY object_id")
+	cmd := exec.Command("sqlite3", db, "SELECT cwr_id FROM transmission_header ORDER BY cwr_id")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error checking index: %s: %s", err, out)

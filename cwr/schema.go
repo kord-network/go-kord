@@ -40,6 +40,7 @@ func init() {
 
 	migrations.Add(1, `
 CREATE TABLE registered_work (
+	cwr_id         text NOT NULL,
 	object_id      text NOT NULL,
 	title          text NOT NULL,
 	iswc           text NOT NULL,
@@ -47,13 +48,17 @@ CREATE TABLE registered_work (
 	record_type    text NOT NULL
 );
 
-CREATE INDEX registered_work_object_id_idx     ON registered_work (object_id);
-CREATE INDEX registered_work_title_idx         ON registered_work (title);
-CREATE INDEX registered_work_iswc_idx          ON registered_work (iswc);
+CREATE INDEX registered_work_object_id_idx      ON registered_work (object_id);
+CREATE INDEX registered_work_title_idx          ON registered_work (title);
+CREATE INDEX registered_work_iswc_idx           ON registered_work (iswc);
 CREATE INDEX registered_work_composite_type_idx ON registered_work (composite_type);
-CREATE INDEX registered_work_record_type_idx   ON registered_work (record_type);
+CREATE INDEX registered_work_record_type_idx    ON registered_work (record_type);
+CREATE INDEX registered_work_cwr_id_idx         ON registered_work (cwr_id);
+
 
 CREATE TABLE publisher_control (
+	cwr_id               text NOT NULL,
+	tx_id                text NOT NULL,
 	object_id            text NOT NULL,
 	publisher_sequence_n text NOT NULL,
 	record_type          text NOT NULL
@@ -62,6 +67,28 @@ CREATE TABLE publisher_control (
 CREATE INDEX publisher_control_object_id_idx            ON publisher_control (object_id);
 CREATE INDEX publisher_control_publisher_sequence_n_idx ON publisher_control (publisher_sequence_n);
 CREATE INDEX publisher_control_record_type_idx          ON publisher_control (record_type);
+CREATE INDEX publisher_control_cwr_id_idx               ON publisher_control (cwr_id);
+CREATE INDEX publisher_tx_id_idx                        ON publisher_control (tx_id);
+
+
+--
+-- the transmission_header table is an index of CWR transmission header (HDR)
+--
+CREATE TABLE transmission_header (
+	cwr_id      text NOT NULL,
+	object_id   text NOT NULL,
+	sender_type text NOT NULL,
+	sender_id   text NOT NULL,
+	record_type text NOT NULL,
+	sender_name text NOT NULL
+);
+
+CREATE INDEX transmission_header_object_id_idx   ON transmission_header (object_id);
+CREATE INDEX transmission_header_sender_type_idx ON transmission_header (sender_type);
+CREATE INDEX transmission_header_sender_id_idx   ON transmission_header (sender_id);
+CREATE INDEX transmission_header_record_type_idx ON transmission_header (record_type);
+CREATE INDEX transmission_header_cwr_id_idx      ON transmission_header (cwr_id);
+CREATE INDEX transmission_sender_name_id_idx      ON transmission_header (sender_name);
 `,
 	)
 }
