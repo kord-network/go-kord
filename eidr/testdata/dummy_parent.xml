@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FullMetadata xmlns="http://www.eidr.org/schema" xmlns:md="http://www.movielabs.com/schema/md/v2.1/md" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <BaseObjectData>
+    <ID>10.5240/FEED-BEEF-0123-4567-890A-C</ID>
+    <StructuralType>Abstraction</StructuralType>
+    <Mode>AudioVisual</Mode>
+    <ReferentType>Series</ReferentType>
+    <ResourceName lang="en" titleClass="release">Foo</ResourceName>
+    <AlternateResourceName lang="nb-NO" titleClass="regional">Bar</AlternateResourceName>
+    <OriginalLanguage mode="Audio" type="primary">en</OriginalLanguage>
+    <AssociatedOrg role="producer">
+      <md:DisplayName>Acme Inc.</md:DisplayName>
+    </AssociatedOrg>
+    <ReleaseDate>1984-12-24</ReleaseDate>
+    <CountryOfOrigin>GB</CountryOfOrigin>
+    <Status>valid</Status>
+    <ApproximateLength>PT45M</ApproximateLength>
+    <AlternateID relation="IsSameAs" xsi:type="Proprietary" domain="http://www.foo.eth">42</AlternateID>
+    <Administrators>
+      <Registrant>10.5237/FFFF-FFFF</Registrant>
+    </Administrators>
+  </BaseObjectData>
+  <ExtraObjectMetadata>
+    <SeriesInfo>
+      <SeriesClass>Episodic</SeriesClass>
+      <NumberRequired>true</NumberRequired>
+      <DateRequired>false</DateRequired>
+      <OriginalTitleRequired>false</OriginalTitleRequired>
+    </SeriesInfo>
+  </ExtraObjectMetadata>
+</FullMetadata>
+

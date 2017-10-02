@@ -38,6 +38,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/cwr"
+	"github.com/meta-network/go-meta/eidr"
 	"github.com/meta-network/go-meta/ern"
 	"github.com/meta-network/go-meta/musicbrainz"
 	"github.com/meta-network/go-meta/xml"
@@ -47,13 +48,15 @@ var usage = `
 usage: meta import xml <file> [<context>...]
        meta import xsd <name> <uri> [<file>]
        meta dump [--format=<format>] <path>
-       meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>] [--cwr-index=<sqlite3-uri>] [--ern-index=<sqlite3-uri>]
+       meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>] [--cwr-index=<sqlite3-uri>] [--ern-index=<sqlite3-uri>] [--eidr-index=<sqlite3-uri>]
        meta musicbrainz convert <postgres-uri>
        meta musicbrainz index <sqlite3-uri>
        meta cwr convert <files>...
        meta cwr index <sqlite3-uri>
        meta ern convert <files>...
        meta ern index <sqlite3-uri>
+       meta eidr convert <files>...
+       meta eidr index <sqlite3-uri>
 `[1:]
 
 type CLI struct {
@@ -83,6 +86,8 @@ func (cli *CLI) Run(ctx context.Context, cmdArgs ...string) error {
 		return cli.RunCwr(ctx, args)
 	case args.Bool("ern"):
 		return cli.RunERN(ctx, args)
+	case args.Bool("eidr"):
+		return cli.RunEIDR(ctx, args)
 	default:
 		return errors.New("unknown command")
 	}
@@ -188,6 +193,7 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 	var musicbrainzDB *sql.DB = nil
 	var cwrDB *sql.DB = nil
 	var ernDB *sql.DB = nil
+	var eidrDB *sql.DB = nil
 	if uri := args.String("--musicbrainz-index"); uri != "" {
 		db, err := sql.Open("sqlite3", uri)
 		if err != nil {
@@ -212,8 +218,16 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 		defer db.Close()
 		ernDB = db
 	}
+	if uri := args.String("--eidr-index"); uri != "" {
+		db, err := sql.Open("sqlite3", uri)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		eidrDB = db
+	}
 
-	srv, err := NewServer(cli.store, musicbrainzDB, cwrDB, ernDB)
+	srv, err := NewServer(cli.store, musicbrainzDB, cwrDB, ernDB, eidrDB)
 	if err != nil {
 		return err
 	}
@@ -398,7 +412,6 @@ func (cli *CLI) RunERNIndex(ctx context.Context, args Args) error {
 		return err
 	}
 	defer db.Close()
-
 	indexer, err := ern.NewIndexer(db, cli.store)
 	if err != nil {
 		return err
@@ -419,6 +432,74 @@ func (cli *CLI) RunERNIndex(ctx context.Context, args Args) error {
 		}
 	}()
 
+	return indexer.Index(ctx, stream)
+}
+
+func (cli *CLI) RunEIDR(ctx context.Context, args Args) error {
+	switch {
+	case args.Bool("convert"):
+		return cli.RunEIDRConvert(ctx, args)
+	case args.Bool("index"):
+		return cli.RunEIDRIndex(ctx, args)
+	default:
+		return errors.New("unknown eidr command")
+	}
+}
+
+func (cli *CLI) RunEIDRConvert(ctx context.Context, args Args) error {
+	converter := eidr.NewConverter(cli.store)
+	files := args.List("<files>")
+	stream := make(chan *cid.Cid)
+	go func() {
+		defer close(stream)
+		for _, file := range files {
+			f, err := os.Open(file)
+			if err != nil {
+				continue
+			}
+			defer f.Close()
+			cid, err := converter.ConvertEIDRXML(f)
+			if err != nil {
+				continue
+			}
+			stream <- cid
+		}
+	}()
+
+	// output the resulting CIDs to stdout
+	for cid := range stream {
+		fmt.Fprintln(cli.stdout, cid.String())
+	}
+	return nil
+}
+
+func (cli *CLI) RunEIDRIndex(ctx context.Context, args Args) error {
+
+	db, err := sql.Open("sqlite3", args.String("<sqlite3-uri>"))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	indexer, err := eidr.NewIndexer(db, cli.store)
+	if err != nil {
+		return err
+	}
+
+	// stream the CIDs from stdin
+	stream := make(chan *cid.Cid)
+	go func() {
+		defer close(stream)
+		s := bufio.NewScanner(cli.stdin)
+		for s.Scan() {
+			cid, err := cid.Parse(s.Text())
+			if err != nil {
+				log.Error("error parsing cid", "value", s.Text(), "err", err)
+				return
+			}
+			stream <- cid
+		}
+	}()
 	return indexer.Index(ctx, stream)
 }
 
