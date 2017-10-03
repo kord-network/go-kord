@@ -23,6 +23,7 @@ import (
 	"bufio"
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
@@ -33,6 +34,18 @@ import (
 type Converter struct {
 	store *meta.Store
 }
+
+type recordJob struct {
+	record *Record
+	index  int
+}
+
+type objectResult struct {
+	obj   *meta.Object
+	index int
+}
+
+var concurrentWorkNum = 16
 
 // NewConverter returns a Converter which reads data from the given CWR io.Reader
 // and stores META object in the given META store.
@@ -46,107 +59,147 @@ func NewConverter(store *meta.Store) *Converter {
 // ConvertCWR converts the given source CWR file into a META object graph and
 // returns the CID of the graph's root META object.
 func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
-	// get records from the db
+
+	jobs := make(chan recordJob)
+	results := make(chan objectResult)
+	recordObjs := make(map[int]*meta.Object)
 	cwr := make(map[string]interface{})
 	nwr := make(map[string]interface{})
 	var txs map[string][]map[string]interface{}
 	var groups []map[string][]map[string]interface{}
 	var spus []*cid.Cid
 
-	scanner := bufio.NewScanner(cwrFileReader)
+	wg := new(sync.WaitGroup)
 
-	for scanner.Scan() {
-		var record = &Record{}
-		switch substring(scanner.Text(), 0, 3) {
-		case "HDR":
-			record.RecordType = substring(scanner.Text(), 0, 3)
-			record.SenderType = substring(scanner.Text(), 3, 6)
-			record.SenderID = substring(scanner.Text(), 6, 14)
-			record.SenderName = strings.TrimSpace(substring(scanner.Text(), 14, 59))
-		case "GRH":
-			record.RecordType = substring(scanner.Text(), 0, 3)
-			record.TransactionType = substring(scanner.Text(), 3, 6)
-			record.GroupID = substring(scanner.Text(), 6, 11)
-		case "GRT":
-			record.RecordType = substring(scanner.Text(), 0, 3)
-			record.GroupID = substring(scanner.Text(), 3, 8)
-		case "TRL":
-			record.RecordType = substring(scanner.Text(), 0, 3)
-		case "NWR", "REV":
-			record.RecordType = substring(scanner.Text(), 0, 3)
-			record.TransactionSequenceN = substring(scanner.Text(), 3, 12)
-			record.RecordSequenceN = substring(scanner.Text(), 12, 19)
-			record.Title = strings.TrimSpace(substring(scanner.Text(), 19, 79))
-			record.LanguageCode = substring(scanner.Text(), 79, 81)
-			record.SubmitteWorkNumber = substring(scanner.Text(), 81, 95)
-			record.ISWC = substring(scanner.Text(), 95, 106)
-			record.CopyRightDate = substring(scanner.Text(), 106, 113)
-			record.DistributionCategory = substring(scanner.Text(), 127, 129)
-			record.Duration = substring(scanner.Text(), 129, 135)
-			record.RecordedIndicator = substring(scanner.Text(), 135, 136)
-			record.TextMusicRelationship = substring(scanner.Text(), 136, 139)
-			record.CompositeType = substring(scanner.Text(), 140, 142)
-			record.VersionType = substring(scanner.Text(), 142, 145)
-			record.PriorityFlag = substring(scanner.Text(), 259, 260)
-		case "SPU":
-			record.RecordType = substring(scanner.Text(), 0, 3)
-			record.TransactionSequenceN = substring(scanner.Text(), 3, 12)
-			record.RecordSequenceN = substring(scanner.Text(), 12, 19)
-			record.PublisherSequenceNumber = substring(scanner.Text(), 19, 21)
-		default:
+	for w := 1; w <= concurrentWorkNum; w++ {
+		wg.Add(1)
+		go c.worker(jobs, results, wg)
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(cwrFileReader)
+		index := 0
+		for scanner.Scan() {
+			if record := newRecord(scanner.Text()); record != nil {
+				jobs <- recordJob{record, index}
+				index++
+			}
 		}
+		close(jobs)
+	}()
 
-		if record.RecordType != "" {
+	// Collect all the results...
+	// First, make sure we close the result channel when everything was processed
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
 
-			obj, err := meta.Encode(record)
-			if err != nil {
-				return nil, err
+	for v := range results {
+		recordObjs[v.index] = v.obj
+	}
+
+	for i := 0; i < len(recordObjs); i++ {
+		obj := recordObjs[i]
+		recordType, err := obj.GetString("record_type")
+		if err != nil {
+			return nil, err
+		}
+		switch recordType {
+		case "HDR", "TRL":
+			cwr[recordType] = obj.Cid()
+		case "GRH":
+			txs = make(map[string][]map[string]interface{})
+		case "GRT":
+			nwr["SPU"] = spus // accumulate last spus
+			spus = []*cid.Cid{}
+			txs["NWR"] = append(txs["NWR"], nwr) // accumulate last transaction
+			nwr = make(map[string]interface{})
+			if len(txs) > 0 { //accumulate txs and continue
+				groups = append(groups, txs)
 			}
-			if err := c.store.Put(obj); err != nil {
-				return nil, err
-			}
-			switch record.RecordType {
-			case "HDR", "TRL":
-				cwr[record.RecordType] = obj.Cid()
-			case "GRH":
-				txs = make(map[string][]map[string]interface{})
-			case "GRT":
-				nwr["SPU"] = spus // accumulate last spus
+		case "NWR", "REV":
+			if nwr[recordType] != nil { // accumulate the current nwr and continue
+				nwr["SPU"] = spus // accumulate spus
 				spus = []*cid.Cid{}
-				txs["NWR"] = append(txs["NWR"], nwr) //accumulate last transaction
-				nwr = make(map[string]interface{})
-				if len(txs) > 0 { // accumulate txs and continue
-					groups = append(groups, txs)
-				}
-			case "NWR", "REV":
-				if nwr[record.RecordType] != nil { //accumulate the current nwr and continue
-					nwr["SPU"] = spus // accumulate spus
-					spus = []*cid.Cid{}
-					txs["NWR"] = append(txs["NWR"], nwr)
-					nwr = make(map[string]interface{}) //re initilize nwr
-
-				}
-				nwr[record.RecordType] = obj.Cid()
-			case "SPU": // NWR/REV transaction records
-				spus = append(spus, obj.Cid())
+				txs["NWR"] = append(txs["NWR"], nwr)
+				nwr = make(map[string]interface{}) //re initilize nwr
 			}
+			nwr[recordType] = obj.Cid()
+		case "SPU": // NWR/REV transaction records
+			spus = append(spus, obj.Cid())
 		}
 	}
 	cwr["GRH"] = groups
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
 	obj, err := meta.Encode(cwr)
 	if err != nil {
 		return nil, err
 	}
+
 	if err := c.store.Put(obj); err != nil {
 		return nil, err
 	}
-
 	return obj.Cid(), nil
+}
+
+func newRecord(line string) *Record {
+	record := &Record{}
+	switch substring(line, 0, 3) {
+	case "HDR":
+		record.RecordType = substring(line, 0, 3)
+		record.SenderType = substring(line, 3, 6)
+		record.SenderID = substring(line, 6, 14)
+		record.SenderName = strings.TrimSpace(substring(line, 14, 59))
+	case "GRH":
+		record.RecordType = substring(line, 0, 3)
+		record.TransactionType = substring(line, 3, 6)
+		record.GroupID = substring(line, 6, 11)
+	case "GRT":
+		record.RecordType = substring(line, 0, 3)
+		record.GroupID = substring(line, 3, 8)
+	case "TRL":
+		record.RecordType = substring(line, 0, 3)
+	case "NWR", "REV":
+		record.RecordType = substring(line, 0, 3)
+		record.TransactionSequenceN = substring(line, 3, 12)
+		record.RecordSequenceN = substring(line, 12, 19)
+		record.Title = strings.TrimSpace(substring(line, 19, 79))
+		record.LanguageCode = substring(line, 79, 81)
+		record.SubmitteWorkNumber = substring(line, 81, 95)
+		record.ISWC = substring(line, 95, 106)
+		record.CopyRightDate = substring(line, 106, 113)
+		record.DistributionCategory = substring(line, 127, 129)
+		record.Duration = substring(line, 129, 135)
+		record.RecordedIndicator = substring(line, 135, 136)
+		record.TextMusicRelationship = substring(line, 136, 139)
+		record.CompositeType = substring(line, 140, 142)
+		record.VersionType = substring(line, 142, 145)
+		record.PriorityFlag = substring(line, 259, 260)
+	case "SPU":
+		record.RecordType = substring(line, 0, 3)
+		record.TransactionSequenceN = substring(line, 3, 12)
+		record.RecordSequenceN = substring(line, 12, 19)
+		record.PublisherSequenceNumber = substring(line, 19, 21)
+	default:
+		return nil
+	}
+	return record
+}
+
+func (c *Converter) worker(jobs <-chan recordJob, results chan<- objectResult, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for job := range jobs {
+		if job.record.RecordType != "" {
+			obj, err := meta.Encode(job.record)
+			if err != nil {
+				return
+			}
+			if err := c.store.Put(obj); err != nil {
+				return
+			}
+			results <- objectResult{obj, job.index}
+		}
+	}
 }
 
 func substring(s string, from int, to int) string {

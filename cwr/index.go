@@ -24,6 +24,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ipfs/go-cid"
@@ -35,7 +36,14 @@ import (
 // associated META objects from a META store.
 type Indexer struct {
 	indexDB *sql.DB
+	sqlTx   *sql.Tx
 	store   *meta.Store
+}
+
+type jobIn struct {
+	cwrID   *cid.Cid
+	tx      map[string]interface{}
+	indexFn func(cwrID *cid.Cid, tx map[string]interface{}) error
 }
 
 // NewIndexer returns an Indexer which updates the indexes in the given SQLite3
@@ -77,6 +85,9 @@ func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) error {
 // index indexes a CWR based on its NWR,REV
 func (i *Indexer) index(cwr *meta.Object) error {
 	graph := meta.NewGraph(i.store, cwr)
+	jobs := make(chan jobIn)
+	results := make(chan error)
+	wg := new(sync.WaitGroup)
 
 	for field, indexFn := range map[string]func(*cid.Cid, *meta.Object) error{
 		"HDR": i.indexTransmissionHeader,
@@ -103,42 +114,70 @@ func (i *Indexer) index(cwr *meta.Object) error {
 
 	numberOfGroups := len(v.([]interface{}))
 
-	for field, indexFn := range map[string]func(cwrID *cid.Cid, tx map[string]interface{}) error{
-		"NWR": i.indexNWR,
-		"REV": i.indexNWR,
-		"ISW": i.indexISW,
-		"EXC": i.indexEXC,
-		"AGR": i.indexAGR,
-		"ACK": i.indexACK,
-	} {
+	i.sqlTx, err = i.indexDB.Begin()
+	if err != nil {
+		return err
+	}
 
-		for k := 0; k < numberOfGroups; k++ {
-			v, err := graph.Get("GRH", strconv.Itoa(k), field)
-			if meta.IsPathNotFound(err) {
-				continue
-			} else if err != nil {
-				return err
-			}
-			numberOfTx := len(v.([]interface{}))
+	for w := 1; w <= concurrentWorkNum; w++ {
+		wg.Add(1)
+		go i.worker(jobs, results, wg)
+	}
+	go func() {
+		for field, indexFn := range map[string]func(cwrID *cid.Cid, tx map[string]interface{}) error{
+			"NWR": i.indexNWR,
+			"REV": i.indexNWR,
+			"ISW": i.indexISW,
+			"EXC": i.indexEXC,
+			"AGR": i.indexAGR,
+			"ACK": i.indexACK,
+		} {
 
-			for j := 0; j < numberOfTx; j++ {
-				v, err := graph.Get("GRH", strconv.Itoa(k), field, strconv.Itoa(j))
+			for k := 0; k < numberOfGroups; k++ {
+				v, err := graph.Get("GRH", strconv.Itoa(k), field)
 				if meta.IsPathNotFound(err) {
 					continue
 				} else if err != nil {
-					return err
+					return
 				}
-				tx, ok := v.(map[string]interface{})
-				if !ok {
-					return fmt.Errorf("unexpected field type for %q, expected *cid.Cid, got %T", field, v)
-				}
-				if err := indexFn(cwr.Cid(), tx); err != nil {
-					return err
+				numberOfTx := len(v.([]interface{}))
+
+				for j := 0; j < numberOfTx; j++ {
+					v, err := graph.Get("GRH", strconv.Itoa(k), field, strconv.Itoa(j))
+					if meta.IsPathNotFound(err) {
+						continue
+					} else if err != nil {
+						return
+					}
+					tx, ok := v.(map[string]interface{})
+					if !ok {
+						return
+					}
+					jobs <- jobIn{cwr.Cid(), tx, indexFn}
 				}
 			}
 		}
+		close(jobs)
+	}()
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	for err := range results {
+		if err != nil {
+			return err
+		}
 	}
-	return nil
+	return i.sqlTx.Commit()
+}
+
+func (i *Indexer) worker(jobs <-chan jobIn, results chan<- error, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for job := range jobs {
+		results <- job.indexFn(job.cwrID, job.tx)
+	}
 }
 
 // indexRecord indexes a particular CWR record using the provided index
@@ -155,15 +194,21 @@ func (i *Indexer) indexRecord(cwrID, cid *cid.Cid, indexFn func(*cid.Cid, *meta.
 // properties.
 func (i *Indexer) indexRegisteredWork(cwrID *cid.Cid, obj *meta.Object) error {
 	registeredWork := &RegisteredWork{}
+
 	if err := obj.Decode(registeredWork); err != nil {
 		return err
 	}
-	log.Info("indexing nwr (registered work)", "object_id", obj.Cid().String(), "Title", registeredWork.Title, "ISWC", registeredWork.ISWC, "Composite Type", registeredWork.CompositeType, "Record Type", registeredWork.RecordType)
 
-	_, err := i.indexDB.Exec(
-		`INSERT INTO registered_work (cwr_id,object_id, title, iswc, composite_type,record_type) VALUES ($1, $2, $3, $4, $5, $6)`,
-		cwrID.String(), obj.Cid().String(), registeredWork.Title, registeredWork.ISWC, registeredWork.CompositeType, registeredWork.RecordType,
-	)
+	log.Info("indexing nwr (registered work)", "object_id", obj.Cid().String(), "Title", registeredWork.Title, "ISWC", registeredWork.ISWC, "Composite Type", registeredWork.CompositeType, "Record Type", registeredWork.RecordType)
+	stmt, err := i.sqlTx.Prepare(`INSERT INTO registered_work (cwr_id,object_id, title, iswc, composite_type,record_type) VALUES ($1, $2, $3, $4, $5, $6)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	if _, err := stmt.Exec(cwrID.String(), obj.Cid().String(), registeredWork.Title, registeredWork.ISWC, registeredWork.CompositeType, registeredWork.RecordType); err != nil {
+		i.sqlTx.Rollback()
+	}
 	return err
 }
 
@@ -199,10 +244,15 @@ func (i *Indexer) indexPublisherControlledBySubmiter(cwrID *cid.Cid, txCid *cid.
 	}
 	log.Info("indexing publisherControlledBySubmitter ", "object_id", obj.Cid().String(), "publisher_sequence_n", publisherControlledBySubmitter.PublisherSequenceNumber, "Record Type", publisherControlledBySubmitter.RecordType)
 
-	_, err := i.indexDB.Exec(
-		`INSERT INTO publisher_control (cwr_id,tx_id,object_id, publisher_sequence_n, record_type) VALUES ($1, $2, $3, $4, $5)`,
-		cwrID.String(), txCid.String(), obj.Cid().String(), publisherControlledBySubmitter.PublisherSequenceNumber, publisherControlledBySubmitter.RecordType,
-	)
+	stmt, err := i.sqlTx.Prepare(`INSERT INTO publisher_control (cwr_id,tx_id,object_id, publisher_sequence_n, record_type) VALUES ($1, $2, $3, $4, $5)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	if _, err := stmt.Exec(cwrID.String(), txCid.String(), obj.Cid().String(), publisherControlledBySubmitter.PublisherSequenceNumber, publisherControlledBySubmitter.RecordType); err != nil {
+		i.sqlTx.Rollback()
+	}
 	return err
 }
 

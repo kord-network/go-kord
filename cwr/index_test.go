@@ -30,7 +30,7 @@ import (
 	"time"
 
 	cid "github.com/ipfs/go-cid"
-	datastore "github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/fs"
 	"github.com/meta-network/go-meta"
 )
 
@@ -170,17 +170,32 @@ func TestIndex(t *testing.T) {
 		}
 	}
 }
+func openStore() (*meta.Store, error) {
+	metaDir := ".meta"
+	if err := os.MkdirAll(metaDir, 0755); err != nil {
+		return nil, err
+	}
+	store, err := fs.NewDatastore(metaDir)
+	if err != nil {
+		return nil, err
+	}
+	return meta.NewStore(store), nil
+}
 
 func newTestIndex() (x *testIndex, err error) {
 	// convert the test cwr to META object
 	x = &testIndex{}
 	defer func() {
 		if err != nil {
-			fmt.Println("cdl")
 			x.cleanup()
 		}
 	}()
-	x.store = meta.NewStore(datastore.NewMapDatastore())
+
+	x.store, err = openStore()
+	if err != nil {
+		return nil, err
+	}
+
 	converter := NewConverter(x.store)
 
 	f, err := os.Open(filepath.Join("testdata", "example_nwr.cwr"))
@@ -218,10 +233,9 @@ func newTestIndex() (x *testIndex, err error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
 	if err := indexer.Index(ctx, stream); err != nil {
 		return nil, err
 	}
-
 	return x, nil
-
 }
