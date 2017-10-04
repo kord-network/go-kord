@@ -43,6 +43,7 @@ type recordJob struct {
 type objectResult struct {
 	obj   *meta.Object
 	index int
+	err   error
 }
 
 var concurrentWorkNum = 16
@@ -88,14 +89,15 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 		close(jobs)
 	}()
 
-	// Collect all the results...
-	// First, make sure we close the result channel when everything was processed
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
 
 	for v := range results {
+		if v.err != nil {
+			return nil, v.err
+		}
 		recordObjs[v.index] = v.obj
 	}
 
@@ -192,12 +194,12 @@ func (c *Converter) worker(jobs <-chan recordJob, results chan<- objectResult, w
 		if job.record.RecordType != "" {
 			obj, err := meta.Encode(job.record)
 			if err != nil {
-				return
+				results <- objectResult{nil, 0, err}
 			}
 			if err := c.store.Put(obj); err != nil {
-				return
+				results <- objectResult{nil, 0, err}
 			}
-			results <- objectResult{obj, job.index}
+			results <- objectResult{obj, job.index, nil}
 		}
 	}
 }
