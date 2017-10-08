@@ -35,14 +35,28 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/fs"
 	"github.com/meta-network/go-meta"
 )
 
 // TestCWRCommands tests running the 'meta cwr convert' and
 // 'meta cwr index' commands.
 func TestCWRCommands(t *testing.T) {
-	c := newTestCLI(t)
-
+	// create a path to store the index and to store the meta objects.
+	tmpDir, err := ioutil.TempDir("", "meta-main-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	//use fs datastore because the in mempory map data store is not a thread-safe
+	store, err := fs.NewDatastore(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &testCLI{
+		t:     t,
+		store: meta.NewStore(store),
+	}
 	// check 'meta cwr convert' prints a CID
 	stdout := c.run("cwr", "convert",
 		"../cwr/testdata/example_double_nwr.cwr",
@@ -57,19 +71,13 @@ func TestCWRCommands(t *testing.T) {
 		ids = append(ids, id.String())
 	}
 	expected := []string{
-		"zdpuArZ8uwrUEqsdPeXaeVhV2DWcKdheUkkMqB3y5K6YrYsPJ",
-		"zdpuAp3SkXdHUVRY2LH59gKfWHMMWdCXyQNqVxHwmomwjjJ2b",
+		"zdpuB1YHpiAK4qbtLCrTZBHZka6apsCNgRkkeyWeQNTrenKGo",
+		"zdpuAsK8rxcbQLn32fRN7h4XJMaur9JhPymn614jWYtcaRfeT",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
-	// create a path to store the index
-	tmpDir, err := ioutil.TempDir("", "meta-main-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
 	db := filepath.Join(tmpDir, "index.db")
 
 	// run 'meta cwr index' with the CIDs as stdin
