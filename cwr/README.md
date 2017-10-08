@@ -20,10 +20,10 @@ API queries.
 
 ### Conversion
 
-To run the conversion on a local `cwr` files:
+To run the conversion on local `cwr` files:
 
 ```
-$ meta cwr convert <cwrfiles> > registeredwork.meta
+$ meta cwr convert <cwrfiles>... > registeredwork.meta
 ```
 cwrfiles        - the input cwrfiles to convert
 

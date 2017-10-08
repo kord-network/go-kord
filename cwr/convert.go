@@ -57,11 +57,10 @@ func NewConverter(store *meta.Store) *Converter {
 	}
 }
 
-// Transaction struct
-type Transaction struct { // NWR,REV,EXC,ACK,AGR or ISW transaction
-	//Each transaction include one main record and few details records.
-	//a transaction can include few details records from the same type
-	MainRecord    map[string]*cid.Cid   `json:"MainRecord"` //NWR,REV,EXC,ACK,AGR or ISW record
+// Transaction represents a CWR transaction which is either an
+// NWR, REV, EXC, ACK, AGR or ISW record.
+type Transaction struct {
+	MainRecord    map[string]*cid.Cid   `json:"MainRecord"`
 	DetailRecords map[string][]*cid.Cid `json:"DetailRecords"`
 }
 
@@ -131,7 +130,7 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 		close(results)
 	}()
 
-	var err error = nil
+	var err error
 	for v := range results {
 		if v.err != nil {
 			err = v.err //get the err and continue to drain the channel
@@ -156,7 +155,6 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 		case "HDR", "TRL":
 			cwr.Records[recordType] = obj.Cid()
 		case "GRH":
-			// txs = make(map[string][]Transaction)
 			group.Record = obj.Cid()
 			group.Transactions = make(map[string][]Transaction)
 		case "GRT":
@@ -237,7 +235,6 @@ func newRecord(line string) (*Record, error) {
 }
 
 func (c *Converter) worker(jobs <-chan recordJob, results chan<- objectResult) {
-	//defer wg.Done()
 	for job := range jobs {
 		if job.record.RecordType != "" {
 			obj, err := meta.Encode(job.record)

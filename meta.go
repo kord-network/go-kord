@@ -25,6 +25,7 @@ import (
 	"github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/fs"
 	"github.com/ipfs/go-ipld-format"
 	"github.com/lmars/go-ipld-cbor"
 )
@@ -209,6 +210,15 @@ func (g *Graph) Get(path ...string) (interface{}, error) {
 // Store provides storage for objects.
 type Store struct {
 	store datastore.Datastore
+}
+
+// NewFSStore returns a new FS Store which uses an underlying datastore.
+func NewFSStore(dir string) (*Store, error) {
+	store, err := fs.NewDatastore(dir)
+	if err != nil {
+		return nil, err
+	}
+	return NewStore(store), nil
 }
 
 // NewStore returns a new Store which uses an underlying datastore.

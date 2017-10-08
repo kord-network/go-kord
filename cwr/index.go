@@ -81,6 +81,9 @@ func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) error {
 				i.sqlTx.Rollback()
 				return err
 			}
+			if err := i.sqlTx.Commit(); err != nil {
+				return err
+			}
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -92,7 +95,6 @@ func (i *Indexer) index(cwr *meta.Object) (err error) {
 	graph := meta.NewGraph(i.store, cwr)
 	jobs := make(chan jobIn)
 	results := make(chan error)
-	wg := new(sync.WaitGroup)
 
 	for field, indexFn := range map[string]func(*cid.Cid, *meta.Object) error{
 		"HDR": i.indexTransmissionHeader,
@@ -119,11 +121,18 @@ func (i *Indexer) index(cwr *meta.Object) (err error) {
 
 	numberOfGroups := len(v.([]interface{}))
 
+	var wg sync.WaitGroup
+	wg.Add(concurrentWorkNum)
 	for w := 1; w <= concurrentWorkNum; w++ {
-		wg.Add(1)
-		go i.worker(jobs, results, wg)
+		go func() {
+			defer wg.Done()
+			i.worker(jobs, results)
+		}()
 	}
-	go func() {
+	go func() (err error) {
+		defer func() {
+			results <- err
+		}()
 		for field, indexFn := range map[string]func(cwrID *cid.Cid, tx map[string]interface{}) error{
 			"NWR": i.indexNWR,
 			"REV": i.indexNWR,
@@ -139,25 +148,21 @@ func (i *Indexer) index(cwr *meta.Object) (err error) {
 				if meta.IsPathNotFound(err) {
 					continue
 				} else if err != nil {
-					results <- err
-					return
+					return err
 				}
 
 				id, ok := v.(*cid.Cid)
 				if !ok {
-					results <- fmt.Errorf("unexpected field type for %q, expected *cid.Cid, got %T", field, v)
+					return fmt.Errorf("unexpected field type for %q, expected *cid.Cid, got %T", field, v)
 				}
 				if err := i.indexRecord(cwr.Cid(), id, i.indexGroupHeader); err != nil {
-					results <- err
-					return
+					return err
 				}
-
 				v, err = graph.Get("Groups", strconv.Itoa(k), "Transactions", field)
 				if meta.IsPathNotFound(err) {
 					continue
 				} else if err != nil {
-					results <- err
-					return
+					return err
 				}
 				numberOfTx := len(v.([]interface{}))
 
@@ -166,19 +171,18 @@ func (i *Indexer) index(cwr *meta.Object) (err error) {
 					if meta.IsPathNotFound(err) {
 						continue
 					} else if err != nil {
-						results <- err
-						return
+						return err
 					}
 					tx, ok := v.(map[string]interface{})
 					if !ok {
-						results <- err
-						return
+						return fmt.Errorf("unexpected field type .Expected map[string]interface{}, got %T", v)
 					}
 					jobs <- jobIn{cwr.Cid(), tx, indexFn}
 				}
 			}
 		}
 		close(jobs)
+		return nil
 	}()
 
 	go func() {
@@ -192,14 +196,10 @@ func (i *Indexer) index(cwr *meta.Object) (err error) {
 			continue //continue to drain results channel.
 		}
 	}
-	if err != nil {
-		return err
-	}
-	return i.sqlTx.Commit()
+	return err
 }
 
-func (i *Indexer) worker(jobs <-chan jobIn, results chan<- error, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (i *Indexer) worker(jobs <-chan jobIn, results chan<- error) {
 	for job := range jobs {
 		results <- job.indexFn(job.cwrID, job.tx)
 	}
@@ -225,13 +225,9 @@ func (i *Indexer) indexRegisteredWork(cwrID *cid.Cid, obj *meta.Object) error {
 	}
 
 	log.Info("indexing nwr (registered work)", "object_id", obj.Cid().String(), "Title", registeredWork.Title, "ISWC", registeredWork.ISWC, "Composite Type", registeredWork.CompositeType, "Record Type", registeredWork.RecordType)
-	stmt, err := i.sqlTx.Prepare(`INSERT INTO registered_work (cwr_id,object_id, title, iswc, composite_type,record_type) VALUES ($1, $2, $3, $4, $5, $6)`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
 
-	_, err = stmt.Exec(cwrID.String(), obj.Cid().String(), registeredWork.Title, registeredWork.ISWC, registeredWork.CompositeType, registeredWork.RecordType)
+	_, err := i.sqlTx.Exec(`INSERT INTO registered_work (cwr_id,object_id, title, iswc, composite_type,record_type) VALUES ($1, $2, $3, $4, $5, $6)`,
+		cwrID.String(), obj.Cid().String(), registeredWork.Title, registeredWork.ISWC, registeredWork.CompositeType, registeredWork.RecordType)
 	return err
 }
 
@@ -245,14 +241,8 @@ func (i *Indexer) indexTransmissionHeader(cwrID *cid.Cid, hdr *meta.Object) erro
 	}
 	log.Info("indexing cwr transmission  header", "Sender  Type", transmissionHeader.SenderType, "Sender Id", transmissionHeader.SenderID, "Record Type", transmissionHeader.RecordType)
 
-	stmt, err := i.sqlTx.Prepare(`INSERT INTO transmission_header (cwr_id,object_id,sender_type,sender_id,sender_name,record_type) VALUES ($1, $2, $3, $4, $5, $6)`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(cwrID.String(), hdr.Cid().String(), transmissionHeader.SenderType, transmissionHeader.SenderID, transmissionHeader.SenderName, transmissionHeader.RecordType)
-
+	_, err := i.sqlTx.Exec(`INSERT INTO transmission_header (cwr_id,object_id,sender_type,sender_id,sender_name,record_type) VALUES ($1, $2, $3, $4, $5, $6)`,
+		cwrID.String(), hdr.Cid().String(), transmissionHeader.SenderType, transmissionHeader.SenderID, transmissionHeader.SenderName, transmissionHeader.RecordType)
 	return err
 }
 
@@ -279,13 +269,8 @@ func (i *Indexer) indexPublisherControlledBySubmiter(cwrID *cid.Cid, txCid *cid.
 	}
 	log.Info("indexing publisherControlledBySubmitter ", "object_id", obj.Cid().String(), "publisher_sequence_n", publisherControlledBySubmitter.PublisherSequenceNumber, "Record Type", publisherControlledBySubmitter.RecordType)
 
-	stmt, err := i.sqlTx.Prepare(`INSERT INTO publisher_control (cwr_id,tx_id,object_id, publisher_sequence_n, record_type) VALUES ($1, $2, $3, $4, $5)`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	_, err = stmt.Exec(cwrID.String(), txCid.String(), obj.Cid().String(), publisherControlledBySubmitter.PublisherSequenceNumber, publisherControlledBySubmitter.RecordType)
+	_, err := i.sqlTx.Exec(`INSERT INTO publisher_control (cwr_id,tx_id,object_id, publisher_sequence_n, record_type) VALUES ($1, $2, $3, $4, $5)`,
+		cwrID.String(), txCid.String(), obj.Cid().String(), publisherControlledBySubmitter.PublisherSequenceNumber, publisherControlledBySubmitter.RecordType)
 	return err
 }
 

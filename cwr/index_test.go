@@ -30,7 +30,6 @@ import (
 	"time"
 
 	cid "github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore/fs"
 	"github.com/meta-network/go-meta"
 )
 
@@ -58,52 +57,51 @@ func TestIndex(t *testing.T) {
 	defer x.cleanup()
 
 	// check the HDR record was indexed into the transmission_header table
-	for _, senderName := range []string{"JAAK EXAMPLE SENDER NAME"} {
-		rows, err := x.db.Query(`SELECT object_id FROM transmission_header WHERE sender_name = ?`, senderName)
+	senderName := "JAAK EXAMPLE SENDER NAME"
+	rows, err := x.db.Query(`SELECT object_id FROM transmission_header WHERE sender_name = ?`, senderName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var id string
+	for rows.Next() {
+		// if we've already set id then we have a duplicate
+		if id != "" {
+			t.Fatalf("duplicate entries for sender name %q", senderName)
+		}
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+
+		// check we can get the object from the store
+		cid, err := cid.Parse(id)
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer rows.Close()
-		var id string
-		for rows.Next() {
-			// if we've already set id then we have a duplicate
-			if id != "" {
-				t.Fatalf("duplicate entries for sender name %q", senderName)
-			}
-			if err := rows.Scan(&id); err != nil {
-				t.Fatal(err)
-			}
-
-			// check we can get the object from the store
-			cid, err := cid.Parse(id)
-			if err != nil {
-				t.Fatal(err)
-			}
-			obj, err := x.store.Get(cid)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			v, err := obj.Get("sender_name")
-			if err != nil {
-				t.Fatal(err)
-			}
-			// check the object has the correct sender_id
-			actual, ok := v.(string)
-			if !ok {
-				t.Fatalf("expected sender name value to be string, got %T", v)
-			}
-			if actual != senderName {
-				t.Fatalf("expected sender name value %q, got %q", senderName, actual)
-			}
-		}
-
-		//check we got a result and no db errors
-		if id == "" {
-			t.Fatalf("senderName %q not found", senderName)
-		} else if err := rows.Err(); err != nil {
+		obj, err := x.store.Get(cid)
+		if err != nil {
 			t.Fatal(err)
 		}
+
+		v, err := obj.Get("sender_name")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// check the object has the correct sender_id
+		actual, ok := v.(string)
+		if !ok {
+			t.Fatalf("expected sender name value to be string, got %T", v)
+		}
+		if actual != senderName {
+			t.Fatalf("expected sender name value %q, got %q", senderName, actual)
+		}
+	}
+
+	//check we got a result and no db errors
+	if id == "" {
+		t.Fatalf("senderName %q not found", senderName)
+	} else if err := rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	check := func(id string, fieldsMap map[string]string) error {
 
@@ -134,7 +132,7 @@ func TestIndex(t *testing.T) {
 		publisherSequenceN string
 	)
 
-	rows, err := x.db.Query(`SELECT object_id,title,iswc FROM registered_work WHERE cwr_id = ?`, x.cwrCid.String())
+	rows, err = x.db.Query(`SELECT object_id,title,iswc FROM registered_work WHERE cwr_id = ?`, x.cwrCid.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,14 +176,6 @@ func TestIndex(t *testing.T) {
 		t.Fatal("no registered_work found")
 	}
 }
-func openStore(metaDir string) (*meta.Store, error) {
-
-	store, err := fs.NewDatastore(metaDir)
-	if err != nil {
-		return nil, err
-	}
-	return meta.NewStore(store), nil
-}
 
 func newTestIndex() (x *testIndex, err error) {
 	// convert the test cwr to META object
@@ -201,7 +191,7 @@ func newTestIndex() (x *testIndex, err error) {
 		return nil, err
 	}
 
-	x.store, err = openStore(x.tmpDir)
+	x.store, err = meta.NewFSStore(x.tmpDir)
 	if err != nil {
 		return nil, err
 	}

@@ -34,29 +34,18 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/fs"
 	"github.com/meta-network/go-meta"
 )
 
 // TestCWRCommands tests running the 'meta cwr convert' and
 // 'meta cwr index' commands.
 func TestCWRCommands(t *testing.T) {
-	// create a path to store the index and to store the meta objects.
-	tmpDir, err := ioutil.TempDir("", "meta-main-test")
+	c, err := newTestCLI(t)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
-	//use fs datastore because the in mempory map data store is not a thread-safe
-	store, err := fs.NewDatastore(tmpDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := &testCLI{
-		t:     t,
-		store: meta.NewStore(store),
-	}
+	defer os.RemoveAll(c.tmpDir)
+
 	// check 'meta cwr convert' prints a CID
 	stdout := c.run("cwr", "convert",
 		"../cwr/testdata/example_double_nwr.cwr",
@@ -78,7 +67,7 @@ func TestCWRCommands(t *testing.T) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
-	db := filepath.Join(tmpDir, "index.db")
+	db := filepath.Join(c.tmpDir, "index.db")
 
 	// run 'meta cwr index' with the CIDs as stdin
 	stream := strings.NewReader(stdout)
@@ -100,7 +89,11 @@ func TestCWRCommands(t *testing.T) {
 // TestERNCommands tests running the 'meta ern convert' and
 // 'meta ern index' commands.
 func TestERNCommands(t *testing.T) {
-	c := newTestCLI(t)
+	c, err := newTestCLI(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(c.tmpDir)
 
 	// check 'meta ern convert' prints multiple CIDs
 	stdout := c.run("ern", "convert",
@@ -130,13 +123,7 @@ func TestERNCommands(t *testing.T) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
-	// create a path to store the index
-	tmpDir, err := ioutil.TempDir("", "meta-main-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-	db := filepath.Join(tmpDir, "index.db")
+	db := filepath.Join(c.tmpDir, "index.db")
 
 	// run 'meta ern index' with the CIDs as stdin
 	stream := strings.NewReader(stdout)
@@ -156,15 +143,31 @@ func TestERNCommands(t *testing.T) {
 }
 
 type testCLI struct {
-	t     *testing.T
-	store *meta.Store
+	t      *testing.T
+	store  *meta.Store
+	tmpDir string
 }
 
-func newTestCLI(t *testing.T) *testCLI {
-	return &testCLI{
-		t:     t,
-		store: meta.NewStore(datastore.NewMapDatastore()),
+func newTestCLI(t *testing.T) (*testCLI, error) {
+	// create a path to store the index and to store the meta objects.
+	tmpDir, err := ioutil.TempDir("", "meta-main-test")
+	if err != nil {
+		return nil, err
 	}
+	defer func() {
+		if err != nil {
+			os.RemoveAll(tmpDir)
+		}
+	}()
+	store, err := meta.NewFSStore(tmpDir)
+	if err != nil {
+		return nil, err
+	}
+	return &testCLI{
+		t:      t,
+		store:  store,
+		tmpDir: tmpDir,
+	}, nil
 }
 
 func (c *testCLI) runWithStdin(stdin io.Reader, args ...string) string {
