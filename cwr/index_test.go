@@ -55,6 +55,7 @@ func TestIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer x.cleanup()
 
 	// check the HDR record was indexed into the transmission_header table
 	for _, senderName := range []string{"JAAK EXAMPLE SENDER NAME"} {
@@ -133,13 +134,16 @@ func TestIndex(t *testing.T) {
 		publisherSequenceN string
 	)
 
-	row, err := x.db.Query(`SELECT object_id,title,iswc FROM registered_work WHERE cwr_id = ?`, x.cwrCid.String())
+	rows, err := x.db.Query(`SELECT object_id,title,iswc FROM registered_work WHERE cwr_id = ?`, x.cwrCid.String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	for row.Next() {
+	defer rows.Close()
 
-		if err = row.Scan(&objectID, &title, &iswc); err != nil {
+	rowsCount := 0
+	for rows.Next() {
+		rowsCount++
+		if err = rows.Scan(&objectID, &title, &iswc); err != nil {
 			t.Fatal(err)
 		}
 		if err = check(objectID, map[string]string{
@@ -153,13 +157,14 @@ func TestIndex(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		rows, err := x.db.Query(`SELECT object_id,publisher_sequence_n FROM publisher_control WHERE tx_id = ?`, txID.String())
+		spuRows, err := x.db.Query(`SELECT object_id,publisher_sequence_n FROM publisher_control WHERE tx_id = ?`, txID.String())
 		if err != nil {
 			t.Fatal(err)
 		}
-		for rows.Next() {
+		defer spuRows.Close()
+		for spuRows.Next() {
 
-			if err := rows.Scan(&objectID, &publisherSequenceN); err != nil {
+			if err := spuRows.Scan(&objectID, &publisherSequenceN); err != nil {
 				t.Fatal(err)
 			}
 			if err = check(objectID, map[string]string{
@@ -169,12 +174,12 @@ func TestIndex(t *testing.T) {
 			}
 		}
 	}
-}
-func openStore() (*meta.Store, error) {
-	metaDir := ".meta"
-	if err := os.MkdirAll(metaDir, 0755); err != nil {
-		return nil, err
+	if rowsCount == 0 {
+		t.Fatal("no registered_work found")
 	}
+}
+func openStore(metaDir string) (*meta.Store, error) {
+
 	store, err := fs.NewDatastore(metaDir)
 	if err != nil {
 		return nil, err
@@ -191,7 +196,12 @@ func newTestIndex() (x *testIndex, err error) {
 		}
 	}()
 
-	x.store, err = openStore()
+	x.tmpDir, err = ioutil.TempDir("", "cwr-index-test")
+	if err != nil {
+		return nil, err
+	}
+
+	x.store, err = openStore(x.tmpDir)
 	if err != nil {
 		return nil, err
 	}
@@ -218,10 +228,6 @@ func newTestIndex() (x *testIndex, err error) {
 	}()
 
 	// create a test SQLite3 db
-	x.tmpDir, err = ioutil.TempDir("", "cwr-index-test")
-	if err != nil {
-		return nil, err
-	}
 	x.db, err = sql.Open("sqlite3", filepath.Join(x.tmpDir, "index.db"))
 	if err != nil {
 		return nil, err

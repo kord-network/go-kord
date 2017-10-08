@@ -57,34 +57,71 @@ func NewConverter(store *meta.Store) *Converter {
 	}
 }
 
+// Transaction struct
+type Transaction struct { // NWR,REV,EXC,ACK,AGR or ISW transaction
+	//Each transaction include one main record and few details records.
+	//a transaction can include few details records from the same type
+	MainRecord    map[string]*cid.Cid   `json:"MainRecord"` //NWR,REV,EXC,ACK,AGR or ISW record
+	DetailRecords map[string][]*cid.Cid `json:"DetailRecords"`
+}
+
+// Group struct
+type Group struct {
+	Record       *cid.Cid                 `json:"GRH"`          //Group Header
+	Transactions map[string][]Transaction `json:"Transactions"` //NWR,REV,EXC,ACK,AGR or ISW transacations
+}
+
+// Cwr struct
+type Cwr struct {
+	Records map[string]*cid.Cid `json:"Records"` //HDR/TRL
+	Groups  []Group             `json:"Groups"`  //Each group is a map of transacations
+}
+
 // ConvertCWR converts the given source CWR file into a META object graph and
 // returns the CID of the graph's root META object.
 func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 
 	jobs := make(chan recordJob)
 	results := make(chan objectResult)
+	//Due to the concurrency meta objects encoding and the need to keep the order of the cwr records
+	//for proper analysys of the cwr each job is indexed and then beeing collected in a recordObjs map where
+	//the key is the index of the meta object.
 	recordObjs := make(map[int]*meta.Object)
-	cwr := make(map[string]interface{})
-	nwr := make(map[string]interface{})
-	var txs map[string][]map[string]interface{}
-	var groups []map[string][]map[string]interface{}
+
+	var cwr Cwr
+	cwr.Records = make(map[string]*cid.Cid)
+	var nwr Transaction
+	nwr.MainRecord = make(map[string]*cid.Cid)
+	nwr.DetailRecords = make(map[string][]*cid.Cid)
 	var spus []*cid.Cid
+	var group Group
 
-	wg := new(sync.WaitGroup)
-
-	for w := 1; w <= concurrentWorkNum; w++ {
-		wg.Add(1)
-		go c.worker(jobs, results, wg)
+	var wg sync.WaitGroup
+	wg.Add(concurrentWorkNum)
+	for i := 0; i < concurrentWorkNum; i++ {
+		go func() {
+			defer wg.Done()
+			c.worker(jobs, results)
+		}()
 	}
 
 	go func() {
 		scanner := bufio.NewScanner(cwrFileReader)
 		index := 0
+
 		for scanner.Scan() {
-			if record := newRecord(scanner.Text()); record != nil {
+			record, err := newRecord(scanner.Text())
+			if err != nil {
+				results <- objectResult{nil, 0, err}
+				break
+			}
+			if record != nil {
 				jobs <- recordJob{record, index}
 				index++
 			}
+		}
+		if err := scanner.Err(); err != nil {
+			results <- objectResult{nil, 0, err}
 		}
 		close(jobs)
 	}()
@@ -94,13 +131,21 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 		close(results)
 	}()
 
+	var err error = nil
 	for v := range results {
 		if v.err != nil {
-			return nil, v.err
+			err = v.err //get the err and continue to drain the channel
+			continue
 		}
 		recordObjs[v.index] = v.obj
 	}
 
+	if err != nil {
+		return nil, err
+	}
+	//Itererate over recordsObjs map
+	//The keys at the recordsObjs map indicate the order of the meta.objects which were
+	//encoded concurrently .
 	for i := 0; i < len(recordObjs); i++ {
 		obj := recordObjs[i]
 		recordType, err := obj.GetString("record_type")
@@ -109,30 +154,32 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 		}
 		switch recordType {
 		case "HDR", "TRL":
-			cwr[recordType] = obj.Cid()
+			cwr.Records[recordType] = obj.Cid()
 		case "GRH":
-			txs = make(map[string][]map[string]interface{})
+			// txs = make(map[string][]Transaction)
+			group.Record = obj.Cid()
+			group.Transactions = make(map[string][]Transaction)
 		case "GRT":
-			nwr["SPU"] = spus // accumulate last spus
+			nwr.DetailRecords["SPU"] = spus // accumulate last spus
 			spus = []*cid.Cid{}
-			txs["NWR"] = append(txs["NWR"], nwr) // accumulate last transaction
-			nwr = make(map[string]interface{})
-			if len(txs) > 0 { //accumulate txs and continue
-				groups = append(groups, txs)
-			}
+			group.Transactions["NWR"] = append(group.Transactions["NWR"], nwr) // accumulate last transaction
+			nwr.MainRecord = make(map[string]*cid.Cid)
+			nwr.DetailRecords = make(map[string][]*cid.Cid)
+			//accumulate txs and continue
+			cwr.Groups = append(cwr.Groups, group)
 		case "NWR", "REV":
-			if nwr[recordType] != nil { // accumulate the current nwr and continue
-				nwr["SPU"] = spus // accumulate spus
+			if nwr.MainRecord[recordType] != nil { // accumulate the current nwr and continue
+				nwr.DetailRecords["SPU"] = spus // accumulate spus
 				spus = []*cid.Cid{}
-				txs["NWR"] = append(txs["NWR"], nwr)
-				nwr = make(map[string]interface{}) //re initilize nwr
+				group.Transactions["NWR"] = append(group.Transactions["NWR"], nwr)
+				nwr.MainRecord = make(map[string]*cid.Cid)
+				nwr.DetailRecords = make(map[string][]*cid.Cid)
 			}
-			nwr[recordType] = obj.Cid()
+			nwr.MainRecord[recordType] = obj.Cid()
 		case "SPU": // NWR/REV transaction records
 			spus = append(spus, obj.Cid())
 		}
 	}
-	cwr["GRH"] = groups
 	obj, err := meta.Encode(cwr)
 	if err != nil {
 		return nil, err
@@ -144,7 +191,8 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 	return obj.Cid(), nil
 }
 
-func newRecord(line string) *Record {
+func newRecord(line string) (*Record, error) {
+	//TODO Add validity check and return errors accordingly.
 	record := &Record{}
 	switch substring(line, 0, 3) {
 	case "HDR":
@@ -183,21 +231,23 @@ func newRecord(line string) *Record {
 		record.RecordSequenceN = substring(line, 12, 19)
 		record.PublisherSequenceNumber = substring(line, 19, 21)
 	default:
-		return nil
+		return nil, nil
 	}
-	return record
+	return record, nil
 }
 
-func (c *Converter) worker(jobs <-chan recordJob, results chan<- objectResult, wg *sync.WaitGroup) {
-	defer wg.Done()
+func (c *Converter) worker(jobs <-chan recordJob, results chan<- objectResult) {
+	//defer wg.Done()
 	for job := range jobs {
 		if job.record.RecordType != "" {
 			obj, err := meta.Encode(job.record)
 			if err != nil {
 				results <- objectResult{nil, 0, err}
+				return
 			}
 			if err := c.store.Put(obj); err != nil {
 				results <- objectResult{nil, 0, err}
+				return
 			}
 			results <- objectResult{obj, job.index, nil}
 		}

@@ -150,14 +150,14 @@ func testTxRecords(x *testIndex,
 	}
 	graph := meta.NewGraph(x.store, cwrObj)
 
-	v, err := graph.Get("GRH")
+	v, err := graph.Get("Groups")
 	if err != nil {
 		return err
 	}
 	numberOfGroups := len(v.([]interface{}))
 	record := &Record{}
 	for k := 0; k < numberOfGroups; k++ {
-		v, err := graph.Get("GRH", strconv.Itoa(k), "NWR")
+		v, err := graph.Get("Groups", strconv.Itoa(k), "NWR")
 		if meta.IsPathNotFound(err) {
 			continue
 		} else if err != nil {
@@ -165,7 +165,7 @@ func testTxRecords(x *testIndex,
 		}
 		numberOfTx := len(v.([]interface{}))
 		for j := 0; j < numberOfTx; j++ {
-			v, err := graph.Get("GRH", strconv.Itoa(k), "NWR", strconv.Itoa(j))
+			v, err := graph.Get("Groups", strconv.Itoa(k), "NWR", strconv.Itoa(j))
 			if meta.IsPathNotFound(err) {
 				continue
 			} else if err != nil {
@@ -175,11 +175,16 @@ func testTxRecords(x *testIndex,
 			if !ok {
 				return fmt.Errorf("unexpected field type for %q, expected *cid.Cid, got %T", "NWR", v)
 			}
-			nwrCid, ok := tx["NWR"].(*cid.Cid)
+			mainRecordTx, ok := tx["MainRecord"].(map[string]interface{})
 			if !ok {
-				nwrCid, ok = tx["REV"].(*cid.Cid)
+				return fmt.Errorf("error indexing CWR: expected MainRecord property to be map[string]interface{}, got %T", tx["MainRecord"])
+			}
+
+			nwrCid, ok := mainRecordTx["NWR"].(*cid.Cid)
+			if !ok {
+				nwrCid, ok = mainRecordTx["REV"].(*cid.Cid)
 				if !ok {
-					return err
+					return fmt.Errorf("unexpected field type for tx, expected *cid.Cid, got %T", tx["NWR"])
 				}
 			}
 			obj, err := x.store.Get(nwrCid)
@@ -196,7 +201,7 @@ func testTxRecords(x *testIndex,
 				}
 			}
 
-			for _, spuCid := range tx["SPU"].([]interface{}) {
+			for _, spuCid := range tx["DetailRecords"].(map[string]interface{})["SPU"].([]interface{}) {
 				obj, err := x.store.Get(spuCid.(*cid.Cid))
 				if err != nil {
 					return err
