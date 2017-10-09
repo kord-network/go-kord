@@ -34,17 +34,22 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
 	"github.com/meta-network/go-meta"
 )
 
 // TestCWRCommands tests running the 'meta cwr convert' and
 // 'meta cwr index' commands.
 func TestCWRCommands(t *testing.T) {
-	c := newTestCLI(t)
+	c, err := newTestCLI(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(c.tmpDir)
 
 	// check 'meta cwr convert' prints a CID
-	stdout := c.run("cwr", "convert", "../cwr/testdata/testfile.cwr")
+	stdout := c.run("cwr", "convert",
+		"../cwr/testdata/example_double_nwr.cwr",
+		"../cwr/testdata/example_nwr.cwr")
 	var ids []string
 	s := bufio.NewScanner(strings.NewReader(stdout))
 	for s.Scan() {
@@ -55,27 +60,21 @@ func TestCWRCommands(t *testing.T) {
 		ids = append(ids, id.String())
 	}
 	expected := []string{
-		"zdpuAt8b81NQEtnaSJK9G4Fx3KXpuGBTd7Jm54vDTojQAuh8M",
-		"zdpuB1FVqhXaGGMWBTx4iQr34BRBEoBngF9nSktkwVrx9zCBv",
+		"zdpuB1YHpiAK4qbtLCrTZBHZka6apsCNgRkkeyWeQNTrenKGo",
+		"zdpuAsK8rxcbQLn32fRN7h4XJMaur9JhPymn614jWYtcaRfeT",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
-	// create a path to store the index
-	tmpDir, err := ioutil.TempDir("", "meta-main-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-	db := filepath.Join(tmpDir, "index.db")
+	db := filepath.Join(c.tmpDir, "index.db")
 
 	// run 'meta cwr index' with the CIDs as stdin
 	stream := strings.NewReader(stdout)
 	c.runWithStdin(stream, "cwr", "index", db)
 
 	// check the index was populated
-	cmd := exec.Command("sqlite3", db, "SELECT object_id FROM registered_work UNION SELECT object_id FROM publisher_control ORDER BY object_id")
+	cmd := exec.Command("sqlite3", db, "SELECT cwr_id FROM transmission_header ORDER BY cwr_id")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error checking index: %s: %s", err, out)
@@ -90,7 +89,11 @@ func TestCWRCommands(t *testing.T) {
 // TestERNCommands tests running the 'meta ern convert' and
 // 'meta ern index' commands.
 func TestERNCommands(t *testing.T) {
-	c := newTestCLI(t)
+	c, err := newTestCLI(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(c.tmpDir)
 
 	// check 'meta ern convert' prints multiple CIDs
 	stdout := c.run("ern", "convert",
@@ -120,13 +123,7 @@ func TestERNCommands(t *testing.T) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
-	// create a path to store the index
-	tmpDir, err := ioutil.TempDir("", "meta-main-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-	db := filepath.Join(tmpDir, "index.db")
+	db := filepath.Join(c.tmpDir, "index.db")
 
 	// run 'meta ern index' with the CIDs as stdin
 	stream := strings.NewReader(stdout)
@@ -146,15 +143,31 @@ func TestERNCommands(t *testing.T) {
 }
 
 type testCLI struct {
-	t     *testing.T
-	store *meta.Store
+	t      *testing.T
+	store  *meta.Store
+	tmpDir string
 }
 
-func newTestCLI(t *testing.T) *testCLI {
-	return &testCLI{
-		t:     t,
-		store: meta.NewStore(datastore.NewMapDatastore()),
+func newTestCLI(t *testing.T) (*testCLI, error) {
+	// create a path to store the index and to store the meta objects.
+	tmpDir, err := ioutil.TempDir("", "meta-main-test")
+	if err != nil {
+		return nil, err
 	}
+	defer func() {
+		if err != nil {
+			os.RemoveAll(tmpDir)
+		}
+	}()
+	store, err := meta.NewFSStore(tmpDir)
+	if err != nil {
+		return nil, err
+	}
+	return &testCLI{
+		t:      t,
+		store:  store,
+		tmpDir: tmpDir,
+	}, nil
 }
 
 func (c *testCLI) runWithStdin(stdin io.Reader, args ...string) string {
