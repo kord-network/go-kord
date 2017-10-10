@@ -29,16 +29,23 @@ import (
 	"github.com/multiformats/go-multihash"
 )
 
-// Encode returns the META object encoding of v.
-func Encode(v interface{}) (*Object, error) {
+// encode returns the encoded bytes of  v.
+func encode(v interface{}) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := cbor.NewEncoder(&buf)
 	enc.SetFilter(cbornode.EncoderFilter)
 	if err := enc.Encode(v); err != nil {
 		return nil, err
 	}
-	data := buf.Bytes()
+	return buf.Bytes(), nil
+}
 
+// Encode returns the META object encoding of v.
+func Encode(v interface{}) (*Object, error) {
+	data, err := encode(v)
+	if err != nil {
+		return nil, err
+	}
 	cid, err := cid.Prefix{
 		Version:  1,
 		Codec:    cid.DagCBOR,

@@ -28,6 +28,8 @@ import (
 	"github.com/ipfs/go-datastore/fs"
 	"github.com/ipfs/go-ipld-format"
 	"github.com/lmars/go-ipld-cbor"
+	swarmdatastore "github.com/meta-network/go-meta/swarm-datastore"
+	multihash "github.com/multiformats/go-multihash"
 )
 
 // Object is a META object which uses IPLD DAG CBOR as the byte representation,
@@ -77,6 +79,9 @@ func NewObjectFromBlock(block *Block) (*Object, error) {
 // MustObject is like NewObject but panics if the given CID and raw bytes do
 // not represent a valid Object.
 func MustObject(id *cid.Cid, rawData []byte) *Object {
+	if err := isValid(id, rawData); err != nil {
+		panic(err)
+	}
 	obj, err := NewObject(id, rawData)
 	if err != nil {
 		panic(err)
@@ -161,12 +166,12 @@ func (o *Object) MarshalJSON() ([]byte, error) {
 // Graph is used to traverse an object graph using a store and starting from
 // a particular root object.
 type Graph struct {
-	store *Store
+	store interface{}
 	root  *Object
 }
 
 // NewGraph returns a new Graph
-func NewGraph(store *Store, root *Object) *Graph {
+func NewGraph(store interface{}, root *Object) *Graph {
 	return &Graph{store, root}
 }
 
@@ -199,7 +204,15 @@ func (g *Graph) Get(path ...string) (interface{}, error) {
 		return nil, fmt.Errorf("meta: expected link object, got %T", v)
 	}
 
-	obj, err := g.store.Get(link.Cid)
+	var obj *Object
+	switch v := g.store.(type) {
+	case *Store:
+		obj, err = g.store.(*Store).Get(link.Cid)
+	case *swarmdatastore.Datastore:
+		obj, err = g.store.(*SwarmStore).Get(link.Cid)
+	default:
+		err = fmt.Errorf("meta: expected Store or SwarmStore object, got %T", v)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -210,6 +223,11 @@ func (g *Graph) Get(path ...string) (interface{}, error) {
 // Store provides storage for objects.
 type Store struct {
 	store datastore.Datastore
+}
+
+// SwarmStore provides swarm storage for objects.
+type SwarmStore struct {
+	store swarmdatastore.Datastore
 }
 
 // NewFSStore returns a new FS Store which uses an underlying datastore.
@@ -232,6 +250,9 @@ func (s *Store) Get(cid *cid.Cid) (*Object, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := isValid(cid, data.([]byte)); err != nil {
+		return nil, err
+	}
 	return NewObject(cid, data.([]byte))
 }
 
@@ -246,6 +267,63 @@ func (s *Store) key(cid *cid.Cid) datastore.Key {
 	return datastore.NewKey(cid.String())
 }
 
+// NewSwarmStore returns a new Swarm Store which uses an underlying datastore.
+func NewSwarmStore(serverURL string) (*SwarmStore, error) {
+	store, err := swarmdatastore.NewDatastore(serverURL)
+	if err != nil {
+		return nil, err
+	}
+	return &SwarmStore{store}, nil
+}
+
+// Get gets an object from the store.
+func (s *SwarmStore) Get(cid *cid.Cid) (*Object, error) {
+	hash, err := multihash.Decode(cid.Hash())
+	if err != nil {
+		return nil, err
+	}
+	data, err := s.store.Get(string(hash.Digest))
+	if err != nil {
+		return nil, err
+	}
+	return NewObject(cid, data.([]byte))
+}
+
+const multihashSwarmCode = 0x30
+
+func init() {
+	multihash.Codes[multihashSwarmCode] = "swarm-hash-v1"
+}
+
+// Put encodes and stores object in the store.
+func (s *SwarmStore) Put(v interface{}) (*Object, error) {
+	enc, err := encode(v)
+	if err != nil {
+		return nil, err
+	}
+	hash, err := s.store.Put(enc)
+	if err != nil {
+		return nil, err
+	}
+
+	mhash, err := multihash.Encode([]byte(hash), multihashSwarmCode)
+	if err != nil {
+		return nil, err
+	}
+	cid := cid.NewCidV1(cid.DagCBOR, mhash)
+
+	return NewObject(cid, enc)
+}
+
+// MustPut is like Put but panics if v cannot be encoded or stored
+func (s *SwarmStore) MustPut(v interface{}) *Object {
+	obj, err := s.Put(v)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
 // cidV1 is the number which identifies a CID as being CIDv1.
 //
 // TODO: move this to the github.com/ipfs/go-cid.
@@ -254,24 +332,32 @@ const cidV1 = 1
 // Block wraps a raw byte slice and validates it against a CID.
 type Block struct {
 	blocks.BasicBlock
-
 	prefix *cid.Prefix
+}
+
+func isValid(cid *cid.Cid, data []byte) error {
+
+	prefix := cid.Prefix()
+	if prefix.Version != cidV1 {
+		return ErrInvalidCidVersion{prefix.Version}
+	}
+	expectedCid, err := prefix.Sum(data)
+	if err != nil {
+		return err
+	}
+	if !cid.Equals(expectedCid) {
+		return ErrCidMismatch{Expected: expectedCid, Actual: cid}
+	}
+	return nil
 }
 
 // NewBlock returns a new block.
 func NewBlock(cid *cid.Cid, data []byte) (*Block, error) {
+
 	prefix := cid.Prefix()
 
 	if prefix.Version != cidV1 {
 		return nil, ErrInvalidCidVersion{prefix.Version}
-	}
-
-	expectedCid, err := prefix.Sum(data)
-	if err != nil {
-		return nil, err
-	}
-	if !cid.Equals(expectedCid) {
-		return nil, ErrCidMismatch{Expected: expectedCid, Actual: cid}
 	}
 
 	block, err := blocks.NewBlockWithCid(data, cid)

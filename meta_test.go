@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/swarm/testutil"
 	"github.com/ipfs/go-cid"
 )
 
@@ -95,6 +96,77 @@ func TestEncodeDecode(t *testing.T) {
 	}
 	if !reflect.DeepEqual(v, w) {
 		t.Fatalf("decoded object not equal:\nexpected %#v\nactual   %#v", v, w)
+	}
+}
+
+type testMeta struct {
+	store *SwarmStore
+	srv   *testutil.TestSwarmServer
+}
+
+func (tm *testMeta) openSwarmStore(t *testing.T) (s *SwarmStore, err error) {
+	tm.srv = testutil.NewTestSwarmServer(t)
+
+	defer func() {
+		if err != nil {
+			tm.srv.Close()
+		}
+	}()
+	return NewSwarmStore(tm.srv.URL)
+}
+
+func TestSwarmDatastore(t *testing.T) {
+	type Person struct {
+		Name     string     `json:"name"`
+		Children []*cid.Cid `json:"children,omitempty"`
+	}
+
+	x := &testMeta{}
+
+	store, err := x.openSwarmStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer x.srv.Close()
+
+	storeObj := store.MustPut(&Person{
+		Name: "parent",
+		Children: []*cid.Cid{
+			store.MustPut(&Person{Name: "child0"}).Cid(),
+			store.MustPut(&Person{Name: "child1"}).Cid(),
+		},
+	})
+
+	retriveObj, err := store.Get(storeObj.Cid())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if retriveObj.Cid() != storeObj.Cid() {
+		t.Fatalf("retrived object's cid %s should be equal to the stored object cid %s ", retriveObj.Cid(), storeObj.Cid())
+	}
+
+	obj := retriveObj
+
+	data, err := json.MarshalIndent(obj, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := []byte(`
+{
+  "children": [
+    {
+      "/": "zBwhRdjEy42zMpSDnaaps57gfmtHNb1KmFDK7A6BNMPX8NqzbyysMqPRmUvmPnYf7W13yDr7zQpuHwjiqPEszUugJi4GF"
+    },
+    {
+      "/": "zBwhRemYbgzi1HHrHH7nqF3y4eV2x1avK5bgKn85vFFJd32GYEt3DYzfpkJg6Z8Mf7ko7zrMJuPxi9W8oVTUBUE1fR9dJ"
+    }
+  ],
+  "name": "parent"
+}`[1:])
+	if !bytes.Equal(data, expected) {
+		t.Fatalf("unexpected JSON:\nexpected: %s\nactual:   %s", expected, data)
 	}
 }
 
