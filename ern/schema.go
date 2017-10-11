@@ -86,12 +86,12 @@ CREATE TABLE release (
 	-- cid is the CID of the Release
 	cid text NOT NULL,
 
-	-- id is the value of ReleaseId which is either a GRid, ISRC, ICPN,
-	-- CatalogNumber or ProprietaryId
-	id text NOT NULL,
+	-- id is the value of ReleaseId:GRid
+	id text,
 
 	-- title is the value of the Release ReferenceTitle
 	title text
+
 );
 CREATE INDEX release_cid_idx   ON release (cid);
 CREATE INDEX release_id_idx    ON release (id);
@@ -167,8 +167,7 @@ CREATE TABLE sound_recording (
 	-- cid is the CID of the SoundRecording
 	cid text NOT NULL,
 
-	-- id is the value of SoundRecordingId which is either an ISRC,
-	-- CatalogNumber or ProprietaryId
+	-- id is the value of SoundRecordingId:ISRC
 	id text,
 
 	-- title is the value of the SoundRecording ReferenceTitle

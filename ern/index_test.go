@@ -90,26 +90,26 @@ func TestIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// check the MessageSender and MessageRecipient were indexed into the
+	// check the MessageSender, MessageRecipient and DisplayArtist were indexed into the
 	// party table
-	for _, partyID := range []string{"DPID_OF_THE_SENDER", "DPID_OF_THE_RECIPIENT"} {
-		rows, err := db.Query(`SELECT cid FROM party WHERE id = ?`, partyID)
+	for _, partyName := range []string{"NAME_OF_THE_SENDER", "NAME_OF_THE_RECIPIENT", "Monkey Claw"} {
+		rows, err := db.Query(`SELECT cid FROM party WHERE name = ?`, partyName)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer rows.Close()
-		var id string
+		var name string
 		for rows.Next() {
-			// if we've already set id then we have a duplicate
-			if id != "" {
-				t.Fatalf("duplicate entries for PartyId %q", partyID)
+			// if we've already set name then we have a duplicate
+			if name != "" {
+				t.Fatalf("duplicate entries for PartyName %q", partyName)
 			}
-			if err := rows.Scan(&id); err != nil {
+			if err := rows.Scan(&name); err != nil {
 				t.Fatal(err)
 			}
 
 			// check we can get the object from the store
-			cid, err := cid.Parse(id)
+			cid, err := cid.Parse(name)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -118,24 +118,24 @@ func TestIndex(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			// check the object has the correct PartyId
+			// check the object has the correct PartyName
 			graph := meta.NewGraph(store, obj)
-			v, err := graph.Get("PartyId", "@value")
+			v, err := graph.Get("PartyName", "FullName", "@value")
 			if err != nil {
 				t.Fatal(err)
 			}
 			actual, ok := v.(string)
 			if !ok {
-				t.Fatalf("expected PartyId value to be string, got %T", v)
+				t.Fatalf("expected PartyName value to be string, got %T", v)
 			}
-			if actual != partyID {
-				t.Fatalf("expected PartyId value %q, got %q", partyID, actual)
+			if actual != partyName {
+				t.Fatalf("expected PartyName value %q, got %q", partyName, actual)
 			}
 		}
 
 		// check we got a result and no db errors
-		if id == "" {
-			t.Fatalf("party %q not found", partyID)
+		if name == "" {
+			t.Fatalf("party %q not found", partyName)
 		} else if err := rows.Err(); err != nil {
 			t.Fatal(err)
 		}
@@ -190,6 +190,28 @@ func TestIndex(t *testing.T) {
 		}
 		var ernID string
 		row = db.QueryRow("SELECT ern_id FROM resource_list WHERE resource_id = ?", id)
+		if err := row.Scan(&ernID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// check Release objects were indexed
+	for grId, title := range map[string]string{
+		"A1UCASE0000000401X": "A Monkey Claw in a Velvet Glove",
+		"A1UCASE0000000001X": "Can you feel ...the Monkey Claw!",
+		"A1UCASE0000000002X": "Red top mountain, blown sky high",
+		"A1UCASE0000000003X": "Seige of Antioch",
+		"A1UCASE0000000004X": "Warhammer",
+		"A1UCASE0000000005X": "Iron Horse",
+		"A1UCASE0000000006X": "Yes... I can feel the Monkey Claw!",
+	} {
+		var id string
+		row := db.QueryRow("SELECT cid FROM release WHERE id = ? AND title = ?", grId, title)
+		if err := row.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		var ernID string
+		row = db.QueryRow("SELECT ern_id FROM release_list WHERE release_id = ?", id)
 		if err := row.Scan(&ernID); err != nil {
 			t.Fatal(err)
 		}
