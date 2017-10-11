@@ -47,7 +47,7 @@ var usage = `
 usage: meta import xml <file> [<context>...]
        meta import xsd <name> <uri> [<file>]
        meta dump [--format=<format>] <path>
-       meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>] [--cwr-index=<sqlite3-uri>]
+       meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>] [--cwr-index=<sqlite3-uri>] [--ern-index=<sqlite3-uri>]
        meta musicbrainz convert <postgres-uri>
        meta musicbrainz index <sqlite3-uri>
        meta cwr convert <files>...
@@ -187,6 +187,7 @@ func (cli *CLI) RunDump(ctx context.Context, args Args) error {
 func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 	var musicbrainzDB *sql.DB = nil
 	var cwrDB *sql.DB = nil
+	var ernDB *sql.DB = nil
 	if uri := args.String("--musicbrainz-index"); uri != "" {
 		db, err := sql.Open("sqlite3", uri)
 		if err != nil {
@@ -203,7 +204,16 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 		defer db.Close()
 		cwrDB = db
 	}
-	srv, err := NewServer(cli.store, musicbrainzDB, cwrDB)
+	if uri := args.String("--ern-index"); uri != "" {
+		db, err := sql.Open("sqlite3", uri)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		ernDB = db
+	}
+
+	srv, err := NewServer(cli.store, musicbrainzDB, cwrDB, ernDB)
 	if err != nil {
 		return err
 	}
