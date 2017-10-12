@@ -153,17 +153,16 @@ func DecodeObj(metaStore *meta.Store, metaObj *meta.Object, v interface{}, path 
 func (i *Indexer) insertParty(metaObj *meta.Object, field string) (*cid.Cid, error) {
 	var id *cid.Cid
 	link, err := metaObj.GetLink(field)
-	if err == nil {
-		id = link.Cid
-	} else if !meta.IsPathNotFound(err) {
+	if err != nil {
 		return nil, err
 	}
+	id = link.Cid
+
 	var partyID struct {
 		Value string `json:"@value"`
 	}
 	if err := DecodeObj(i.store, metaObj, &partyID, field, "PartyId"); err != nil {
-		pid := &partyID
-		pid.Value = ""
+		partyID.Value = ""
 	}
 	var partyName struct {
 		Value string `json:"@value"`
