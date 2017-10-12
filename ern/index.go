@@ -35,6 +35,7 @@ import (
 // associated META objects from a META store.
 type Indexer struct {
 	db    *sql.DB
+	tx    *sql.Tx
 	store *meta.Store
 }
 
@@ -54,7 +55,23 @@ func NewIndexer(db *sql.DB, store *meta.Store) (*Indexer, error) {
 
 // Index indexes a stream of META object links which are expected to
 // point at DDEX ERNs.
-func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) error {
+func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) (err error) {
+	// wrap the indexing in a single transaction
+	tx, err := i.db.Begin()
+	if err != nil {
+		return err
+	}
+	i.tx = tx
+	defer func() {
+		// commit the transaction if there was no error, otherwise
+		// roll it back.
+		if err == nil {
+			err = tx.Commit()
+		} else {
+			tx.Rollback()
+		}
+	}()
+
 	for {
 		select {
 		case cid, ok := <-stream:
@@ -170,7 +187,7 @@ func (i *Indexer) insertParty(metaObj *meta.Object, field string) (*cid.Cid, err
 	if err := DecodeObj(i.store, metaObj, &partyName, field, "PartyName", "FullName"); err != nil {
 		return nil, err
 	}
-	_, err = i.db.Exec(
+	_, err = i.tx.Exec(
 		"INSERT INTO party (cid, id, name) VALUES ($1, $2, $3)",
 		id.String(), partyID.Value, partyName.Value,
 	)
@@ -215,7 +232,7 @@ func (i *Indexer) indexMessageHeader(ernID *cid.Cid, obj *meta.Object) error {
 	}
 
 	// update the ERN index
-	_, err = i.db.Exec(
+	_, err = i.tx.Exec(
 		"INSERT INTO ern (cid, message_id, thread_id, sender_id, recipient_id, created) VALUES ($1, $2, $3, $4, $5, $6)",
 		ernID.String(), messageID.Value, threadID.Value, sender.String(), recipient.String(), created.Value,
 	)
@@ -322,14 +339,14 @@ func (i *Indexer) indexSoundRecording(ernID *cid.Cid, obj *meta.Object) error {
 	}
 
 	// update the sound_recording and resource_list indexes
-	if _, err := i.db.Exec(
+	if _, err := i.tx.Exec(
 		"INSERT INTO sound_recording (cid, id, title) VALUES ($1, $2, $3)",
 		obj.Cid().String(), isrc, title,
 	); err != nil {
 		return err
 	}
 
-	if _, err := i.db.Exec(
+	if _, err := i.tx.Exec(
 		"INSERT INTO resource_list (ern_id, resource_id) VALUES ($1, $2)",
 		ernID.String(), obj.Cid().String(),
 	); err != nil {
@@ -401,7 +418,7 @@ func (i *Indexer) indexRelease(ernID *cid.Cid, metaObj *meta.Object) error {
 	}
 
 	// update the release and release_list indexes
-	_, err = i.db.Exec(
+	_, err = i.tx.Exec(
 		"INSERT INTO release (cid, id, title) VALUES ($1, $2, $3)",
 		metaObj.Cid().String(), grId, title,
 	)
@@ -409,7 +426,7 @@ func (i *Indexer) indexRelease(ernID *cid.Cid, metaObj *meta.Object) error {
 		return err
 	}
 
-	_, err = i.db.Exec(
+	_, err = i.tx.Exec(
 		"INSERT INTO release_list (ern_id, release_id) VALUES ($1, $2)",
 		ernID.String(), metaObj.Cid().String(),
 	)
