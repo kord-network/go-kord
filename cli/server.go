@@ -32,6 +32,7 @@ import (
 	"github.com/meta-network/go-meta/cwr"
 	"github.com/meta-network/go-meta/eidr"
 	"github.com/meta-network/go-meta/ern"
+	"github.com/meta-network/go-meta/identity"
 	"github.com/meta-network/go-meta/musicbrainz"
 	"github.com/meta-network/go-meta/xml"
 )
@@ -48,6 +49,12 @@ func NewServer(store *meta.Store, musicbrainzDB *sql.DB, cwrDB *sql.DB, ernDB *s
 	}
 	srv.router.GET("/object/:cid", srv.HandleGetObject)
 	srv.router.POST("/import/xml", srv.HandleImportXML)
+
+	// add the identity API at /meta-id
+	identityAPI := identity.NewAPI(identity.NewMemoryStore())
+	srv.router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
+	srv.router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
+
 	if musicbrainzDB != nil {
 		musicbrainzApi, err := musicbrainz.NewAPI(musicbrainzDB, store)
 		if err != nil {
