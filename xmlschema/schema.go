@@ -66,6 +66,26 @@ var DDEX_Ern382 = Schema{
 	Cid: mustCid("zdpuAo4f7WzDbiHVfigrWoywgzZB3xegd4Vc9BczgjJBUgaK7"),
 }
 
+// Generated with:
+//
+// $ meta import xsd eidr \
+//	http://www.eidr.org/schema \
+//	<(curl http://www.eidr.org/schema/common.xsd)
+var EIDR_common = Schema{
+	URI: "http://www.eidr.org/schema",
+	Cid: mustCid("zdpuAxFejco7Jim9RaKCE5UyBDdJYVKp4az5UVB8ZcYjrNWpJ"),
+}
+
+// Generated with:
+// $ meta import xsd md \
+//	http://www.movielabs.com/schema/md/v2.1/md \
+// 	<(curl http://www.eidr.org/schema/md-v21-eidr.xsd)
+//
+var EIDR_md = Schema{
+	URI: "http://www.movielabs.com/schema/md/v2.1/md",
+	Cid: mustCid("zdpuAqqfUHqQDEzCj8nDLxdmXiqpKXJ9vCVrZRrK8e8MewRRj"),
+}
+
 type Schema struct {
 	URI string
 	Cid *cid.Cid

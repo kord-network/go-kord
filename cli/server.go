@@ -30,8 +30,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/cwr"
-	"github.com/meta-network/go-meta/musicbrainz"
+	"github.com/meta-network/go-meta/eidr"
 	"github.com/meta-network/go-meta/ern"
+	"github.com/meta-network/go-meta/musicbrainz"
 	"github.com/meta-network/go-meta/xml"
 )
 
@@ -40,7 +41,7 @@ type Server struct {
 	store  *meta.Store
 }
 
-func NewServer(store *meta.Store, musicbrainzDB *sql.DB, cwrDB *sql.DB, ernDB *sql.DB) (*Server, error) {
+func NewServer(store *meta.Store, musicbrainzDB *sql.DB, cwrDB *sql.DB, ernDB *sql.DB, eidrDB *sql.DB) (*Server, error) {
 	srv := &Server{
 		router: httprouter.New(),
 		store:  store,
@@ -72,6 +73,14 @@ func NewServer(store *meta.Store, musicbrainzDB *sql.DB, cwrDB *sql.DB, ernDB *s
 		}
 		srv.router.Handler("GET", "/ern/*path", http.StripPrefix("/ern", ernApi))
 		srv.router.Handler("POST", "/ern/*path", http.StripPrefix("/ern", ernApi))
+	}
+	if eidrDB != nil {
+		eidrApi, err := eidr.NewAPI(eidrDB, store)
+		if err != nil {
+			return nil, err
+		}
+		srv.router.Handler("GET", "/eidr/*path", http.StripPrefix("/eidr", eidrApi))
+		srv.router.Handler("POST", "/eidr/*path", http.StripPrefix("/eidr", eidrApi))
 	}
 	return srv, nil
 }
