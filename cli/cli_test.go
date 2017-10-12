@@ -145,7 +145,10 @@ func TestERNCommands(t *testing.T) {
 // TestERNCommands tests running the 'meta eidr convert' and
 // 'meta eidr index' commands.
 func TestEIDRCommands(t *testing.T) {
-	c := newTestCLI(t)
+	c, err := newTestCLI(t)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// check 'meta eidr convert' outputs expected rows
 	stdout := c.run("eidr", "convert",
