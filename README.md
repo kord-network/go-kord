@@ -97,11 +97,8 @@ line tool to perform the following:
 * traverse META object graphs and print the result as a JSON encoded string
 * start a HTTP server with an API to convert XML and retreive META objects
 
-For simplicity, the CLI currently stores META objects in a `.meta` directory
-which it creates in the working directory of the executing process (this will
-later be enhanced to support storing objects in decentralised file storage like
-[Swarm](http://swarm-gateways.net/bzz:/theswarm.eth/) or
-[IPFS](https://ipfs.io/)).
+In order to set the CLI to stores META objects in [Swarm](http://swarm-gateways.net/bzz:/theswarm.eth/), a META_SWARM_URL environement variable must be set to the swarm server url.
+If the META_SWARM_URL is not set, the CLI stores META objects in a `.meta` directory which it creates in the working directory of the executing process (this will later be enhanced to support storing objects in other decentralised file storage like [IPFS](https://ipfs.io/)).
 
 ### Get source
 
