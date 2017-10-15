@@ -154,12 +154,8 @@ func (cli *CLI) RunImportXMLSchema(ctx context.Context, args Args) error {
 		src = res.Body
 	}
 
-	obj, err := metaxml.EncodeXMLSchema(src, args.String("<name>"), args.String("<uri>"))
+	obj, err := metaxml.EncodeXMLSchema(src, args.String("<name>"), args.String("<uri>"), cli.store.Put)
 	if err != nil {
-		return err
-	}
-
-	if err := cli.store.Put(obj); err != nil {
 		return err
 	}
 

@@ -119,11 +119,8 @@ func (c *Converter) ConvertArtists(ctx context.Context, outStream chan *cid.Cid)
 		a.Context = ArtistContext
 
 		// convert the artist to a META object
-		obj, err := meta.Encode(a)
+		obj, err := c.store.Put(a)
 		if err != nil {
-			return err
-		}
-		if err := c.store.Put(obj); err != nil {
 			return err
 		}
 

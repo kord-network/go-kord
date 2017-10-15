@@ -209,10 +209,7 @@ func newTestIndex() (x *testIndex, err error) {
 		return nil, err
 	}
 
-	x.store, err = meta.NewFSStore(x.tmpDir)
-	if err != nil {
-		return nil, err
-	}
+	x.store = meta.NewMapDatastore()
 
 	converter := NewConverter(x.store)
 

@@ -31,7 +31,6 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
 	"github.com/meta-network/go-meta"
 )
 
@@ -194,14 +193,11 @@ func newTestIndex() (x *testIndex, err error) {
 	}
 
 	// store the artists in a test store
-	x.store = meta.NewStore(datastore.NewMapDatastore())
+	x.store = meta.NewMapDatastore()
 	cids := make([]*cid.Cid, len(x.artists))
 	for i, artist := range x.artists {
-		obj, err := meta.Encode(artist)
+		obj, err := x.store.Put(artist)
 		if err != nil {
-			return nil, err
-		}
-		if err := x.store.Put(obj); err != nil {
 			return nil, err
 		}
 		cids[i] = obj.Cid()

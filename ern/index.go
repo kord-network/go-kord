@@ -89,7 +89,6 @@ func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) (err error) {
 			return ctx.Err()
 		}
 	}
-	return nil
 }
 
 // index indexes a DDEX ERN based on its MessageHeader, WorkList, ResourceList

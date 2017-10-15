@@ -100,19 +100,13 @@ func TestEncodeDecode(t *testing.T) {
 }
 
 type testMeta struct {
-	store *SwarmStore
+	store *Store
 	srv   *testutil.TestSwarmServer
 }
 
-func (tm *testMeta) openSwarmStore(t *testing.T) (s *SwarmStore, err error) {
+func (tm *testMeta) openSwarmStore(t *testing.T) *Store {
 	tm.srv = testutil.NewTestSwarmServer(t)
-
-	defer func() {
-		if err != nil {
-			tm.srv.Close()
-		}
-	}()
-	return NewSwarmStore(tm.srv.URL)
+	return NewSwarmDatastore(tm.srv.URL)
 }
 
 func TestSwarmDatastore(t *testing.T) {
@@ -123,10 +117,8 @@ func TestSwarmDatastore(t *testing.T) {
 
 	x := &testMeta{}
 
-	store, err := x.openSwarmStore(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store := x.openSwarmStore(t)
+
 	defer x.srv.Close()
 
 	storeObj := store.MustPut(&Person{
@@ -157,10 +149,10 @@ func TestSwarmDatastore(t *testing.T) {
 {
   "children": [
     {
-      "/": "zBwhRdjEy42zMpSDnaaps57gfmtHNb1KmFDK7A6BNMPX8NqzbyysMqPRmUvmPnYf7W13yDr7zQpuHwjiqPEszUugJi4GF"
+      "/": "zdqaWD2eehRTP7Abff7EVHc6Hyhpm379guLTgf1acpW4scgMm"
     },
     {
-      "/": "zBwhRemYbgzi1HHrHH7nqF3y4eV2x1avK5bgKn85vFFJd32GYEt3DYzfpkJg6Z8Mf7ko7zrMJuPxi9W8oVTUBUE1fR9dJ"
+      "/": "zdqaWT5zs1T1NVFvF49bpAQYqtzUshDmWf9uMN42e1uW4dp88"
     }
   ],
   "name": "parent"

@@ -20,15 +20,13 @@
 package meta
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	"github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/fs"
 	"github.com/ipfs/go-ipld-format"
 	"github.com/lmars/go-ipld-cbor"
-	swarmdatastore "github.com/meta-network/go-meta/swarm-datastore"
 	multihash "github.com/multiformats/go-multihash"
 )
 
@@ -203,16 +201,7 @@ func (g *Graph) Get(path ...string) (interface{}, error) {
 	if !ok {
 		return nil, fmt.Errorf("meta: expected link object, got %T", v)
 	}
-
-	var obj *Object
-	switch v := g.store.(type) {
-	case *Store:
-		obj, err = g.store.(*Store).Get(link.Cid)
-	case *swarmdatastore.Datastore:
-		obj, err = g.store.(*SwarmStore).Get(link.Cid)
-	default:
-		err = fmt.Errorf("meta: expected Store or SwarmStore object, got %T", v)
-	}
+	obj, err := g.store.(*Store).Get(link.Cid)
 	if err != nil {
 		return nil, err
 	}
@@ -222,101 +211,63 @@ func (g *Graph) Get(path ...string) (interface{}, error) {
 
 // Store provides storage for objects.
 type Store struct {
-	store datastore.Datastore
+	store Datastore
 }
 
-// SwarmStore provides swarm storage for objects.
-type SwarmStore struct {
-	store swarmdatastore.Datastore
+// NewMapDatastore returns a new memory Map Store which uses an underlying datastore.
+func NewMapDatastore() *Store {
+	return &Store{newMapDatastore()}
 }
 
-// NewFSStore returns a new FS Store which uses an underlying datastore.
-func NewFSStore(dir string) (*Store, error) {
-	store, err := fs.NewDatastore(dir)
+// NewFSDatastore returns a new FS Store which uses an underlying datastore.
+func NewFSDatastore(dir string) (*Store, error) {
+	store, err := newFSDatastore(dir)
 	if err != nil {
 		return nil, err
 	}
-	return NewStore(store), nil
+	return &Store{store}, nil
 }
 
-// NewStore returns a new Store which uses an underlying datastore.
-func NewStore(store datastore.Datastore) *Store {
-	return &Store{store}
+// NewSwarmDatastore returns a new Swarm Store which uses an underlying datastore.
+func NewSwarmDatastore(serverURL string) *Store {
+	return &Store{newSwarmDatastore(serverURL)}
+}
+
+// NewNullDatastore returns a null Store which uses an underlying datastore.
+// might be usefull for testing
+func NewNullDatastore() *Store {
+	return &Store{newNullDatastore()}
 }
 
 // Get gets an object from the store.
 func (s *Store) Get(cid *cid.Cid) (*Object, error) {
-	data, err := s.store.Get(s.key(cid))
-	if err != nil {
-		return nil, err
-	}
-	if err := isValid(cid, data.([]byte)); err != nil {
-		return nil, err
-	}
-	return NewObject(cid, data.([]byte))
-}
-
-// Put stores an object in the store.
-func (s *Store) Put(obj *Object) error {
-	return s.store.Put(s.key(obj.Cid()), obj.RawData())
-}
-
-// key generates the key to use to store and retrieve the object with the
-// given CID.
-func (s *Store) key(cid *cid.Cid) datastore.Key {
-	return datastore.NewKey(cid.String())
-}
-
-// NewSwarmStore returns a new Swarm Store which uses an underlying datastore.
-func NewSwarmStore(serverURL string) (*SwarmStore, error) {
-	store, err := swarmdatastore.NewDatastore(serverURL)
-	if err != nil {
-		return nil, err
-	}
-	return &SwarmStore{store}, nil
-}
-
-// Get gets an object from the store.
-func (s *SwarmStore) Get(cid *cid.Cid) (*Object, error) {
 	hash, err := multihash.Decode(cid.Hash())
 	if err != nil {
 		return nil, err
 	}
-	data, err := s.store.Get(string(hash.Digest))
+	data, err := s.store.get(hex.EncodeToString(hash.Digest))
 	if err != nil {
 		return nil, err
 	}
-	return NewObject(cid, data.([]byte))
-}
-
-const multihashSwarmCode = 0x30
-
-func init() {
-	multihash.Codes[multihashSwarmCode] = "swarm-hash-v1"
+	return NewObject(cid, data)
 }
 
 // Put encodes and stores object in the store.
-func (s *SwarmStore) Put(v interface{}) (*Object, error) {
+func (s *Store) Put(v interface{}) (*Object, error) {
 	enc, err := encode(v)
 	if err != nil {
 		return nil, err
 	}
-	hash, err := s.store.Put(enc)
-	if err != nil {
-		return nil, err
-	}
-
-	mhash, err := multihash.Encode([]byte(hash), multihashSwarmCode)
+	mhash, err := s.store.put(enc)
 	if err != nil {
 		return nil, err
 	}
 	cid := cid.NewCidV1(cid.DagCBOR, mhash)
-
 	return NewObject(cid, enc)
 }
 
 // MustPut is like Put but panics if v cannot be encoded or stored
-func (s *SwarmStore) MustPut(v interface{}) *Object {
+func (s *Store) MustPut(v interface{}) *Object {
 	obj, err := s.Put(v)
 	if err != nil {
 		panic(err)
