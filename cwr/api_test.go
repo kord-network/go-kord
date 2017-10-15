@@ -27,7 +27,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"testing"
 
 	cid "github.com/ipfs/go-cid"
@@ -91,8 +90,19 @@ func TestRegisteredWorkAPI(t *testing.T) {
 			if r.Title != record.Title && i == len(rw.RegisteredWorks) {
 				return fmt.Errorf("unexpected registeredwork title: expected %q ", record.Title)
 			}
-			if strings.TrimSpace(r.Contributors[0].WriterFirstName) != "WRITER_FIRST_NAME" {
-				return fmt.Errorf("unexpected contributor first name : expected %q got %q", "WRITER_FIRST_NAME", strings.TrimSpace(r.Contributors[0].WriterFirstName))
+			for _, contributor := range r.Contributors {
+				if contributor.WriterFirstName != "WRITER_FIRST_NAME" {
+					return fmt.Errorf("unexpected contributor first name : expected %q got %q", "WRITER_FIRST_NAME", contributor.WriterFirstName)
+				}
+				if contributor.WriterLastName != "WRITER_LAST_NAME" {
+					return fmt.Errorf("unexpected contributor first name : expected %q got %q", "WRITER_LAST_NAME", contributor.WriterLastName)
+				}
+				if contributor.WriterIPIName != "01234567890" {
+					return fmt.Errorf("unexpected contributor first name : expected %q got %q", "01234567890", contributor.WriterIPIName)
+				}
+				if contributor.WriterIPIBaseNumber != "123456789ABCD" {
+					return fmt.Errorf("unexpected contributor first name : expected %q got %q ", "123456789ABCD", contributor.WriterIPIBaseNumber)
+				}
 			}
 		}
 		return nil
@@ -241,7 +251,9 @@ func testTxRecords(x *testIndex,
 				return err
 			}
 			if record.ISWC != "" {
-				if err := assertQueryNWR(record, `{ registered_work(iswc:%q) { title contributors { writer_first_name } } }`, record.ISWC); err != nil {
+				if err := assertQueryNWR(record,
+					`{ registered_work(iswc:%q) { title contributors { writer_first_name writer_last_name writer_ipi_name writer_ipi_base_number } } }`,
+					record.ISWC); err != nil {
 					return err
 				}
 			}

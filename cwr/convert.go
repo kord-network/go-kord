@@ -203,7 +203,7 @@ func newRecord(line string) (*Record, error) {
 		record.RecordType = substring(line, 0, 3)
 		record.SenderType = substring(line, 3, 6)
 		record.SenderID = substring(line, 6, 14)
-		record.SenderName = strings.TrimSpace(substring(line, 14, 59))
+		record.SenderName = substring(line, 14, 59)
 	case "GRH":
 		record.RecordType = substring(line, 0, 3)
 		record.TransactionType = substring(line, 3, 6)
@@ -217,7 +217,7 @@ func newRecord(line string) (*Record, error) {
 		record.RecordType = substring(line, 0, 3)
 		record.TransactionSequenceN = substring(line, 3, 12)
 		record.RecordSequenceN = substring(line, 12, 19)
-		record.Title = strings.TrimSpace(substring(line, 19, 79))
+		record.Title = substring(line, 19, 79)
 		record.LanguageCode = substring(line, 79, 81)
 		record.SubmitteWorkNumber = substring(line, 81, 95)
 		record.ISWC = substring(line, 95, 106)
@@ -294,5 +294,5 @@ func substring(s string, from int, to int) string {
 	if len(s) < from || len(s) < to {
 		return ""
 	}
-	return s[from:to]
+	return strings.TrimSpace(s[from:to])
 }
