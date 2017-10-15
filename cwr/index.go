@@ -259,18 +259,115 @@ func (i *Indexer) indexGroupHeader(cwrID *cid.Cid, grhr *meta.Object) error {
 	return nil
 }
 
-// indexPublisherControlledBySubmiter indexes the given SPU record on its publisher_sequence_n and record_type
-// properties.
+// indexPublisherControlledBySubmiter indexes the given SPU record on its properties.
 func (i *Indexer) indexPublisherControlledBySubmiter(cwrID *cid.Cid, txCid *cid.Cid, obj *meta.Object) error {
 	publisherControlledBySubmitter := &PublisherControllBySubmitter{}
 
 	if err := obj.Decode(publisherControlledBySubmitter); err != nil {
 		return err
 	}
-	log.Info("indexing publisherControlledBySubmitter ", "object_id", obj.Cid().String(), "publisher_sequence_n", publisherControlledBySubmitter.PublisherSequenceNumber, "Record Type", publisherControlledBySubmitter.RecordType)
+	log.Info("indexing publisherControlledBySubmitter ", "cwr_id", cwrID.String(), "tx_id", txCid.String(), "object_id", obj.Cid().String())
+	_, err := i.sqlTx.Exec(`INSERT INTO publisher_control
+		(cwr_id,
+		 tx_id,
+		 object_id,
+		 publisher_sequence_n,
+		 transaction_sequence_n,
+		 record_sequence_n,
+		 record_type,
+		 interested_party_number,
+		 publisher_name,
+		 publisher_unknown_indicator,
+		 publisher_type,
+		 tax_id_number,
+		 publisher_ipi_name_number,
+		 pr_affiliation_society_number,
+		 submitter_agreement_number,
+		 pr_ownership_share,
+		 mr_society,
+		 mr_ownership_share,
+		 sr_society,
+		 sr_ownership_share,
+		 special_agreements_indicator,
+		 first_recording_refusal_ind,
+		 publisher_ipi_base_number,
+		 inter_standard_agreement_code,
+		 society_assigned_agreement_number,
+		 agreement_type,
+		 usa_license_ind)
+	   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
+		cwrID.String(),
+		txCid.String(),
+		obj.Cid().String(),
+		publisherControlledBySubmitter.PublisherSequenceNumber,
+		publisherControlledBySubmitter.TransactionSequenceN,
+		publisherControlledBySubmitter.RecordSequenceN,
+		publisherControlledBySubmitter.RecordType,
+		publisherControlledBySubmitter.InterestedPartyNumber,
+		publisherControlledBySubmitter.PublisherName,
+		publisherControlledBySubmitter.PublisherUnknownIndicator,
+		publisherControlledBySubmitter.PublisherType,
+		publisherControlledBySubmitter.TaxIDNumber,
+		publisherControlledBySubmitter.PublisherIPINameNumber,
+		publisherControlledBySubmitter.PRAffiliationSocietyNumber,
+		publisherControlledBySubmitter.SubmitterAgreementNumber,
+		publisherControlledBySubmitter.PROwnershipShare,
+		publisherControlledBySubmitter.MRSociety,
+		publisherControlledBySubmitter.MROwnershipShare,
+		publisherControlledBySubmitter.SRSociety,
+		publisherControlledBySubmitter.SROwnershipShare,
+		publisherControlledBySubmitter.SpecialAgreementsIndicator,
+		publisherControlledBySubmitter.FirstRecordingRefusalInd,
+		publisherControlledBySubmitter.PublisherIPIBaseNumber,
+		publisherControlledBySubmitter.InterStandardAgreementCode,
+		publisherControlledBySubmitter.SocietyAssignedAgreementNumber,
+		publisherControlledBySubmitter.AgreementType,
+		publisherControlledBySubmitter.USALicenseInd,
+	)
+	return err
+}
 
-	_, err := i.sqlTx.Exec(`INSERT INTO publisher_control (cwr_id,tx_id,object_id, publisher_sequence_n, record_type) VALUES ($1, $2, $3, $4, $5)`,
-		cwrID.String(), txCid.String(), obj.Cid().String(), publisherControlledBySubmitter.PublisherSequenceNumber, publisherControlledBySubmitter.RecordType)
+// indexWriterControlledbySubmitter indexes the given SWR or OWR record on its properties.
+func (i *Indexer) indexWriterControlledbySubmitter(cwrID *cid.Cid, txCid *cid.Cid, obj *meta.Object) error {
+	writerControlledbySubmitter := &WriterControlledbySubmitter{}
+
+	if err := obj.Decode(writerControlledbySubmitter); err != nil {
+		return err
+	}
+	log.Info("indexing writerControlledbySubmitter ", "cwr_id", cwrID.String(), "tx_id", txCid.String(), "object_id", obj.Cid().String())
+	_, err := i.sqlTx.Exec(`INSERT INTO writer_control
+		( cwr_id,
+			tx_id,
+			object_id,
+			record_type,
+			transaction_sequence_n,
+			record_sequence_n,
+			interested_party_number,
+			writer_last_name,
+			writer_first_name,
+			writer_unknown_indicator,
+			writer_designation_code,
+			tax_id_number,
+			writer_ipi_name,
+			writer_ipi_base_number,
+			personal_number)
+	   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+		cwrID.String(),
+		txCid.String(),
+		obj.Cid().String(),
+		writerControlledbySubmitter.RecordType,
+		writerControlledbySubmitter.TransactionSequenceN,
+		writerControlledbySubmitter.RecordSequenceN,
+		writerControlledbySubmitter.InterestedPartyNumber,
+		writerControlledbySubmitter.WriterLastName,
+		writerControlledbySubmitter.WriterFirstName,
+		writerControlledbySubmitter.WriterUnknownIndicator,
+		writerControlledbySubmitter.WriterDesignationCode,
+		writerControlledbySubmitter.TaxIDNumber,
+		writerControlledbySubmitter.WriterIPIName,
+		writerControlledbySubmitter.WriterIPIBaseNumber,
+		writerControlledbySubmitter.PersonalNumber,
+	)
 	return err
 }
 
@@ -303,6 +400,15 @@ func (i *Indexer) indexNWR(cwrID *cid.Cid, tx map[string]interface{}) error {
 			return err
 		}
 		if err := i.indexPublisherControlledBySubmiter(cwrID, nwrCid, obj); err != nil {
+			return err
+		}
+	}
+	for _, swrCid := range tx["DetailRecords"].(map[string]interface{})["SWR"].([]interface{}) {
+		obj, err := i.store.Get(swrCid.(*cid.Cid))
+		if err != nil {
+			return err
+		}
+		if err := i.indexWriterControlledbySubmitter(cwrID, nwrCid, obj); err != nil {
 			return err
 		}
 	}

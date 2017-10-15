@@ -92,7 +92,7 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 	var nwr Transaction
 	nwr.MainRecord = make(map[string]*cid.Cid)
 	nwr.DetailRecords = make(map[string][]*cid.Cid)
-	var spus []*cid.Cid
+	var spus, swrs []*cid.Cid
 	var group Group
 
 	var wg sync.WaitGroup
@@ -159,7 +159,9 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 			group.Transactions = make(map[string][]Transaction)
 		case "GRT":
 			nwr.DetailRecords["SPU"] = spus // accumulate last spus
+			nwr.DetailRecords["SWR"] = swrs // accumulate last swrs
 			spus = []*cid.Cid{}
+			swrs = []*cid.Cid{}
 			group.Transactions["NWR"] = append(group.Transactions["NWR"], nwr) // accumulate last transaction
 			nwr.MainRecord = make(map[string]*cid.Cid)
 			nwr.DetailRecords = make(map[string][]*cid.Cid)
@@ -168,14 +170,18 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 		case "NWR", "REV":
 			if nwr.MainRecord[recordType] != nil { // accumulate the current nwr and continue
 				nwr.DetailRecords["SPU"] = spus // accumulate spus
+				nwr.DetailRecords["SWR"] = swrs // accumulate swrs
 				spus = []*cid.Cid{}
+				swrs = []*cid.Cid{}
 				group.Transactions["NWR"] = append(group.Transactions["NWR"], nwr)
 				nwr.MainRecord = make(map[string]*cid.Cid)
 				nwr.DetailRecords = make(map[string][]*cid.Cid)
 			}
 			nwr.MainRecord[recordType] = obj.Cid()
-		case "SPU": // NWR/REV transaction records
+		case "SPU":
 			spus = append(spus, obj.Cid())
+		case "SWR", "OWR":
+			swrs = append(swrs, obj.Cid())
 		}
 	}
 	obj, err := meta.Encode(cwr)
@@ -228,6 +234,39 @@ func newRecord(line string) (*Record, error) {
 		record.TransactionSequenceN = substring(line, 3, 12)
 		record.RecordSequenceN = substring(line, 12, 19)
 		record.PublisherSequenceNumber = substring(line, 19, 21)
+		record.InterestedPartyNumber = substring(line, 21, 30)
+		record.PublisherName = substring(line, 30, 75)
+		record.PublisherUnknownIndicator = substring(line, 75, 76)
+		record.PublisherType = substring(line, 76, 78)
+		record.TaxIDNumber = substring(line, 78, 87)
+		record.PublisherIPINameNumber = substring(line, 87, 98)
+		record.SubmitterAgreementNumber = substring(line, 98, 112)
+		record.PRAffiliationSocietyNumber = substring(line, 112, 115)
+		record.PROwnershipShare = substring(line, 115, 120)
+		record.MRSociety = substring(line, 120, 123)
+		record.MROwnershipShare = substring(line, 123, 128)
+		record.SRSociety = substring(line, 128, 131)
+		record.SROwnershipShare = substring(line, 131, 136)
+		record.SpecialAgreementsIndicator = substring(line, 136, 137)
+		record.FirstRecordingRefusalInd = substring(line, 137, 138)
+		record.PublisherIPINameNumber = substring(line, 139, 152)
+		record.InterStandardAgreementCode = substring(line, 152, 166)
+		record.SocietyAssignedAgreementNumber = substring(line, 166, 180)
+		record.AgreementType = substring(line, 180, 182)
+		record.USALicenseInd = substring(line, 182, 183)
+	case "SWR", "OWR":
+		record.RecordType = substring(line, 0, 3)
+		record.TransactionSequenceN = substring(line, 3, 12)
+		record.RecordSequenceN = substring(line, 12, 19)
+		record.InterestedPartyNumber = substring(line, 19, 28)
+		record.WriterLastName = substring(line, 28, 73)
+		record.WriterFirstName = substring(line, 73, 103)
+		record.WriterUnknownIndicator = substring(line, 103, 104)
+		record.WriterDesignationCode = substring(line, 104, 106)
+		record.TaxIDNumber = substring(line, 106, 115)
+		record.WriterIPIName = substring(line, 115, 126)
+		record.WriterIPIBaseNumber = substring(line, 154, 167)
+		record.PersonalNumber = substring(line, 167, 179)
 	default:
 		return nil, nil
 	}

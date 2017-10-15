@@ -130,6 +130,7 @@ func TestIndex(t *testing.T) {
 		title              string
 		iswc               string
 		publisherSequenceN string
+		writerFirstName    string
 	)
 
 	rows, err = x.db.Query(`SELECT object_id,title,iswc FROM registered_work WHERE cwr_id = ?`, x.cwrCid.String())
@@ -150,11 +151,11 @@ func TestIndex(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		//get all publisher control records (SPU) which link to the above tx .
 		txID, err := cid.Decode(objectID)
 		if err != nil {
 			t.Fatal(err)
 		}
+		//get all publisher control records (SPU) which link to the above tx .
 		spuRows, err := x.db.Query(`SELECT object_id,publisher_sequence_n FROM publisher_control WHERE tx_id = ?`, txID.String())
 		if err != nil {
 			t.Fatal(err)
@@ -167,6 +168,23 @@ func TestIndex(t *testing.T) {
 			}
 			if err = check(objectID, map[string]string{
 				"publisher_sequence_n": publisherSequenceN,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		//get all writer control records (SWR or OWR) which link to the above tx .
+		swrRows, err := x.db.Query(`SELECT object_id,writer_first_name FROM writer_control WHERE tx_id = ?`, txID.String())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer swrRows.Close()
+		for swrRows.Next() {
+
+			if err := swrRows.Scan(&objectID, &writerFirstName); err != nil {
+				t.Fatal(err)
+			}
+			if err = check(objectID, map[string]string{
+				"writer_first_name": writerFirstName,
 			}); err != nil {
 				t.Fatal(err)
 			}

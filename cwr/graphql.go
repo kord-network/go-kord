@@ -42,58 +42,134 @@ type Query {
   ): [RegisteredWork]!
 
   publisher_control(
-  publisher_sequence_n: String,
-  record_type: String
+   publisher_sequence_n:              String,
+   record_type:                       String,
+   transaction_sequence_n:            String,
+   record_sequence_n:                 String,
+   interested_party_number:           String,
+   publisher_name:                    String,
+   publisher_unknown_indicator:       String,
+   publisher_type:                    String,
+   tax_id_number:                     String,
+   publisher_ipi_name_number:         String,
+   pr_affiliation_society_number:     String,
+   submitter_agreement_number:        String,
+   pr_ownership_share:                String,
+   mr_society:                        String,
+   mr_ownership_share:                String,
+   sr_society:                        String,
+   sr_ownership_share:                String,
+   special_agreements_indicator:      String,
+   first_recording_refusal_ind:       String,
+   publisher_ipi_base_number:         String,
+   inter_standard_agreement_code:     String,
+   society_assigned_agreement_number: String,
+   agreement_type:                    String,
+   usa_license_ind:                   String
   ): [PublisherControl]!
 
-	transmission_header(
+	writer_control(
+		transaction_sequence_n:   String,
+    record_sequence_n:        String,
+    interested_party_number:  String,
+    writer_last_name:         String,
+    writer_first_name:        String,
+    writer_unknown_indicator: String,
+    writer_designation_code:  String,
+    tax_id_number:            String,
+    writer_ipi_name:          String,
+    writer_ipi_base_number:   String,
+    personal_number:          String,
+    record_type:              String
+  ): [WriterControl]!
+
+ transmission_header(
   sender_type: String,
-	sender_id: String,
+  sender_id: String,
   record_type: String,
-	sender_name: String
+  sender_name: String
   ): [TransmissionHeader]!
 }
 
 type TransmissionHeader {
-	cid:                      String!
-	record_type:              String!
-	sender_type:              String!
-	sender_id:                String!
-	sender_name:              String!
+ cid:                      String!
+ record_type:              String!
+ sender_type:              String!
+ sender_id:                String!
+ sender_name:              String!
 }
 
 type PublisherControl {
+ cid:                               String!
+ record_type:                       String!
+ publisher_sequence_n:              String!
+ transaction_sequence_n:            String!
+ record_sequence_n:                 String!
+ interested_party_number:           String!
+ publisher_name:                    String!
+ publisher_unknown_indicator:       String!
+ publisher_type:                    String!
+ tax_id_number:                     String!
+ publisher_ipi_name_number:         String!
+ pr_affiliation_society_number:     String!
+ submitter_agreement_number:        String!
+ pr_ownership_share:                String!
+ mr_society:                        String!
+ mr_ownership_share:                String!
+ sr_society:                        String!
+ sr_ownership_share:                String!
+ special_agreements_indicator:      String!
+ first_recording_refusal_ind:       String!
+ publisher_ipi_base_number:         String!
+ inter_standard_agreement_code:     String!
+ society_assigned_agreement_number: String!
+ agreement_type:                    String!
+ usa_license_ind:                   String!
+}
+
+type WriterControl {
 	cid:                      String!
-	record_type:              String!
-	publisher_sequence_n:     String!
+  transaction_sequence_n:   String!
+  record_sequence_n:        String!
+  interested_party_number:  String!
+  writer_last_name:         String!
+  writer_first_name:        String!
+  writer_unknown_indicator: String!
+  writer_designation_code:  String!
+  tax_id_number:            String!
+  writer_ipi_name:          String!
+  writer_ipi_base_number:   String!
+  personal_number:          String!
+  record_type:              String!
 }
 
 type RegisteredWork {
-	cid:                      String!
-	record_type:              String!
-	title:                    String!
-	language_code:            String!
-	submitte_worknumber:      String!
-	iswc:                     String!
-	copyright_date:           String!
-	distribution_category:    String!
-	duration:                 String!
-	recorded_indicator:       String!
-	textmusic_relationship:   String!
-	composite_type:           String!
-	version_type:             String!
-	music_arrangement:        String!
-	lyric_adaptation:         String!
-	contact_name:             String!
-	contact_id:               String!
-	work_type:                String!
-	grandrights_indicator:    String!
-	composite_componentcount: String!
-	date_ofpublication:       String!
-	exceptional_clause:       String!
-	opus_number:              String!
-	catalogue_number:         String!
-	priority_flag:            String!
+ cid:                      String!
+ record_type:              String!
+ title:                    String!
+ language_code:            String!
+ submitte_worknumber:      String!
+ iswc:                     String!
+ copyright_date:           String!
+ distribution_category:    String!
+ duration:                 String!
+ recorded_indicator:       String!
+ textmusic_relationship:   String!
+ composite_type:           String!
+ version_type:             String!
+ music_arrangement:        String!
+ lyric_adaptation:         String!
+ contact_name:             String!
+ contact_id:               String!
+ work_type:                String!
+ grandrights_indicator:    String!
+ composite_componentcount: String!
+ date_ofpublication:       String!
+ exceptional_clause:       String!
+ opus_number:              String!
+ catalogue_number:         String!
+ priority_flag:            String!
+ contributors:             [WriterControl]
 }
 `
 
@@ -120,8 +196,46 @@ type registeredWorkArgs struct {
 }
 
 type publisherControlArgs struct {
-	RecordType         *string
-	PublisherSequenceN *string
+	RecordType                     *string
+	PublisherSequenceN             *string
+	TransactionSequenceN           *string
+	RecordSequenceN                *string
+	PublisherSequenceNumber        *string
+	InterestedPartyNumber          *string
+	PublisherName                  *string
+	PublisherUnknownIndicator      *string
+	PublisherType                  *string
+	TaxIDNumber                    *string
+	PublisherIPINameNumber         *string
+	PRAffiliationSocietyNumber     *string
+	SubmitterAgreementNumber       *string
+	PROwnershipShare               *string
+	MRSociety                      *string
+	MROwnershipShare               *string
+	SRSociety                      *string
+	SROwnershipShare               *string
+	SpecialAgreementsIndicator     *string
+	FirstRecordingRefusalInd       *string
+	PublisherIPIBaseNumber         *string
+	InterStandardAgreementCode     *string
+	SocietyAssignedAgreementNumber *string
+	AgreementType                  *string
+	USALicenseInd                  *string
+}
+
+type writerControlArgs struct {
+	RecordType             *string
+	TransactionSequenceN   *string
+	RecordSequenceN        *string
+	InterestedPartyNumber  *string
+	WriterLastName         *string
+	WriterFirstName        *string
+	WriterUnknownIndicator *string
+	WriterDesignationCode  *string
+	TaxIDNumber            *string
+	WriterIPIName          *string
+	WriterIPIBaseNumber    *string
+	PersonalNumber         *string
 }
 
 type transmissionHeaderArgs struct {
@@ -159,11 +273,11 @@ func (g *Resolver) RegisteredWork(args registeredWorkArgs) ([]*registeredWorkRes
 		if err := rows.Scan(&objectID); err != nil {
 			return nil, err
 		}
-		cid, err := cid.Parse(objectID)
+		objCid, err := cid.Parse(objectID)
 		if err != nil {
 			return nil, err
 		}
-		obj, err := g.store.Get(cid)
+		obj, err := g.store.Get(objCid)
 		if err != nil {
 			return nil, err
 		}
@@ -171,6 +285,27 @@ func (g *Resolver) RegisteredWork(args registeredWorkArgs) ([]*registeredWorkRes
 		if err := obj.Decode(&registeredWork); err != nil {
 			return nil, err
 		}
+		swrRows, err := g.db.Query("SELECT object_id FROM writer_control WHERE tx_id = ?", objectID)
+		for swrRows.Next() {
+			var objectID string
+			if err := swrRows.Scan(&objectID); err != nil {
+				return nil, err
+			}
+			objCid, err := cid.Parse(objectID)
+			if err != nil {
+				return nil, err
+			}
+			obj, err := g.store.Get(objCid)
+			if err != nil {
+				return nil, err
+			}
+			var writerControlledbySubmitter WriterControlledbySubmitter
+			if err := obj.Decode(&writerControlledbySubmitter); err != nil {
+				return nil, err
+			}
+			registeredWork.Contributors = append(registeredWork.Contributors, &writerControlledbySubmitter)
+		}
+
 		resolvers = append(resolvers, &registeredWorkResolver{objectID, &registeredWork})
 	}
 	if err := rows.Err(); err != nil {
@@ -190,6 +325,8 @@ func (g *Resolver) PublisherControl(args publisherControlArgs) ([]*publisherCont
 		rows, err = g.db.Query("SELECT object_id FROM publisher_control WHERE publisher_sequence_n = ?", *args.PublisherSequenceN)
 	case args.RecordType != nil:
 		rows, err = g.db.Query("SELECT object_id FROM publisher_control WHERE record_type = ?", *args.RecordType)
+	case args.TransactionSequenceN != nil:
+		rows, err = g.db.Query("SELECT object_id FROM publisher_control WHERE transaction_sequence_n = ?", *args.TransactionSequenceN)
 	default:
 		return nil, errors.New("missing record_type or PublisherSequenceN argument")
 	}
@@ -220,6 +357,58 @@ func (g *Resolver) PublisherControl(args publisherControlArgs) ([]*publisherCont
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	return resolvers, nil
+}
+
+// WriterControl is a GraphQL resolver function which retrieves object IDs from the
+// SQLite3 index using either a WriterControl RecordType ,writer_first_name,
+// writer_last_name or writer_ipi_base_number and loads the associated META
+// objects from the META store.
+func (g *Resolver) WriterControl(args writerControlArgs) ([]*writerControlResolver, error) {
+	var rows *sql.Rows
+	var err error
+	switch {
+	case args.WriterFirstName != nil:
+		rows, err = g.db.Query("SELECT object_id FROM writer_control WHERE writer_first_name = ?", *args.WriterFirstName)
+	case args.RecordType != nil:
+		rows, err = g.db.Query("SELECT object_id FROM writer_control WHERE record_type = ?", *args.RecordType)
+	case args.WriterLastName != nil:
+		rows, err = g.db.Query("SELECT object_id FROM writer_control WHERE writer_last_name = ?", *args.WriterLastName)
+	case args.WriterIPIBaseNumber != nil:
+		rows, err = g.db.Query("SELECT object_id FROM writer_control WHERE writer_ipi_base_number = ?", *args.WriterIPIBaseNumber)
+	case args.WriterUnknownIndicator != nil:
+		rows, err = g.db.Query("SELECT object_id FROM writer_control WHERE writer_unknown_indicator = ?", *args.WriterUnknownIndicator)
+	default:
+		return nil, errors.New("missing writer_first_name,record_type,writer_last_name,writer_unknown_indicator or writer_ipi_base_number argument")
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var resolvers []*writerControlResolver
+	for rows.Next() {
+		var objectID string
+		if err := rows.Scan(&objectID); err != nil {
+			return nil, err
+		}
+		cid, err := cid.Parse(objectID)
+		if err != nil {
+			return nil, err
+		}
+		obj, err := g.store.Get(cid)
+		if err != nil {
+			return nil, err
+		}
+		var writerControlledbySubmitter WriterControlledbySubmitter
+		if err := obj.Decode(&writerControlledbySubmitter); err != nil {
+			return nil, err
+		}
+		resolvers = append(resolvers, &writerControlResolver{objectID, &writerControlledbySubmitter})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return resolvers, nil
 }
 
@@ -315,10 +504,164 @@ func (p *publisherControlResolver) PublisherSequenceN() string {
 	return p.publisherControl.PublisherSequenceNumber
 }
 
+func (p *publisherControlResolver) TransactionSequenceN() string {
+	return p.publisherControl.TransactionSequenceN
+}
+
+func (p *publisherControlResolver) RecordSequenceN() string {
+	return p.publisherControl.RecordSequenceN
+}
+
+func (p *publisherControlResolver) InterestedPartyNumber() string {
+	return p.publisherControl.InterestedPartyNumber
+}
+
+func (p *publisherControlResolver) MROwnershipShare() string {
+	return p.publisherControl.MROwnershipShare
+}
+
+func (p *publisherControlResolver) AgreementType() string {
+	return p.publisherControl.AgreementType
+}
+
+func (p *publisherControlResolver) FirstRecordingRefusalInd() string {
+	return p.publisherControl.FirstRecordingRefusalInd
+}
+
+func (p *publisherControlResolver) InterStandardAgreementCode() string {
+	return p.publisherControl.InterStandardAgreementCode
+}
+
+func (p *publisherControlResolver) PublisherIPIBaseNumber() string {
+	return p.publisherControl.PublisherIPIBaseNumber
+}
+
+func (p *publisherControlResolver) PRAffiliationSocietyNumber() string {
+	return p.publisherControl.PRAffiliationSocietyNumber
+}
+
+func (p *publisherControlResolver) PROwnershipShare() string {
+	return p.publisherControl.PROwnershipShare
+}
+
+func (p *publisherControlResolver) PublisherIPINameNumber() string {
+	return p.publisherControl.PublisherIPINameNumber
+}
+
+func (p *publisherControlResolver) PublisherName() string {
+	return p.publisherControl.PublisherName
+}
+
+func (p *publisherControlResolver) PublisherUnknownIndicator() string {
+	return p.publisherControl.PublisherUnknownIndicator
+}
+
+func (p *publisherControlResolver) SROwnershipShare() string {
+	return p.publisherControl.SROwnershipShare
+}
+
+func (p *publisherControlResolver) SRSociety() string {
+	return p.publisherControl.SRSociety
+}
+
+func (p *publisherControlResolver) SocietyAssignedAgreementNumber() string {
+	return p.publisherControl.SocietyAssignedAgreementNumber
+}
+
+func (p *publisherControlResolver) TaxIDNumber() string {
+	return p.publisherControl.TaxIDNumber
+}
+
+func (p *publisherControlResolver) PublisherType() string {
+	return p.publisherControl.PublisherType
+}
+
+func (p *publisherControlResolver) SubmitterAgreementNumber() string {
+	return p.publisherControl.SubmitterAgreementNumber
+}
+
+func (p *publisherControlResolver) SpecialAgreementsIndicator() string {
+	return p.publisherControl.SpecialAgreementsIndicator
+}
+
+func (p *publisherControlResolver) MRSociety() string {
+	return p.publisherControl.MRSociety
+}
+
+func (p *publisherControlResolver) USALicenseInd() string {
+	return p.publisherControl.USALicenseInd
+}
+
+// writerControlResolver defines GraphQL resolver functions for WriterControlledbySubmitter fields.
+type writerControlResolver struct {
+	cid           string
+	writerControl *WriterControlledbySubmitter
+}
+
+func (p *writerControlResolver) Cid() string {
+	return p.cid
+}
+
+func (p *writerControlResolver) WriterUnknownIndicator() string {
+	return p.writerControl.WriterUnknownIndicator
+}
+
+func (p *writerControlResolver) TransactionSequenceN() string {
+	return p.writerControl.TransactionSequenceN
+}
+
+func (p *writerControlResolver) WriterDesignationCode() string {
+	return p.writerControl.WriterDesignationCode
+}
+
+func (p *writerControlResolver) WriterFirstName() string {
+	return p.writerControl.WriterFirstName
+}
+
+func (p *writerControlResolver) WriterLastName() string {
+	return p.writerControl.WriterLastName
+}
+
+func (p *writerControlResolver) WriterIPIBaseNumber() string {
+	return p.writerControl.WriterIPIBaseNumber
+}
+
+func (p *writerControlResolver) WriterIPIName() string {
+	return p.writerControl.WriterIPIName
+}
+
+func (p *writerControlResolver) RecordSequenceN() string {
+	return p.writerControl.RecordSequenceN
+}
+
+func (p *writerControlResolver) InterestedPartyNumber() string {
+	return p.writerControl.InterestedPartyNumber
+}
+
+func (p *writerControlResolver) TaxIDNumber() string {
+	return p.writerControl.TaxIDNumber
+}
+
+func (p *writerControlResolver) PersonalNumber() string {
+	return p.writerControl.PersonalNumber
+}
+
+func (p *writerControlResolver) RecordType() string {
+	return p.writerControl.RecordType
+}
+
 // registeredWorkResolver defines GraphQL resolver functions for registeredWork fields.
 type registeredWorkResolver struct {
 	cid            string
 	registeredWork *RegisteredWork
+}
+
+func (r *registeredWorkResolver) Contributors() *[]*writerControlResolver {
+	var writerControlResolvers []*writerControlResolver
+	for _, c := range r.registeredWork.Contributors {
+		writerControlResolvers = append(writerControlResolvers, &writerControlResolver{writerControl: c})
+	}
+	return &writerControlResolvers
 }
 
 func (r *registeredWorkResolver) Cid() string {
