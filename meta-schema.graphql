@@ -1,30 +1,31 @@
 # Base types
-type Party {
+type Identifiers {
 	id:ID!
-	idType:String! #PartyId, IPI, ISNI, MBID
-	displayName:String!
-	firstName: String
-	lastName: String
+	idType:String! # IPI || ISWC || GRid
 }
 
-type Organisation {
-	id:String!
-	idType:String! #DPid, IPI, MBID
+type Party {
+	identifiers:[Identifiers]!
 	displayName:String!
 	formalName:String
+	firstName: String
+	lastName: String
+	role:String
+	works:[MusicWork]
+	recordings:[MusicRecording]
+	products:[MusicProduct]
 }
 
 # Music Types
 type TerritoryAgreement {
-	territoryCode:Int! #CISAC Territory standard
-	condition:String! # CWR inclusion/exclusion indicator
+	territoryCode:String! # String to handle CISAC Territory standard || ISO
+	condition:String! # inclusion/exclusion indicator
 }
 
-type InterestedPartyAgreement {
+type interestedPartyAgreement {
 	agreementRoleCode:String!
 	interestedPartyNumber:Int!
-	ipi:Int
-	ipiBase:Int
+	identifiers:[Identifiers]!
 	lastName:String!
 	firstName:String
 	prSociety:String
@@ -34,42 +35,37 @@ type InterestedPartyAgreement {
 }
 
 type MusicWork {
-	iswc:String
+	identifiers:[Identifiers]!
 	workTitle:String!
 	territories:[TerritoryAgreement]
-	interestedParty:[InterestedPartyAgreement]
-	publishers:[Organisation]
+	interestedParties:[interestedPartyAgreement]
+	publishers:[Party]
 	composers:[MusicComposer]
 	recordings:[MusicRecording]
 }
 
-# DDEX:ERN:SoundRecording
 type MusicRecording {
-	isrc: String
-	iswc: String
+	identifiers:[Identifiers]!
 	displayTitle:String!
-	displayArtist:String!
+	displayArtist:[Party!]!
 	contributors:[Party]
-	label:[Organisation]
+	label:[Party]
 	genre:String
 	work:MusicWork
 	products:[MusicProduct]
 }
 
 type TerritoryProduct {
-	territoryCode:String!
+	territories:[TerritoryAgreement]
 	releaseDate:String!
 	displayTitle:String!
 	displayArtist:String
-	label:[Organisation]
+	label:[Party]
 	genre:String
 }
 
-# DDEX:ERN:Release
 type MusicProduct {
-	grid:String!
-	isrc: String
-	iswc: String
+	identifiers:[Identifiers]!
 	productType:String!
 	displayTitle:String!
 	genre:String
@@ -77,39 +73,19 @@ type MusicProduct {
 	territoryProducts:[TerritoryProduct]!
 }
 
-type MusicPerformer {
-	isni: String
-	displayName:String!
-	firstName: String
-	lastName: String
-	recordings:[MusicRecording]
-	products:[MusicProduct]
-}
-
-type MusicComposer {
-	ipi:Int
-	ipiBase:Int
-	displayName:String!
-	firstName: String
-	lastName: String
-	works:[MusicWork]
-}
-
 type RecordLabel {
-	id:String!
-	idType:String #DPid, IPI, MBID
+	identifiers:[Identifiers!]!
 	displayName:String!
 	formalName:String
-	performers:[MusicPerformer]
+	performers:[Party]
 	recordings:[MusicRecording]
 	products:[MusicProduct]
 }
 
 type MusicPublisher {
-	id:String!
-	idType:String #DPid, IPI, MBID
+	identifiers:[Identifiers!]!
 	displayName:String!
 	formalName:String
-	composers:[MusicComposer]
+	composers:[Party]
 	works:[MusicWork]
 }
