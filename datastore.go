@@ -187,23 +187,3 @@ func isFile(path string) bool {
 
 	return !finfo.IsDir()
 }
-
-// NullDatastore stores nothing, but conforms to the API.
-// Useful to test with.
-type NullDatastore struct {
-}
-
-// newNullDatastore constructs a null datastoe
-func newNullDatastore() *NullDatastore {
-	return &NullDatastore{}
-}
-
-// put implements Datastore.put
-func (d *NullDatastore) put(data []byte) (mhash multihash.Multihash, err error) {
-	return nil, nil
-}
-
-// get implements Datastore.get
-func (d *NullDatastore) get(key string) (value []byte, err error) {
-	return nil, nil
-}

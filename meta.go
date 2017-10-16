@@ -233,12 +233,6 @@ func NewSwarmDatastore(serverURL string) *Store {
 	return &Store{newSwarmDatastore(serverURL)}
 }
 
-// NewNullDatastore returns a null Store which uses an underlying datastore.
-// might be usefull for testing
-func NewNullDatastore() *Store {
-	return &Store{newNullDatastore()}
-}
-
 // Get gets an object from the store.
 func (s *Store) Get(cid *cid.Cid) (*Object, error) {
 	hash, err := multihash.Decode(cid.Hash())

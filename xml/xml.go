@@ -73,7 +73,7 @@ func EncodeXMLSchema(src io.Reader, namespace, uri string, callback func(v inter
 	if callback != nil {
 		return callback(map[string]interface{}{"@context": context})
 	}
-	return meta.Encode(map[string]interface{}{"@context": context})
+	return nil, fmt.Errorf("EncodeXMLSchema : callback func is nil")
 }
 
 // EncodeXML encodes an XML document as a META object graph.

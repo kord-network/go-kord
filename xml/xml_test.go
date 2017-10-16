@@ -149,9 +149,9 @@ func TestEncodeXMLSchema(t *testing.T) {
 	}
 	defer f.Close()
 
-	store := meta.NewNullDatastore()
+	store := meta.NewMapDatastore()
 
-	obj, err := EncodeXMLSchema(f, "ds", "http://www.w3.org/2000/09/xmldsig#", nil)
+	obj, err := EncodeXMLSchema(f, "ds", "http://www.w3.org/2000/09/xmldsig#", store.Put)
 	if err != nil {
 		t.Fatal(err)
 	}
