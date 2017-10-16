@@ -57,21 +57,54 @@ CREATE INDEX registered_work_cwr_id_idx         ON registered_work (cwr_id);
 
 
 CREATE TABLE publisher_control (
-	cwr_id               text NOT NULL,
-	tx_id                text NOT NULL,
-	object_id            text NOT NULL,
-	publisher_sequence_n text NOT NULL,
-	record_type          text NOT NULL
+	cwr_id                            text NOT NULL,
+	tx_id                             text NOT NULL,
+	object_id                         text NOT NULL,
+	publisher_sequence_n              text NOT NULL,
+	transaction_sequence_n            text NOT NULL,
+	record_sequence_n                 text NOT NULL,
+	interested_party_number           text NOT NULL,
+	publisher_name                    text NOT NULL,
+	publisher_type                    text NOT NULL,
+	publisher_ipi_name_number         text NOT NULL,
+	pr_ownership_share                text NOT NULL,
+	mr_society                        text NOT NULL,
+	mr_ownership_share                text NOT NULL,
+	sr_society                        text NOT NULL,
+	sr_ownership_share                text NOT NULL,
+	publisher_ipi_base_number         text NOT NULL,
+	record_type                       text NOT NULL
 );
 
 CREATE INDEX publisher_control_object_id_idx            ON publisher_control (object_id);
 CREATE INDEX publisher_control_publisher_sequence_n_idx ON publisher_control (publisher_sequence_n);
 CREATE INDEX publisher_control_record_type_idx          ON publisher_control (record_type);
 CREATE INDEX publisher_control_cwr_id_idx               ON publisher_control (cwr_id);
-CREATE INDEX publisher_tx_id_idx                        ON publisher_control (tx_id);
+CREATE INDEX publisher_control_tx_id_idx                ON publisher_control (tx_id);
+
+CREATE TABLE writer_control (
+	cwr_id                   text NOT NULL,
+	tx_id                    text NOT NULL,
+	object_id                text NOT NULL,
+	transaction_sequence_n   text NOT NULL,
+	record_sequence_n        text NOT NULL,
+	interested_party_number  text NOT NULL,
+	writer_last_name         text NOT NULL,
+	writer_first_name        text NOT NULL,
+	writer_ipi_name          text NOT NULL,
+	writer_ipi_base_number   text NOT NULL,
+	personal_number          text NOT NULL,
+	record_type              text NOT NULL
+);
+
+CREATE INDEX writer_control_object_id_idx              ON writer_control (object_id);
+CREATE INDEX writer_control_writer_ipi_name_idx        ON writer_control (writer_ipi_name);
+CREATE INDEX writer_control_writer_ipi_base_number_idx ON writer_control (writer_ipi_base_number);
+CREATE INDEX writer_control_record_type_idx            ON writer_control (record_type);
+CREATE INDEX writer_control_cwr_id_idx                 ON writer_control (cwr_id);
+CREATE INDEX writer_control_tx_id_idx                  ON writer_control (tx_id);
 
 
---
 -- the transmission_header table is an index of CWR transmission header (HDR)
 --
 CREATE TABLE transmission_header (

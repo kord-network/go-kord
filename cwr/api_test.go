@@ -66,6 +66,7 @@ func TestRegisteredWorkAPI(t *testing.T) {
 		if res.StatusCode != http.StatusOK {
 			return fmt.Errorf("unexpected HTTP status: %s", res.Status)
 		}
+
 		var r graphql.Response
 		if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
 			return err
@@ -73,6 +74,7 @@ func TestRegisteredWorkAPI(t *testing.T) {
 		if len(r.Errors) > 0 {
 			return fmt.Errorf("unexpected errors in API response: %v", r.Errors)
 		}
+
 		var rw struct {
 			RegisteredWorks []*RegisteredWork `json:"registered_work"`
 		}
@@ -87,6 +89,20 @@ func TestRegisteredWorkAPI(t *testing.T) {
 		for i, r := range rw.RegisteredWorks {
 			if r.Title != record.Title && i == len(rw.RegisteredWorks) {
 				return fmt.Errorf("unexpected registeredwork title: expected %q ", record.Title)
+			}
+			for _, contributor := range r.Contributors {
+				if contributor.WriterFirstName != "WRITER_FIRST_NAME" {
+					return fmt.Errorf("unexpected contributor first name : expected %q got %q", "WRITER_FIRST_NAME", contributor.WriterFirstName)
+				}
+				if contributor.WriterLastName != "WRITER_LAST_NAME" {
+					return fmt.Errorf("unexpected contributor first name : expected %q got %q", "WRITER_LAST_NAME", contributor.WriterLastName)
+				}
+				if contributor.WriterIPIName != "01234567890" {
+					return fmt.Errorf("unexpected contributor first name : expected %q got %q", "01234567890", contributor.WriterIPIName)
+				}
+				if contributor.WriterIPIBaseNumber != "123456789ABCD" {
+					return fmt.Errorf("unexpected contributor first name : expected %q got %q ", "123456789ABCD", contributor.WriterIPIBaseNumber)
+				}
 			}
 		}
 		return nil
@@ -132,7 +148,48 @@ func TestRegisteredWorkAPI(t *testing.T) {
 		}
 		return nil
 	}
-	if err := testTxRecords(x, assertQueryNWR, assertQuerySPU); err != nil {
+	// define a function to execute and assert an record GraphQL query
+	assertQuerySWR := func(record *Record, query string, args ...interface{}) error {
+		data, _ := json.Marshal(map[string]string{"query": fmt.Sprintf(query, args...)})
+		req, err := http.NewRequest("POST", s.URL+"/graphql", bytes.NewReader(data))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			return fmt.Errorf("unexpected HTTP status: %s", res.Status)
+		}
+		var r graphql.Response
+		if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
+			return err
+		}
+		if len(r.Errors) > 0 {
+			return fmt.Errorf("unexpected errors in API response: %v", r.Errors)
+		}
+		var rw struct {
+			WriterControlledbySubmitter []*WriterControlledbySubmitter `json:"writer_control"`
+		}
+		if err := json.Unmarshal(r.Data, &rw); err != nil {
+			return err
+		}
+
+		if len(rw.WriterControlledbySubmitter) == 0 {
+			return fmt.Errorf("expected swr, got %d", len(rw.WriterControlledbySubmitter))
+		}
+
+		for i, r := range rw.WriterControlledbySubmitter {
+			if r.WriterFirstName != record.WriterFirstName && i == len(rw.WriterControlledbySubmitter) {
+				return fmt.Errorf("unexpected SWR writer first name : expected %q ", record.WriterFirstName)
+			}
+		}
+		return nil
+	}
+	if err := testTxRecords(x, assertQueryNWR, assertQuerySPU, assertQuerySWR); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -142,8 +199,8 @@ func TestRegisteredWorkAPI(t *testing.T) {
 func testTxRecords(x *testIndex,
 	assertQueryNWR func(record *Record, query string, args ...interface{}) error,
 	assertQuerySPU func(record *Record, query string, args ...interface{}) error,
+	assertQuerySWR func(record *Record, query string, args ...interface{}) error,
 ) (err error) {
-
 	cwrObj, err := x.store.Get(x.cwrCid)
 	if err != nil {
 		return err
@@ -157,7 +214,7 @@ func testTxRecords(x *testIndex,
 	numberOfGroups := len(v.([]interface{}))
 	record := &Record{}
 	for k := 0; k < numberOfGroups; k++ {
-		v, err := graph.Get("Groups", strconv.Itoa(k), "NWR")
+		v, err := graph.Get("Groups", strconv.Itoa(k), "Transactions", "NWR")
 		if meta.IsPathNotFound(err) {
 			continue
 		} else if err != nil {
@@ -165,7 +222,7 @@ func testTxRecords(x *testIndex,
 		}
 		numberOfTx := len(v.([]interface{}))
 		for j := 0; j < numberOfTx; j++ {
-			v, err := graph.Get("Groups", strconv.Itoa(k), "NWR", strconv.Itoa(j))
+			v, err := graph.Get("Groups", strconv.Itoa(k), "Transactions", "NWR", strconv.Itoa(j))
 			if meta.IsPathNotFound(err) {
 				continue
 			} else if err != nil {
@@ -179,7 +236,6 @@ func testTxRecords(x *testIndex,
 			if !ok {
 				return fmt.Errorf("error indexing CWR: expected MainRecord property to be map[string]interface{}, got %T", tx["MainRecord"])
 			}
-
 			nwrCid, ok := mainRecordTx["NWR"].(*cid.Cid)
 			if !ok {
 				nwrCid, ok = mainRecordTx["REV"].(*cid.Cid)
@@ -191,16 +247,16 @@ func testTxRecords(x *testIndex,
 			if err != nil {
 				return err
 			}
-
 			if err := obj.Decode(record); err != nil {
 				return err
 			}
 			if record.ISWC != "" {
-				if err := assertQueryNWR(record, `{ registered_work(iswc:%q) { title } }`, record.ISWC); err != nil {
+				if err := assertQueryNWR(record,
+					`{ registered_work(iswc:%q) { title contributors { writer_first_name writer_last_name writer_ipi_name writer_ipi_base_number } } }`,
+					record.ISWC); err != nil {
 					return err
 				}
 			}
-
 			for _, spuCid := range tx["DetailRecords"].(map[string]interface{})["SPU"].([]interface{}) {
 				obj, err := x.store.Get(spuCid.(*cid.Cid))
 				if err != nil {
@@ -212,6 +268,22 @@ func testTxRecords(x *testIndex,
 				if record.RecordType == "SPU" {
 					if record.PublisherSequenceNumber != "" {
 						if err := assertQuerySPU(record, `{ publisher_control(publisher_sequence_n:%q) { publisher_sequence_n } }`, record.PublisherSequenceNumber); err != nil {
+							return err
+						}
+					}
+				}
+			}
+			for _, swrCid := range tx["DetailRecords"].(map[string]interface{})["SWR"].([]interface{}) {
+				obj, err := x.store.Get(swrCid.(*cid.Cid))
+				if err != nil {
+					return err
+				}
+				if err := obj.Decode(record); err != nil {
+					return err
+				}
+				if record.RecordType == "SWR" {
+					if record.WriterFirstName != "" {
+						if err := assertQuerySWR(record, `{ writer_control(writer_first_name:%q) { writer_first_name } }`, record.WriterFirstName); err != nil {
 							return err
 						}
 					}

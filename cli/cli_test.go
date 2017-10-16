@@ -60,8 +60,8 @@ func TestCWRCommands(t *testing.T) {
 		ids = append(ids, id.String())
 	}
 	expected := []string{
-		"zdpuB1YHpiAK4qbtLCrTZBHZka6apsCNgRkkeyWeQNTrenKGo",
-		"zdpuAsK8rxcbQLn32fRN7h4XJMaur9JhPymn614jWYtcaRfeT",
+		"zdpuAuzWbTPDY6Bwnt6qF2UFJotovT3VpHVZc76QzK5TW9SKG",
+		"zdpuApeC2yq7xUw9HL7dQiduJXv6pDg3UByr9pLaD9P83XnZJ",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
