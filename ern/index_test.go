@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
 	"github.com/meta-network/go-meta"
 	"golang.org/x/net/context"
 )
@@ -42,7 +41,7 @@ func TestIndex(t *testing.T) {
 		"Profile_AudioSingle_WithCompoundArtistsAndTerritorialOverride.xml",
 		"Profile_AudioBook.xml",
 	}
-	store := meta.NewStore(datastore.NewMapDatastore())
+	store := meta.NewMapDatastore()
 	converter := NewConverter(store)
 	cids := make(map[string]*cid.Cid, len(erns))
 	for _, path := range erns {

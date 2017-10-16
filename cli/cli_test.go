@@ -33,6 +33,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/swarm/testutil"
 	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
 )
@@ -45,6 +46,7 @@ func TestCWRCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(c.tmpDir)
+	defer c.srv.Close()
 
 	// check 'meta cwr convert' prints a CID
 	stdout := c.run("cwr", "convert",
@@ -60,8 +62,8 @@ func TestCWRCommands(t *testing.T) {
 		ids = append(ids, id.String())
 	}
 	expected := []string{
-		"zdpuAuzWbTPDY6Bwnt6qF2UFJotovT3VpHVZc76QzK5TW9SKG",
-		"zdpuApeC2yq7xUw9HL7dQiduJXv6pDg3UByr9pLaD9P83XnZJ",
+		"zdqaWGBExvi5qtMnW2JNMGjMdHvbFcJJxWbzSYRZTAjWoApCm",
+		"zdqaWPCaSDCmG664Rqka633WYVEKUcgQoetK6ZeuxTpw1Y5bJ",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
@@ -94,6 +96,7 @@ func TestERNCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(c.tmpDir)
+	defer c.srv.Close()
 
 	// check 'meta ern convert' prints multiple CIDs
 	stdout := c.run("ern", "convert",
@@ -113,11 +116,11 @@ func TestERNCommands(t *testing.T) {
 		ids = append(ids, id.String())
 	}
 	expected := []string{
-		"zdpuAqJJKxdPMDU6q4BoFMQjavn6TiNxtFJ9dSgTWJDtGyqLL",
-		"zdpuAvQkHEjLxYJvYL1bBA7ri7rWxauj2NqDE7rJKtwEbmG2w",
-		"zdpuArVpjL6zsTmemaenfeVCTBCmJYBnz7pjK2SDGJ64EGbR8",
-		"zdpuAqmkkxZyzbeMdLAteHNWmXFyEbECt2ArAejDtW6QFscTp",
-		"zdpuB1bfxL28n5Bgx9vsG6huuYttNGSigXVACk18K17BTYtYT",
+		"zdqaWFZus1xdS6ehSsMsVDjAj5VbmRoXjVSArNQCo83t4ZfPL",
+		"zdqaWLQKmXULssLQurdExgi4Qtj6eUYC9ZXWMDG9LUZuQkGX2",
+		"zdqaWBmEzYHUkKvFs8WsYqBv4RnUS9uK4JLgsSxDPFh98dnhq",
+		"zdqaWJ6kzSuv1q4XAciSeqvEBdnbv5jhxGh33vgYPzjn8vJ1h",
+		"zdqaWHDqp7MX7uFqrjB15D7F8QnXfgV5EoFAeCyo3pUe7qWMS",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
@@ -165,8 +168,8 @@ func TestEIDRCommands(t *testing.T) {
 		ids = append(ids, id.String())
 	}
 	expected := []string{
-		"zdpuB2humiaiBKwWAQHfXFhPc9UheUwsdrrkYJPfMBXdFnVEm",
-		"zdpuAukxJjQz3P67xqLiEFfx8YoFtmnQJ9ZfhKnddrS77tNTM",
+		"zdqaWJPALP7hJvSNbwQ7i6dYLbvtfXtWCFNZiSgwJCjgFzbkB",
+		"zdqaWN1MA87hZJC7LggR6wKZtVCcLURRjzVZDDgQzZJZR5a2F",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
@@ -219,6 +222,7 @@ type testCLI struct {
 	t      *testing.T
 	store  *meta.Store
 	tmpDir string
+	srv    *testutil.TestSwarmServer
 }
 
 func newTestCLI(t *testing.T) (*testCLI, error) {
@@ -232,14 +236,13 @@ func newTestCLI(t *testing.T) (*testCLI, error) {
 			os.RemoveAll(tmpDir)
 		}
 	}()
-	store, err := meta.NewFSStore(tmpDir)
-	if err != nil {
-		return nil, err
-	}
+	srv := testutil.NewTestSwarmServer(t)
+	store := meta.NewSwarmDatastore(srv.URL)
 	return &testCLI{
 		t:      t,
 		store:  store,
 		tmpDir: tmpDir,
+		srv:    srv,
 	}, nil
 }
 

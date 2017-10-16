@@ -25,7 +25,6 @@ import (
 	"testing"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
 	"github.com/meta-network/go-meta"
 )
 
@@ -36,7 +35,7 @@ func TestEncodeXML(t *testing.T) {
 	}
 
 	// encode the XML with the context, storing objects in memory
-	store := meta.NewStore(datastore.NewMapDatastore())
+	store := meta.NewMapDatastore()
 	xml, err := EncodeXML(bytes.NewReader(testXML), context, store.Put)
 	if err != nil {
 		t.Fatal(err)
@@ -150,12 +149,14 @@ func TestEncodeXMLSchema(t *testing.T) {
 	}
 	defer f.Close()
 
-	obj, err := EncodeXMLSchema(f, "ds", "http://www.w3.org/2000/09/xmldsig#")
+	store := meta.NewMapDatastore()
+
+	obj, err := EncodeXMLSchema(f, "ds", "http://www.w3.org/2000/09/xmldsig#", store.Put)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	graph := meta.NewGraph(meta.NewStore(datastore.NewNullDatastore()), obj)
+	graph := meta.NewGraph(store, obj)
 
 	// check some expected terms appear in the context
 	expectedTerms := []string{

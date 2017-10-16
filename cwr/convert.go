@@ -184,12 +184,8 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 			swrs = append(swrs, obj.Cid())
 		}
 	}
-	obj, err := meta.Encode(cwr)
+	obj, err := c.store.Put(cwr)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := c.store.Put(obj); err != nil {
 		return nil, err
 	}
 	return obj.Cid(), nil
@@ -276,12 +272,8 @@ func newRecord(line string) (*Record, error) {
 func (c *Converter) worker(jobs <-chan recordJob, results chan<- objectResult) {
 	for job := range jobs {
 		if job.record.RecordType != "" {
-			obj, err := meta.Encode(job.record)
+			obj, err := c.store.Put(job.record)
 			if err != nil {
-				results <- objectResult{nil, 0, err}
-				return
-			}
-			if err := c.store.Put(obj); err != nil {
 				results <- objectResult{nil, 0, err}
 				return
 			}

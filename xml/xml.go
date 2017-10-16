@@ -30,7 +30,7 @@ import (
 )
 
 // EncodeXMLSchema encodes an XML Schema document as a META object graph.
-func EncodeXMLSchema(src io.Reader, namespace, uri string) (*meta.Object, error) {
+func EncodeXMLSchema(src io.Reader, namespace, uri string, callback func(v interface{}) (*meta.Object, error)) (*meta.Object, error) {
 	dec := xml.NewDecoder(src)
 
 	context := map[string]string{
@@ -70,14 +70,15 @@ func EncodeXMLSchema(src io.Reader, namespace, uri string) (*meta.Object, error)
 			}
 		}
 	}
-
-	return meta.Encode(map[string]interface{}{"@context": context})
+	if callback != nil {
+		return callback(map[string]interface{}{"@context": context})
+	}
+	return nil, fmt.Errorf("EncodeXMLSchema : callback func is nil")
 }
 
 // EncodeXML encodes an XML document as a META object graph.
-func EncodeXML(src io.Reader, context []*cid.Cid, callback func(*meta.Object) error) (*meta.Object, error) {
+func EncodeXML(src io.Reader, context []*cid.Cid, callback func(v interface{}) (*meta.Object, error)) (*meta.Object, error) {
 	dec := xml.NewDecoder(src)
-
 	// read tokens until we find the root element (i.e. the first
 	// xml.StartElement)
 	var root xml.StartElement
@@ -106,19 +107,18 @@ func EncodeXML(src io.Reader, context []*cid.Cid, callback func(*meta.Object) er
 	if len(context) > 0 {
 		properties["@context"] = context
 	}
-	xml, err := meta.Encode(properties)
-	if err != nil {
-		return nil, err
-	}
+	var xmlObj *meta.Object
 	if callback != nil {
-		if err := callback(xml); err != nil {
+		xmlObj, err = callback(properties)
+		if err != nil {
 			return nil, err
 		}
+		return xmlObj, nil
 	}
-	return xml, nil
+	return nil, fmt.Errorf("EncodeXML : callback func is nil")
 }
 
-func encodeXML(dec *xml.Decoder, el *xml.StartElement, context []*cid.Cid, callback func(*meta.Object) error) (*meta.Object, error) {
+func encodeXML(dec *xml.Decoder, el *xml.StartElement, context []*cid.Cid, callback func(v interface{}) (*meta.Object, error)) (*meta.Object, error) {
 	// create a new node with the type as the name of the element
 	node := map[string]interface{}{"@type": el.Name.Local}
 
@@ -178,16 +178,14 @@ func encodeXML(dec *xml.Decoder, el *xml.StartElement, context []*cid.Cid, callb
 		// xml.EndElement marks the end of the current element,
 		// return it as a META object
 		case xml.EndElement:
-			obj, err := meta.Encode(node)
-			if err != nil {
-				return nil, err
-			}
 			if callback != nil {
-				if err := callback(obj); err != nil {
+				obj, err := callback(node)
+				if err != nil {
 					return nil, err
 				}
+				return obj, nil
 			}
-			return obj, nil
+			return nil, fmt.Errorf("encodeXML callback func is nil")
 		}
 	}
 }

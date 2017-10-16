@@ -20,14 +20,14 @@
 package meta
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	"github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/fs"
 	"github.com/ipfs/go-ipld-format"
 	"github.com/lmars/go-ipld-cbor"
+	multihash "github.com/multiformats/go-multihash"
 )
 
 // Object is a META object which uses IPLD DAG CBOR as the byte representation,
@@ -77,6 +77,9 @@ func NewObjectFromBlock(block *Block) (*Object, error) {
 // MustObject is like NewObject but panics if the given CID and raw bytes do
 // not represent a valid Object.
 func MustObject(id *cid.Cid, rawData []byte) *Object {
+	if err := isValid(id, rawData); err != nil {
+		panic(err)
+	}
 	obj, err := NewObject(id, rawData)
 	if err != nil {
 		panic(err)
@@ -198,7 +201,6 @@ func (g *Graph) Get(path ...string) (interface{}, error) {
 	if !ok {
 		return nil, fmt.Errorf("meta: expected link object, got %T", v)
 	}
-
 	obj, err := g.store.Get(link.Cid)
 	if err != nil {
 		return nil, err
@@ -209,41 +211,62 @@ func (g *Graph) Get(path ...string) (interface{}, error) {
 
 // Store provides storage for objects.
 type Store struct {
-	store datastore.Datastore
+	store Datastore
 }
 
-// NewFSStore returns a new FS Store which uses an underlying datastore.
-func NewFSStore(dir string) (*Store, error) {
-	store, err := fs.NewDatastore(dir)
+// NewMapDatastore returns a new memory Map Store which uses an underlying datastore.
+func NewMapDatastore() *Store {
+	return &Store{newMapDatastore()}
+}
+
+// NewFSDatastore returns a new FS Store which uses an underlying datastore.
+func NewFSDatastore(dir string) (*Store, error) {
+	store, err := newFSDatastore(dir)
 	if err != nil {
 		return nil, err
 	}
-	return NewStore(store), nil
+	return &Store{store}, nil
 }
 
-// NewStore returns a new Store which uses an underlying datastore.
-func NewStore(store datastore.Datastore) *Store {
-	return &Store{store}
+// NewSwarmDatastore returns a new Swarm Store which uses an underlying datastore.
+func NewSwarmDatastore(serverURL string) *Store {
+	return &Store{newSwarmDatastore(serverURL)}
 }
 
 // Get gets an object from the store.
 func (s *Store) Get(cid *cid.Cid) (*Object, error) {
-	data, err := s.store.Get(s.key(cid))
+	hash, err := multihash.Decode(cid.Hash())
 	if err != nil {
 		return nil, err
 	}
-	return NewObject(cid, data.([]byte))
+	data, err := s.store.get(hex.EncodeToString(hash.Digest))
+	if err != nil {
+		return nil, err
+	}
+	return NewObject(cid, data)
 }
 
-// Put stores an object in the store.
-func (s *Store) Put(obj *Object) error {
-	return s.store.Put(s.key(obj.Cid()), obj.RawData())
+// Put encodes and stores object in the store.
+func (s *Store) Put(v interface{}) (*Object, error) {
+	enc, err := encode(v)
+	if err != nil {
+		return nil, err
+	}
+	mhash, err := s.store.put(enc)
+	if err != nil {
+		return nil, err
+	}
+	cid := cid.NewCidV1(cid.DagCBOR, mhash)
+	return NewObject(cid, enc)
 }
 
-// key generates the key to use to store and retrieve the object with the
-// given CID.
-func (s *Store) key(cid *cid.Cid) datastore.Key {
-	return datastore.NewKey(cid.String())
+// MustPut is like Put but panics if v cannot be encoded or stored
+func (s *Store) MustPut(v interface{}) *Object {
+	obj, err := s.Put(v)
+	if err != nil {
+		panic(err)
+	}
+	return obj
 }
 
 // cidV1 is the number which identifies a CID as being CIDv1.
@@ -254,24 +277,32 @@ const cidV1 = 1
 // Block wraps a raw byte slice and validates it against a CID.
 type Block struct {
 	blocks.BasicBlock
-
 	prefix *cid.Prefix
+}
+
+func isValid(cid *cid.Cid, data []byte) error {
+
+	prefix := cid.Prefix()
+	if prefix.Version != cidV1 {
+		return ErrInvalidCidVersion{prefix.Version}
+	}
+	expectedCid, err := prefix.Sum(data)
+	if err != nil {
+		return err
+	}
+	if !cid.Equals(expectedCid) {
+		return ErrCidMismatch{Expected: expectedCid, Actual: cid}
+	}
+	return nil
 }
 
 // NewBlock returns a new block.
 func NewBlock(cid *cid.Cid, data []byte) (*Block, error) {
+
 	prefix := cid.Prefix()
 
 	if prefix.Version != cidV1 {
 		return nil, ErrInvalidCidVersion{prefix.Version}
-	}
-
-	expectedCid, err := prefix.Sum(data)
-	if err != nil {
-		return nil, err
-	}
-	if !cid.Equals(expectedCid) {
-		return nil, ErrCidMismatch{Expected: expectedCid, Actual: cid}
 	}
 
 	block, err := blocks.NewBlockWithCid(data, cid)
