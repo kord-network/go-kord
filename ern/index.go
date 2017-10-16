@@ -166,49 +166,84 @@ func DecodeObj(metaStore *meta.Store, metaObj *meta.Object, v interface{}, path 
 	return obj.Decode(v)
 }
 
-// InsertParty inserts the PartyName & PartyId fields from MessageSender, MessageRecipient and DisplayArtist into the party index
-func (i *Indexer) insertParty(metaObj *meta.Object, field string) (*cid.Cid, error) {
-	var id *cid.Cid
-	link, err := metaObj.GetLink(field)
-	if err != nil {
-		return nil, err
-	}
-	id = link.Cid
-
+// insertParty inserts the PartyName and PartyId fields of a Party object into
+// the party index.
+func (i *Indexer) insertParty(obj *meta.Object) error {
 	var partyID struct {
 		Value string `json:"@value"`
 	}
-	if err := DecodeObj(i.store, metaObj, &partyID, field, "PartyId"); err != nil {
-		partyID.Value = ""
-	}
+	// explicitly ignore the returned error as it is ok for the PartyId to
+	// be missing
+	_ = DecodeObj(i.store, obj, &partyID, "PartyId")
+
 	var partyName struct {
 		Value string `json:"@value"`
 	}
-	if err := DecodeObj(i.store, metaObj, &partyName, field, "PartyName", "FullName"); err != nil {
-		return nil, err
+	if err := DecodeObj(i.store, obj, &partyName, "PartyName", "FullName"); err != nil {
+		return err
 	}
-	_, err = i.tx.Exec(
+	_, err := i.tx.Exec(
 		"INSERT INTO party (cid, id, name) VALUES ($1, $2, $3)",
-		id.String(), partyID.Value, partyName.Value,
+		obj.Cid().String(), partyID.Value, partyName.Value,
 	)
 	if err != nil && !isUniqueErr(err) {
+		return err
+	}
+	return nil
+}
+
+// insertParties loads parties from the given field and inserts them into the
+// party index.
+func (i *Indexer) insertParties(obj *meta.Object, field string) ([]*cid.Cid, error) {
+	var ids []*cid.Cid
+	v, err := obj.Get(field)
+	if err != nil {
 		return nil, err
 	}
-	return id, nil
+	switch v := v.(type) {
+	case *format.Link:
+		ids = []*cid.Cid{v.Cid}
+	case []interface{}:
+		for _, x := range v {
+			id, ok := x.(*cid.Cid)
+			if !ok {
+				return nil, fmt.Errorf("invalid party type %T, expected *cid.Cid", x)
+			}
+			ids = append(ids, id)
+		}
+	}
+	for _, id := range ids {
+		party, err := i.store.Get(id)
+		if err != nil {
+			return nil, err
+		}
+		if err := i.insertParty(party); err != nil {
+			return nil, err
+		}
+	}
+	return ids, nil
 }
 
 // indexMessageHeader indexes an ERN MessageHeader based on its MessageId,
 // MessageThreadId, MessageSender, MessageRecipient and MessageCreatedDateTime.
 func (i *Indexer) indexMessageHeader(ernID *cid.Cid, obj *meta.Object) error {
+	senders, err := i.insertParties(obj, "MessageSender")
+	if err != nil {
+		return err
+	}
+	if len(senders) != 1 {
+		return fmt.Errorf("expected 1 sender, got %d", len(senders))
+	}
+	sender := senders[0]
 
-	sender, err := i.insertParty(obj, "MessageSender")
+	recipients, err := i.insertParties(obj, "MessageRecipient")
 	if err != nil {
 		return err
 	}
-	recipient, err := i.insertParty(obj, "MessageRecipient")
-	if err != nil {
-		return err
+	if len(recipients) != 1 {
+		return fmt.Errorf("expected 1 recipient, got %d", len(recipients))
 	}
+	recipient := recipients[0]
 
 	// get the MessageId, MessageThreadId and MessageCreatedDateTime
 	// values
@@ -318,7 +353,7 @@ func (i *Indexer) indexSoundRecording(ernID *cid.Cid, obj *meta.Object) error {
 		if err != nil {
 			return err
 		}
-		_, err = i.insertParty(obj, "DisplayArtist")
+		_, err = i.insertParties(obj, "DisplayArtist")
 		if err != nil {
 			return err
 		}

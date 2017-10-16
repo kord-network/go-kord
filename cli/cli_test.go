@@ -116,7 +116,7 @@ func TestERNCommands(t *testing.T) {
 		"zdpuAqJJKxdPMDU6q4BoFMQjavn6TiNxtFJ9dSgTWJDtGyqLL",
 		"zdpuAvQkHEjLxYJvYL1bBA7ri7rWxauj2NqDE7rJKtwEbmG2w",
 		"zdpuArVpjL6zsTmemaenfeVCTBCmJYBnz7pjK2SDGJ64EGbR8",
-		"zdpuAy8P7JNdYv9Y1CD8dBeY3Pwjm5PzpLbSV3KQgyLcw1JiS",
+		"zdpuAqmkkxZyzbeMdLAteHNWmXFyEbECt2ArAejDtW6QFscTp",
 		"zdpuB1bfxL28n5Bgx9vsG6huuYttNGSigXVACk18K17BTYtYT",
 	}
 	if !reflect.DeepEqual(ids, expected) {

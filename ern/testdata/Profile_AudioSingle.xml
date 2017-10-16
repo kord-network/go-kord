@@ -60,6 +60,12 @@
 					</PartyName>
 					<ArtistRole>MainArtist</ArtistRole>
 				</DisplayArtist>
+				<DisplayArtist SequenceNumber="2">
+					<PartyName>
+						<FullName>Monkey Claw</FullName>
+					</PartyName>
+                                        <ArtistRole>FeaturedArtist</ArtistRole>
+				</DisplayArtist>
 				<ResourceContributor SequenceNumber="1">
 					<PartyName>
 						<FullName>Steve Albino</FullName>
