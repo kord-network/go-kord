@@ -164,12 +164,12 @@ func (o *Object) MarshalJSON() ([]byte, error) {
 // Graph is used to traverse an object graph using a store and starting from
 // a particular root object.
 type Graph struct {
-	store interface{}
+	store *Store
 	root  *Object
 }
 
 // NewGraph returns a new Graph
-func NewGraph(store interface{}, root *Object) *Graph {
+func NewGraph(store *Store, root *Object) *Graph {
 	return &Graph{store, root}
 }
 
@@ -201,7 +201,7 @@ func (g *Graph) Get(path ...string) (interface{}, error) {
 	if !ok {
 		return nil, fmt.Errorf("meta: expected link object, got %T", v)
 	}
-	obj, err := g.store.(*Store).Get(link.Cid)
+	obj, err := g.store.Get(link.Cid)
 	if err != nil {
 		return nil, err
 	}

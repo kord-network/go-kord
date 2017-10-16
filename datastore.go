@@ -21,7 +21,6 @@ package meta
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
@@ -36,7 +35,10 @@ import (
 
 // Datastore represents storage for any key-value pair.
 type Datastore interface {
+	// put stores `data`.
 	put(data []byte) (mhash multihash.Multihash, err error)
+	// get retrieves the `value` named by `key`.
+	//`key` should be the hex encoding of the hash part of the multihash returned from put
 	get(key string) (value []byte, err error)
 }
 
@@ -55,6 +57,9 @@ func newMapDatastore() (d *MapDatastore) {
 // put implements Datastore.put
 func (d *MapDatastore) put(data []byte) (mhash multihash.Multihash, err error) {
 	mhash, err = multihash.Sum(data, multihash.SHA2_256, -1)
+	if err != nil {
+		return nil, err
+	}
 	hash, err := multihash.Decode(mhash)
 	if err != nil {
 		return nil, err
@@ -80,21 +85,22 @@ func init() {
 
 // SwarmDatastore struct
 type SwarmDatastore struct {
-	serverURL string
-	client    *client.Client
+	client *client.Client
 }
 
 // newSwarmDatastore returns a new swarm Datastore
 func newSwarmDatastore(serverURL string) *SwarmDatastore {
 	return &SwarmDatastore{
-		serverURL: serverURL,
-		client:    client.NewClient(serverURL),
+		client: client.NewClient(serverURL),
 	}
 }
 
 // put stores the given value and return its hash
 func (ds *SwarmDatastore) put(data []byte) (mhash multihash.Multihash, err error) {
 	h, err := ds.client.UploadRaw(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return nil, err
+	}
 	hash, err := hex.DecodeString(h)
 	if err != nil {
 		return nil, err
@@ -136,15 +142,17 @@ func (d *FSDatastore) KeyFilename(key string) string {
 
 // put stores the given value.
 func (d *FSDatastore) put(data []byte) (mhash multihash.Multihash, err error) {
-
-	h := sha256.Sum256(data)
-	fn := d.KeyFilename(hex.EncodeToString(h[:]))
-	// mkdirall above.
-	err = os.MkdirAll(filepath.Dir(fn), 0755)
+	mhash, err = multihash.Sum(data, multihash.SHA2_256, -1)
 	if err != nil {
 		return nil, err
 	}
-	mhash, err = multihash.Encode(h[:], multihash.SHA2_256)
+	hash, err := multihash.Decode(mhash)
+	if err != nil {
+		return nil, err
+	}
+	fn := d.KeyFilename(hex.EncodeToString(hash.Digest))
+	// mkdirall above.
+	err = os.MkdirAll(filepath.Dir(fn), 0755)
 	if err != nil {
 		return nil, err
 	}
