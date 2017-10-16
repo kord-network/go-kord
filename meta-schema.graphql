@@ -6,28 +6,23 @@ type Identifiers {
 
 type Party {
 	identifiers:[Identifiers]!
+	type:String! # Person || Organisation
 	displayName:String!
 	formalName:String
 	firstName: String
 	lastName: String
-	role:String
-	works:[MusicWork]
-	recordings:[MusicRecording]
-	products:[MusicProduct]
 }
 
 # Music Types
 type TerritoryAgreement {
-	territoryCode:String! # String to handle CISAC Territory standard || ISO
+	isoTerritoryCode:String!
 	condition:String! # inclusion/exclusion indicator
 }
 
 type interestedPartyAgreement {
 	agreementRoleCode:String!
 	interestedPartyNumber:Int!
-	identifiers:[Identifiers]!
-	lastName:String!
-	firstName:String
+	party:Party
 	prSociety:String
 	prShare:Int
 	mrSociety:String
@@ -40,14 +35,14 @@ type MusicWork {
 	territories:[TerritoryAgreement]
 	interestedParties:[interestedPartyAgreement]
 	publishers:[Party]
-	composers:[MusicComposer]
+	composers:[Composer]
 	recordings:[MusicRecording]
 }
 
 type MusicRecording {
 	identifiers:[Identifiers]!
 	displayTitle:String!
-	displayArtist:[Party!]!
+	displayArtist:[Performer!]!
 	contributors:[Party]
 	label:[Party]
 	genre:String
@@ -73,19 +68,27 @@ type MusicProduct {
 	territoryProducts:[TerritoryProduct]!
 }
 
+type Performer {
+	party:Party!
+	role:String
+	recordings:[MusicRecording]
+	products:[MusicProduct]
+}
+
+type Composer {
+	party:Party
+	works:[MusicWork]
+}
+
 type RecordLabel {
-	identifiers:[Identifiers!]!
-	displayName:String!
-	formalName:String
-	performers:[Party]
+	party:Party
+	performers:[Performer]
 	recordings:[MusicRecording]
 	products:[MusicProduct]
 }
 
 type MusicPublisher {
-	identifiers:[Identifiers!]!
-	displayName:String!
-	formalName:String
-	composers:[Party]
+	party:Party
+	composers:[Composer]
 	works:[MusicWork]
 }
