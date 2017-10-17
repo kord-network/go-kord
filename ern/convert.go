@@ -30,26 +30,24 @@ import (
 
 // Converter converts DDEX ERN XML files into META objects.
 type Converter struct {
-	store *meta.Store
+	*metaxml.Converter
 }
 
 // NewConverter returns a Converter which stores META objects in the given META
 // store.
 func NewConverter(store *meta.Store) *Converter {
-	return &Converter{
-		store: store,
-	}
+	return &Converter{metaxml.NewConverter(store)}
 }
 
-// ConvertERN converts the given source XML file into a META object graph and
-// returns the CID of the graph's root META object.
-func (c *Converter) ConvertERN(src io.Reader) (*cid.Cid, error) {
+// ConvertERN converts the given ERN XML file into a META object graph with the
+// given source and returns the CID of the graph's root META object.
+func (c *Converter) ConvertERN(xml io.Reader, source string) (*cid.Cid, error) {
 	// use the DDEX ERN/382 and AVS XML schemas as the JSON-LD context
 	context := []*cid.Cid{
 		xmlschema.DDEX_Ern382.Cid,
 		xmlschema.DDEX_Avs.Cid,
 	}
-	obj, err := metaxml.EncodeXML(src, context, c.store.Put)
+	obj, err := c.ConvertXML(xml, context, source)
 	if err != nil {
 		return nil, err
 	}

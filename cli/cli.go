@@ -46,18 +46,34 @@ import (
 )
 
 var usage = `
-usage: meta import xml <file> [<context>...]
-       meta import xsd <name> <uri> [<file>]
+usage: meta convert [--source=<source>] xml <file> [<context>...]
+       meta convert [--source=<source>] xsd <name> <uri> [<file>]
+       meta convert [--source=<source>] cwr <files>...
+       meta convert [--source=<source>] ern <files>...
+       meta convert [--source=<source>] eidr <files>...
+       meta convert [--source=<source>] musicbrainz <postgres-uri>
+       meta index cwr <sqlite3-uri>
+       meta index ern <sqlite3-uri>
+       meta index eidr <sqlite3-uri>
+       meta index musicbrainz <sqlite3-uri>
        meta dump [--format=<format>] <path>
-       meta server [--port=<port>] [--cors-domain=<domain>...] [--musicbrainz-index=<sqlite3-uri>] [--cwr-index=<sqlite3-uri>] [--ern-index=<sqlite3-uri>] [--eidr-index=<sqlite3-uri>]
-       meta musicbrainz convert <postgres-uri>
-       meta musicbrainz index <sqlite3-uri>
-       meta cwr convert <files>...
-       meta cwr index <sqlite3-uri>
-       meta ern convert <files>...
-       meta ern index <sqlite3-uri>
-       meta eidr convert <files>...
-       meta eidr index <sqlite3-uri>
+       meta server [--port=<port>] [--cors-domain=<domain>...] [--index=<index>...]
+
+options:
+  --source=<source>           The value to set as @source on all created META objects
+                              (defaults to value of the META_SOURCE environment variable).
+
+  --format=<format>           The format to dump objects when running 'meta dump'.
+
+  --port=<port>               The port to start the HTTP server on.
+
+  --cors-domain=<domain>...   The allowed CORS domains.
+
+  --index=<index>...          One or more SQLite3 indexes for the HTTP server where <index>
+                              has the format <name>:<path>, with <name> being one of
+                              'musicbrainz', 'ern', 'cwr' or 'eidr' and <path> being the
+                              path to the index. For example:
+                              '--index ern:path/to/ern.db --index cwr:path/to/cwr.db'
 `[1:]
 
 type CLI struct {
@@ -75,37 +91,61 @@ func (cli *CLI) Run(ctx context.Context, cmdArgs ...string) error {
 	args := Args(v)
 
 	switch {
-	case args.Bool("import"):
-		return cli.RunImport(ctx, args)
+	case args.Bool("convert"):
+		if args.String("--source") == "" {
+			source := os.Getenv("META_SOURCE")
+			if source == "" {
+				return errors.New("missing --source or META_SOURCE")
+			}
+			args["--source"] = source
+		}
+		return cli.RunConvert(ctx, args)
+	case args.Bool("index"):
+		return cli.RunIndex(ctx, args)
 	case args.Bool("dump"):
 		return cli.RunDump(ctx, args)
 	case args.Bool("server"):
 		return cli.RunServer(ctx, args)
-	case args.Bool("musicbrainz"):
-		return cli.RunMusicBrainz(ctx, args)
-	case args.Bool("cwr"):
-		return cli.RunCwr(ctx, args)
-	case args.Bool("ern"):
-		return cli.RunERN(ctx, args)
-	case args.Bool("eidr"):
-		return cli.RunEIDR(ctx, args)
 	default:
 		return errors.New("unknown command")
 	}
 }
 
-func (cli *CLI) RunImport(ctx context.Context, args Args) error {
+func (cli *CLI) RunConvert(ctx context.Context, args Args) error {
 	switch {
 	case args.Bool("xml"):
-		return cli.RunImportXML(ctx, args)
+		return cli.RunConvertXML(ctx, args)
 	case args.Bool("xsd"):
-		return cli.RunImportXMLSchema(ctx, args)
+		return cli.RunConvertXMLSchema(ctx, args)
+	case args.Bool("cwr"):
+		return cli.RunCwrConvert(ctx, args)
+	case args.Bool("ern"):
+		return cli.RunERNConvert(ctx, args)
+	case args.Bool("eidr"):
+		return cli.RunEIDRConvert(ctx, args)
+	case args.Bool("musicbrainz"):
+		return cli.RunMusicBrainzConvert(ctx, args)
 	default:
-		return errors.New("unknown import format")
+		return errors.New("unknown convert format")
 	}
 }
 
-func (cli *CLI) RunImportXML(ctx context.Context, args Args) error {
+func (cli *CLI) RunIndex(ctx context.Context, args Args) error {
+	switch {
+	case args.Bool("cwr"):
+		return cli.RunCwrIndex(ctx, args)
+	case args.Bool("ern"):
+		return cli.RunERNIndex(ctx, args)
+	case args.Bool("eidr"):
+		return cli.RunEIDRIndex(ctx, args)
+	case args.Bool("musicbrainz"):
+		return cli.RunMusicBrainzIndex(ctx, args)
+	default:
+		return errors.New("unknown index")
+	}
+}
+
+func (cli *CLI) RunConvertXML(ctx context.Context, args Args) error {
 	f, err := os.Open(args.String("<file>"))
 	if err != nil {
 		return err
@@ -123,7 +163,8 @@ func (cli *CLI) RunImportXML(ctx context.Context, args Args) error {
 		}
 	}
 
-	obj, err := metaxml.EncodeXML(f, context, cli.store.Put)
+	converter := metaxml.NewConverter(cli.store)
+	obj, err := converter.ConvertXML(f, context, args.String("--source"))
 	if err != nil {
 		return err
 	}
@@ -133,7 +174,7 @@ func (cli *CLI) RunImportXML(ctx context.Context, args Args) error {
 	return nil
 }
 
-func (cli *CLI) RunImportXMLSchema(ctx context.Context, args Args) error {
+func (cli *CLI) RunConvertXMLSchema(ctx context.Context, args Args) error {
 	var src io.Reader
 	if path := args.String("<file>"); path != "" {
 		f, err := os.Open(path)
@@ -155,7 +196,8 @@ func (cli *CLI) RunImportXMLSchema(ctx context.Context, args Args) error {
 		src = res.Body
 	}
 
-	obj, err := metaxml.EncodeXMLSchema(src, args.String("<name>"), args.String("<uri>"), cli.store.Put)
+	converter := metaxml.NewConverter(cli.store)
+	obj, err := converter.ConvertXMLSchema(src, args.String("<name>"), args.String("<uri>"), args.String("--source"))
 	if err != nil {
 		return err
 	}
@@ -187,44 +229,34 @@ func (cli *CLI) RunDump(ctx context.Context, args Args) error {
 }
 
 func (cli *CLI) RunServer(ctx context.Context, args Args) error {
-	var musicbrainzDB *sql.DB = nil
-	var cwrDB *sql.DB = nil
-	var ernDB *sql.DB = nil
-	var eidrDB *sql.DB = nil
-	if uri := args.String("--musicbrainz-index"); uri != "" {
-		db, err := sql.Open("sqlite3", uri)
+	// parse the --index args which have the format <name>:<path>
+	// where <name> is one of musicbrainz, ern, eidr or cwr and
+	// <path> is the path to the relevant index.
+	indexes := make(map[string]*sql.DB)
+	for _, index := range args.List("--index") {
+		namePath := strings.SplitN(index, ":", 2)
+		if len(namePath) != 2 {
+			return fmt.Errorf("invalid --index: %q", index)
+		}
+		name := namePath[0]
+		path := namePath[1]
+
+		switch name {
+		case "musicbrainz", "ern", "eidr", "cwr":
+		default:
+			return fmt.Errorf("invalid --index name %q", name)
+		}
+
+		db, err := sql.Open("sqlite3", path)
 		if err != nil {
 			return err
 		}
 		defer db.Close()
-		musicbrainzDB = db
-	}
-	if uri := args.String("--cwr-index"); uri != "" {
-		db, err := sql.Open("sqlite3", uri)
-		if err != nil {
-			return err
-		}
-		defer db.Close()
-		cwrDB = db
-	}
-	if uri := args.String("--ern-index"); uri != "" {
-		db, err := sql.Open("sqlite3", uri)
-		if err != nil {
-			return err
-		}
-		defer db.Close()
-		ernDB = db
-	}
-	if uri := args.String("--eidr-index"); uri != "" {
-		db, err := sql.Open("sqlite3", uri)
-		if err != nil {
-			return err
-		}
-		defer db.Close()
-		eidrDB = db
+
+		indexes[namePath[0]] = db
 	}
 
-	srv, err := NewServer(cli.store, musicbrainzDB, cwrDB, ernDB, eidrDB)
+	srv, err := NewServer(cli.store, indexes)
 	if err != nil {
 		return err
 	}
@@ -257,17 +289,6 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 	return nil
 }
 
-func (cli *CLI) RunMusicBrainz(ctx context.Context, args Args) error {
-	switch {
-	case args.Bool("convert"):
-		return cli.RunMusicBrainzConvert(ctx, args)
-	case args.Bool("index"):
-		return cli.RunMusicBrainzIndex(ctx, args)
-	default:
-		return errors.New("unknown musicbrainz command")
-	}
-}
-
 func (cli *CLI) RunMusicBrainzConvert(ctx context.Context, args Args) error {
 	db, err := sql.Open("postgres", args.String("<postgres-uri>"))
 	if err != nil {
@@ -281,7 +302,8 @@ func (cli *CLI) RunMusicBrainzConvert(ctx context.Context, args Args) error {
 	errC := make(chan error, 1)
 	go func() {
 		defer close(stream)
-		errC <- musicbrainz.NewConverter(db, cli.store).ConvertArtists(ctx, stream)
+		converter := musicbrainz.NewConverter(db, cli.store)
+		errC <- converter.ConvertArtists(ctx, stream, args.String("--source"))
 	}()
 
 	// output the resulting CIDs to stdout
@@ -322,17 +344,6 @@ func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, args Args) error {
 	return indexer.IndexArtists(ctx, stream)
 }
 
-func (cli *CLI) RunCwr(ctx context.Context, args Args) error {
-	switch {
-	case args.Bool("convert"):
-		return cli.RunCwrConvert(ctx, args)
-	case args.Bool("index"):
-		return cli.RunCwrIndex(ctx, args)
-	default:
-		return errors.New("unknown cwr command")
-	}
-}
-
 func (cli *CLI) RunCwrConvert(ctx context.Context, args Args) error {
 	converter := cwr.NewConverter(cli.store)
 	files := args.List("<files>")
@@ -342,7 +353,7 @@ func (cli *CLI) RunCwrConvert(ctx context.Context, args Args) error {
 			return err
 		}
 		defer f.Close()
-		cid, err := converter.ConvertCWR(f)
+		cid, err := converter.ConvertCWR(f, args.String("--source"))
 		if err != nil {
 			return err
 		}
@@ -382,17 +393,6 @@ func (cli *CLI) RunCwrIndex(ctx context.Context, args Args) error {
 	return indexer.Index(ctx, stream)
 }
 
-func (cli *CLI) RunERN(ctx context.Context, args Args) error {
-	switch {
-	case args.Bool("convert"):
-		return cli.RunERNConvert(ctx, args)
-	case args.Bool("index"):
-		return cli.RunERNIndex(ctx, args)
-	default:
-		return errors.New("unknown ern command")
-	}
-}
-
 func (cli *CLI) RunERNConvert(ctx context.Context, args Args) error {
 	converter := ern.NewConverter(cli.store)
 	files := args.List("<files>")
@@ -402,7 +402,7 @@ func (cli *CLI) RunERNConvert(ctx context.Context, args Args) error {
 			return err
 		}
 		defer f.Close()
-		cid, err := converter.ConvertERN(f)
+		cid, err := converter.ConvertERN(f, args.String("--source"))
 		if err != nil {
 			return err
 		}
@@ -440,17 +440,6 @@ func (cli *CLI) RunERNIndex(ctx context.Context, args Args) error {
 	return indexer.Index(ctx, stream)
 }
 
-func (cli *CLI) RunEIDR(ctx context.Context, args Args) error {
-	switch {
-	case args.Bool("convert"):
-		return cli.RunEIDRConvert(ctx, args)
-	case args.Bool("index"):
-		return cli.RunEIDRIndex(ctx, args)
-	default:
-		return errors.New("unknown eidr command")
-	}
-}
-
 func (cli *CLI) RunEIDRConvert(ctx context.Context, args Args) error {
 	converter := eidr.NewConverter(cli.store)
 	files := args.List("<files>")
@@ -463,7 +452,7 @@ func (cli *CLI) RunEIDRConvert(ctx context.Context, args Args) error {
 				continue
 			}
 			defer f.Close()
-			cid, err := converter.ConvertEIDRXML(f)
+			cid, err := converter.ConvertEIDRXML(f, args.String("--source"))
 			if err != nil {
 				continue
 			}

@@ -26,64 +26,64 @@ import "github.com/ipfs/go-cid"
 
 // Generated with:
 //
-// $ meta import xsd xs \
+// $ meta convert --source jaak xsd xs \
 //     https://www.w3.org/2009/XMLSchema \
 //     <(curl -fSL https://www.w3.org/2009/XMLSchema/XMLSchema.xsd)
 //
 var XML_Schema = Schema{
 	URI: "http://www.w3.org/2001/XMLSchema",
-	Cid: mustCid("zdpuAniQsjiwxZyLdBBsqhTbrf2YTuoZNnXQctZrYytAFUU7D"),
+	Cid: mustCid("zdpuAnjGXP3KzAa6xU8qawMBSC1ASK77Ee4jSNQSk476W6MiM"),
 }
 
 // Generated with:
 //
-// $ meta import xsd ds \
+// $ meta convert --source jaak xsd ds \
 //     http://www.w3.org/2000/09/xmldsig# \
 //     <(curl -fSL https://www.w3.org/TR/2002/REC-xmldsig-core-20020212/xmldsig-core-schema.xsd)
 //
 var XML_Dsig = Schema{
 	URI: "http://www.w3.org/2000/09/xmldsig#",
-	Cid: mustCid("zdpuAz5xgov4sKBWFXvXz5h9kLAX2Tqnt2yBD6Ea79Wq3exfu"),
+	Cid: mustCid("zdpuAtmkeNCmihFUWBSpvuf45LMKTbQdo5KN11bmhkashhwua"),
 }
 
 // Generated with:
 //
-// $ meta import xsd avs http://ddex.net/xml/avs/avs
+// $ meta convert --source jaak xsd avs http://ddex.net/xml/avs/avs
 //
 var DDEX_Avs = Schema{
 	URI: "http://ddex.net/xml/avs/avs",
-	Cid: mustCid("zdpuAyfSqxq1pSSumk2QKFuz28HCkTaRmngvV52ku6Rsdq4Nh"),
+	Cid: mustCid("zdpuAnKnGMzEK4cN7izfSmB7ssoKhZKSTywTP9WATQSmvoyvL"),
 }
 
 // Generated with:
 //
-// $ meta import xsd ern \
+// $ meta convert --source jaak xsd ern \
 //     http://ddex.net/xml/ern/382 \
 //     <(curl -fSL http://service.ddex.net/xml/ern/382/release-notification.xsd)
 //
 var DDEX_Ern382 = Schema{
 	URI: "http://ddex.net/xml/ern/382",
-	Cid: mustCid("zdpuAo4f7WzDbiHVfigrWoywgzZB3xegd4Vc9BczgjJBUgaK7"),
+	Cid: mustCid("zdpuB3aicZm3xoRkdgUbzqMT2UR53d2gTBbbTa4JJ9ZmjRSqq"),
 }
 
 // Generated with:
 //
-// $ meta import xsd eidr \
+// $ meta convert --source jaak xsd eidr \
 //	http://www.eidr.org/schema \
 //	<(curl http://www.eidr.org/schema/common.xsd)
 var EIDR_common = Schema{
 	URI: "http://www.eidr.org/schema",
-	Cid: mustCid("zdpuAxFejco7Jim9RaKCE5UyBDdJYVKp4az5UVB8ZcYjrNWpJ"),
+	Cid: mustCid("zdpuAsNTSYmrkT1rFAnCWFtNp4Sa1G7LEgMj27NBHb5FL8hgU"),
 }
 
 // Generated with:
-// $ meta import xsd md \
+// $ meta convert --source jaak xsd md \
 //	http://www.movielabs.com/schema/md/v2.1/md \
 // 	<(curl http://www.eidr.org/schema/md-v21-eidr.xsd)
 //
 var EIDR_md = Schema{
 	URI: "http://www.movielabs.com/schema/md/v2.1/md",
-	Cid: mustCid("zdpuAqqfUHqQDEzCj8nDLxdmXiqpKXJ9vCVrZRrK8e8MewRRj"),
+	Cid: mustCid("zdpuAxvkAEi1PyWZ6mMbU3SWJkYP8YqyBtxauY4tywFKo29iZ"),
 }
 
 type Schema struct {

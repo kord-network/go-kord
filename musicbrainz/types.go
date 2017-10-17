@@ -19,6 +19,8 @@
 
 package musicbrainz
 
+import "github.com/meta-network/go-meta"
+
 // Context represents a JSON-LD context.
 type Context map[string]string
 
@@ -43,6 +45,8 @@ var ArtistContext = Context{
 // Artist represents a MusicBrainz artist, see
 // https://musicbrainz.org/doc/Artist
 type Artist struct {
+	meta.BaseObject
+
 	Context               Context  `json:"@context"`
 	ID                    int64    `json:"id,omitempty"`
 	Name                  string   `json:"name,omitempty"`

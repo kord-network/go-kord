@@ -28,25 +28,23 @@ import (
 	"github.com/meta-network/go-meta/xmlschema"
 )
 
-// Converter converts DDEX ERN XML files into META objects.
+// Converter converts EIDR XML files into META objects.
 type Converter struct {
-	store *meta.Store
+	*metaxml.Converter
 }
 
 // NewConverter returns a Converter which stores META objects in the given META
 // store.
 func NewConverter(store *meta.Store) *Converter {
-	return &Converter{
-		store: store,
-	}
+	return &Converter{metaxml.NewConverter(store)}
 }
 
-func (c *Converter) ConvertEIDRXML(src io.Reader) (*cid.Cid, error) {
+func (c *Converter) ConvertEIDRXML(xml io.Reader, source string) (*cid.Cid, error) {
 	context := []*cid.Cid{
 		xmlschema.EIDR_common.Cid,
 		xmlschema.EIDR_md.Cid,
 	}
-	obj, err := metaxml.EncodeXML(src, context, c.store.Put)
+	obj, err := c.ConvertXML(xml, context, source)
 	if err != nil {
 		return nil, err
 	}

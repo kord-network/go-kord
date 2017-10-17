@@ -47,7 +47,7 @@ func NewConverter(db *sql.DB, store *meta.Store) *Converter {
 // ConvertArtists reads all artists from the database, converts them to META
 // objects, stores them in the META store and sends their CIDs to the given
 // stream.
-func (c *Converter) ConvertArtists(ctx context.Context, outStream chan *cid.Cid) error {
+func (c *Converter) ConvertArtists(ctx context.Context, outStream chan *cid.Cid, source string) error {
 	// get all artists from the db
 	rows, err := c.db.Query(artistsQuery)
 	if err != nil {
@@ -117,6 +117,7 @@ func (c *Converter) ConvertArtists(ctx context.Context, outStream chan *cid.Cid)
 			a.Annotation = strings.Split(string(annotation)[1:len(annotation)-1], ",")
 		}
 		a.Context = ArtistContext
+		a.Source = source
 
 		// convert the artist to a META object
 		obj, err := c.store.Put(a)

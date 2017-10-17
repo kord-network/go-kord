@@ -220,7 +220,7 @@ func newTestIndex() (x *testIndex, err error) {
 	}
 	defer f.Close()
 
-	x.cwrCid, err = converter.ConvertCWR(f)
+	x.cwrCid, err = converter.ConvertCWR(f, "test")
 	if err != nil {
 		return nil, err
 	}
