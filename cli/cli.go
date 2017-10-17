@@ -51,11 +51,11 @@ usage: meta convert [--source=<source>] xml <file> [<context>...]
        meta convert [--source=<source>] cwr <files>...
        meta convert [--source=<source>] ern <files>...
        meta convert [--source=<source>] eidr <files>...
-       meta convert [--source=<source>] musicbrainz <postgres-uri>
+       meta convert [--source=<source>] musicbrainz <type> <postgres-uri>
        meta index cwr <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
        meta index ern <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
        meta index eidr <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
-       meta index musicbrainz <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
+       meta index musicbrainz <type> <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
        meta dump [--format=<format>] <path>
        meta server [--port=<port>] [--cors-domain=<domain>...] [--index=<index>...] [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
 
@@ -321,14 +321,24 @@ func (cli *CLI) RunMusicBrainzConvert(ctx context.Context, args Args) error {
 	}
 	defer db.Close()
 
+	converter := musicbrainz.NewConverter(db, cli.store)
+	var convertFn func(context.Context, chan *cid.Cid, string) error
+	switch args.String("<type>") {
+	case "artists":
+		convertFn = converter.ConvertArtists
+	case "recording-work-links":
+		convertFn = converter.ConvertRecordingWorkLinks
+	default:
+		return errors.New("unknown musicbrainz convert command")
+	}
+
 	// run the converter in a goroutine so that we only exit once all CIDs
 	// have been read from the stream
 	stream := make(chan *cid.Cid)
 	errC := make(chan error, 1)
 	go func() {
 		defer close(stream)
-		converter := musicbrainz.NewConverter(db, cli.store)
-		errC <- converter.ConvertArtists(ctx, stream, args.String("--source"))
+		errC <- convertFn(ctx, stream, args.String("--source"))
 	}()
 
 	// output the resulting CIDs to stdout
@@ -353,6 +363,16 @@ func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, args Args) (string, err
 		return "", err
 	}
 
+	var indexFn func(context.Context, chan *cid.Cid) error
+	switch args.String("<type>") {
+	case "artists":
+		indexFn = indexer.IndexArtists
+	case "recording-work-links":
+		indexFn = indexer.IndexRecordingWorkLinks
+	default:
+		return "", errors.New("unknown musicbrainz index command")
+	}
+
 	// stream the CIDs from stdin
 	stream := make(chan *cid.Cid)
 	go func() {
@@ -367,8 +387,7 @@ func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, args Args) (string, err
 			stream <- cid
 		}
 	}()
-	err = indexer.IndexArtists(ctx, stream)
-	if err != nil {
+	if err := indexFn(ctx, stream); err != nil {
 		return "", err
 	}
 	return cli.bzz.PutIndexFile(filename)

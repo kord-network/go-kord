@@ -32,9 +32,9 @@ import (
 	"github.com/neelance/graphql-go"
 )
 
-// TestArtistAPI tests querying an artist index via the GraphQL API.
-func TestArtistAPI(t *testing.T) {
-	// create a test index of artists
+// TestAPI tests querying a MusicBrainz index via the GraphQL API.
+func TestAPI(t *testing.T) {
+	// create a test index
 	x, err := newTestIndex()
 	if err != nil {
 		t.Fatal(err)
@@ -48,10 +48,10 @@ func TestArtistAPI(t *testing.T) {
 	}
 	defer s.Close()
 
-	// define a function to execute and assert an artist GraphQL query
-	assertQuery := func(expected []*Artist, query string, args ...interface{}) {
-		query = fmt.Sprintf(query, args...)
-		data, _ := json.Marshal(map[string]string{"query": query})
+	// define a function to execute a GraphQL query
+	query := func(q string, args ...interface{}) []byte {
+		q = fmt.Sprintf(q, args...)
+		data, _ := json.Marshal(map[string]string{"query": q})
 		req, err := http.NewRequest("POST", s.URL+"/graphql", bytes.NewReader(data))
 		if err != nil {
 			t.Fatal(err)
@@ -72,14 +72,19 @@ func TestArtistAPI(t *testing.T) {
 		if len(r.Errors) > 0 {
 			t.Fatalf("unexpected errors in API response: %v", r.Errors)
 		}
+		return r.Data
+	}
+
+	// define a function to assert the response of an artist GraphQL query
+	assertArtists := func(res []byte, expected ...*Artist) {
 		var a struct {
 			Artists []*Artist `json:"artist"`
 		}
-		if err := json.Unmarshal(r.Data, &a); err != nil {
+		if err := json.Unmarshal(res, &a); err != nil {
 			t.Fatal(err)
 		}
 		if len(a.Artists) != len(expected) {
-			t.Fatalf("expected query %q to return %d artists, got %d", query, len(expected), len(a.Artists))
+			t.Fatalf("expected query to return %d artists, got %d", len(expected), len(a.Artists))
 		}
 		for i, artist := range expected {
 			if a.Artists[i].Name != artist.Name {
@@ -90,7 +95,7 @@ func TestArtistAPI(t *testing.T) {
 
 	for _, artist := range x.artists {
 		// check getting the artist by name
-		assertQuery([]*Artist{artist}, `{ artist(name:%q) { name } }`, artist.Name)
+		assertArtists(query(`{ artist(name:%q) { name } }`, artist.Name), artist)
 
 		// check getting the artist by IPI returns just the artist,
 		// with the exception of IPI "00435760746" which should
@@ -103,12 +108,48 @@ func TestArtistAPI(t *testing.T) {
 					{Name: "Lmars"},
 				}
 			}
-			assertQuery(expected, `{ artist(ipi:%q) { name } }`, ipi)
+			assertArtists(query(`{ artist(ipi:%q) { name } }`, ipi), expected...)
 		}
 
 		// check getting the artist by ISNI
 		for _, isni := range artist.ISNI {
-			assertQuery([]*Artist{artist}, `{ artist(isni:%q) { name } }`, isni)
+			assertArtists(query(`{ artist(isni:%q) { name } }`, isni), artist)
+		}
+	}
+
+	linkQuery := func(q string, args ...interface{}) []*RecordingWorkLink {
+		res := query(q, args...)
+		var l struct {
+			Links []*RecordingWorkLink `json:"recording_work_link"`
+		}
+		if err := json.Unmarshal(res, &l); err != nil {
+			t.Fatal(err)
+		}
+		return l.Links
+	}
+
+	// group the links by ISWC -> ISRC
+	links := make(map[string][]string)
+	for _, link := range x.links {
+		links[link.ISWC] = append(links[link.ISWC], link.ISRC)
+	}
+
+	for iswc, isrcs := range links {
+		// check getting the link by ISRC
+		for _, isrc := range isrcs {
+			res := linkQuery(`{ recording_work_link(isrc:%q) { iswc } }`, isrc)
+			if len(res) != 1 {
+				t.Fatalf("expected ISRC query to return one result, got %d", len(res))
+			}
+			if res[0].ISWC != iswc {
+				t.Fatalf("expected ISWC %q, got %q", iswc, res[0].ISWC)
+			}
+		}
+
+		// check getting the link by ISWC
+		res := linkQuery(`{ recording_work_link(iswc:%q) { isrc } }`, iswc)
+		if len(res) != len(isrcs) {
+			t.Fatalf("expected %d ISRCs, got %d", len(isrcs), len(res))
 		}
 	}
 }

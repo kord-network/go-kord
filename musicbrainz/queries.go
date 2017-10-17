@@ -68,3 +68,12 @@ LEFT JOIN artist_type ON artist.type = artist_type.id
 LEFT JOIN gender ON artist.gender = gender.id
 LEFT JOIN area ON artist.area = area.id
 `[1:]
+
+var recordingWorkLinksQuery = `
+SELECT
+  isrc.isrc,
+  iswc.iswc
+FROM l_recording_work
+INNER JOIN isrc ON isrc.recording = l_recording_work.entity0
+INNER JOIN iswc ON iswc.work = l_recording_work.entity1
+`[1:]

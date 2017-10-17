@@ -62,4 +62,18 @@ CREATE TABLE artist_isni (
 CREATE INDEX artist_isni_idx ON artist_isni (isni);
 `,
 	)
+
+	// migration 2 creates an index for ISRC to ISWC links which come
+	// from the l_recording_work MusicBrainz table.
+	migrations.Add(2, `
+CREATE TABLE recording_work (
+	object_id text NOT NULL,
+	isrc      text NOT NULL,
+	iswc      text NOT NULL
+);
+
+CREATE INDEX recording_work_object_id_idx ON recording_work (object_id);
+CREATE UNIQUE INDEX recording_work_idx ON recording_work (isrc, iswc);
+`,
+	)
 }

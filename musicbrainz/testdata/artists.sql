@@ -1,6 +1,7 @@
 COPY(
   SELECT row_to_json(artist) FROM (
     SELECT
+      'musicbrainz' AS "@source",
       artist.id,
       artist.name,
       artist.sort_name,

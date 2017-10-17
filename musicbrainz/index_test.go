@@ -34,8 +34,9 @@ import (
 	"github.com/meta-network/go-meta"
 )
 
-// TestIndexArtists tests indexing a stream of MusicBrainz artists.
-func TestIndexArtists(t *testing.T) {
+// TestIndex tests indexing a stream of MusicBrainz artists and recording work
+// links.
+func TestIndex(t *testing.T) {
 	x, err := newTestIndex()
 	if err != nil {
 		t.Fatal(err)
@@ -148,12 +149,25 @@ func TestIndexArtists(t *testing.T) {
 			}
 		}
 	}
+
+	// check all the links were indexed
+	for _, link := range x.links {
+		var count int
+		row := x.db.QueryRow("SELECT COUNT(*) FROM recording_work WHERE isrc = ? AND iswc = ?", link.ISRC, link.ISWC)
+		if err := row.Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatalf("expected count to be 1, got %d", count)
+		}
+	}
 }
 
 type testIndex struct {
 	db      *sql.DB
 	store   *meta.Store
 	artists []*Artist
+	links   []*RecordingWorkLink
 	tmpDir  string
 }
 
@@ -174,7 +188,7 @@ func newTestIndex() (x *testIndex, err error) {
 		}
 	}()
 
-	// load the test artists
+	// load the test data
 	f, err := os.Open("testdata/artists.json")
 	if err != nil {
 		return nil, err
@@ -191,24 +205,55 @@ func newTestIndex() (x *testIndex, err error) {
 		}
 		x.artists = append(x.artists, artist)
 	}
+	f, err = os.Open("testdata/recording-work-links.json")
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec = json.NewDecoder(f)
+	for {
+		var link RecordingWorkLink
+		err := dec.Decode(&link)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		x.links = append(x.links, &link)
+	}
 
-	// store the artists in a test store
+	// store the artists and links in a test store
 	x.store = meta.NewMapDatastore()
-	cids := make([]*cid.Cid, len(x.artists))
+	artistCids := make([]*cid.Cid, len(x.artists))
 	for i, artist := range x.artists {
 		obj, err := x.store.Put(artist)
 		if err != nil {
 			return nil, err
 		}
-		cids[i] = obj.Cid()
+		artistCids[i] = obj.Cid()
+	}
+	linkCids := make([]*cid.Cid, len(x.links))
+	for i, link := range x.links {
+		obj, err := x.store.Put(link)
+		if err != nil {
+			return nil, err
+		}
+		linkCids[i] = obj.Cid()
 	}
 
-	// create a stream
-	stream := make(chan *cid.Cid, len(x.artists))
+	// create streams
+	artistStream := make(chan *cid.Cid, len(x.artists))
 	go func() {
-		defer close(stream)
-		for _, cid := range cids {
-			stream <- cid
+		defer close(artistStream)
+		for _, cid := range artistCids {
+			artistStream <- cid
+		}
+	}()
+	linkStream := make(chan *cid.Cid, len(x.links))
+	go func() {
+		defer close(linkStream)
+		for _, cid := range linkCids {
+			linkStream <- cid
 		}
 	}()
 
@@ -222,12 +267,15 @@ func newTestIndex() (x *testIndex, err error) {
 		return nil, err
 	}
 
-	// index the artists
+	// index the artists and links
 	indexer, err := NewIndexer(x.db, x.store)
 	if err != nil {
 		return nil, err
 	}
-	if err := indexer.IndexArtists(context.Background(), stream); err != nil {
+	if err := indexer.IndexArtists(context.Background(), artistStream); err != nil {
+		return nil, err
+	}
+	if err := indexer.IndexRecordingWorkLinks(context.Background(), linkStream); err != nil {
 		return nil, err
 	}
 	return x, nil
