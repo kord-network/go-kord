@@ -51,7 +51,6 @@ var concurrentWorkNum = 16
 // NewConverter returns a Converter which reads data from the given CWR io.Reader
 // and stores META object in the given META store.
 func NewConverter(store *meta.Store) *Converter {
-
 	return &Converter{
 		store: store,
 	}
@@ -60,25 +59,31 @@ func NewConverter(store *meta.Store) *Converter {
 // Transaction represents a CWR transaction which is either an
 // NWR, REV, EXC, ACK, AGR or ISW record.
 type Transaction struct {
+	meta.BaseObject
+
 	MainRecord    map[string]*cid.Cid   `json:"MainRecord"`
 	DetailRecords map[string][]*cid.Cid `json:"DetailRecords"`
 }
 
 // Group struct
 type Group struct {
+	meta.BaseObject
+
 	Record       *cid.Cid                 `json:"GRH"`          //Group Header
 	Transactions map[string][]Transaction `json:"Transactions"` //NWR,REV,EXC,ACK,AGR or ISW transacations
 }
 
 // Cwr struct
 type Cwr struct {
+	meta.BaseObject
+
 	Records map[string]*cid.Cid `json:"Records"` //HDR/TRL
 	Groups  []Group             `json:"Groups"`  //Each group is a map of transacations
 }
 
 // ConvertCWR converts the given source CWR file into a META object graph and
 // returns the CID of the graph's root META object.
-func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
+func (c *Converter) ConvertCWR(cwrFileReader io.Reader, source string) (*cid.Cid, error) {
 
 	jobs := make(chan recordJob)
 	results := make(chan objectResult)
@@ -88,12 +93,15 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 	recordObjs := make(map[int]*meta.Object)
 
 	var cwr Cwr
+	cwr.Source = source
 	cwr.Records = make(map[string]*cid.Cid)
 	var nwr Transaction
+	nwr.Source = source
 	nwr.MainRecord = make(map[string]*cid.Cid)
 	nwr.DetailRecords = make(map[string][]*cid.Cid)
 	var spus, swrs []*cid.Cid
 	var group Group
+	group.Source = source
 
 	var wg sync.WaitGroup
 	wg.Add(concurrentWorkNum)
@@ -115,6 +123,7 @@ func (c *Converter) ConvertCWR(cwrFileReader io.Reader) (*cid.Cid, error) {
 				break
 			}
 			if record != nil {
+				record.Source = source
 				jobs <- recordJob{record, index}
 				index++
 			}

@@ -42,21 +42,21 @@ type Server struct {
 	store  *meta.Store
 }
 
-func NewServer(store *meta.Store, musicbrainzDB *sql.DB, cwrDB *sql.DB, ernDB *sql.DB, eidrDB *sql.DB) (*Server, error) {
+func NewServer(store *meta.Store, indexes map[string]*sql.DB) (*Server, error) {
 	srv := &Server{
 		router: httprouter.New(),
 		store:  store,
 	}
 	srv.router.GET("/object/:cid", srv.HandleGetObject)
-	srv.router.POST("/import/xml", srv.HandleImportXML)
+	srv.router.POST("/convert/xml", srv.HandleConvertXML)
 
 	// add the identity API at /meta-id
 	identityAPI := identity.NewAPI(identity.NewMemoryStore())
 	srv.router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
 	srv.router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
 
-	if musicbrainzDB != nil {
-		musicbrainzApi, err := musicbrainz.NewAPI(musicbrainzDB, store)
+	if db, ok := indexes["musicbrainz"]; ok {
+		musicbrainzApi, err := musicbrainz.NewAPI(db, store)
 		if err != nil {
 			return nil, err
 		}
@@ -64,8 +64,8 @@ func NewServer(store *meta.Store, musicbrainzDB *sql.DB, cwrDB *sql.DB, ernDB *s
 		srv.router.Handler("POST", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
 	}
 
-	if cwrDB != nil {
-		cwrApi, err := cwr.NewAPI(cwrDB, store)
+	if db, ok := indexes["cwr"]; ok {
+		cwrApi, err := cwr.NewAPI(db, store)
 		if err != nil {
 			return nil, err
 		}
@@ -73,16 +73,16 @@ func NewServer(store *meta.Store, musicbrainzDB *sql.DB, cwrDB *sql.DB, ernDB *s
 		srv.router.Handler("POST", "/cwr/*path", http.StripPrefix("/cwr", cwrApi))
 	}
 
-	if ernDB != nil {
-		ernApi, err := ern.NewAPI(ernDB, store)
+	if db, ok := indexes["ern"]; ok {
+		ernApi, err := ern.NewAPI(db, store)
 		if err != nil {
 			return nil, err
 		}
 		srv.router.Handler("GET", "/ern/*path", http.StripPrefix("/ern", ernApi))
 		srv.router.Handler("POST", "/ern/*path", http.StripPrefix("/ern", ernApi))
 	}
-	if eidrDB != nil {
-		eidrApi, err := eidr.NewAPI(eidrDB, store)
+	if db, ok := indexes["eidr"]; ok {
+		eidrApi, err := eidr.NewAPI(db, store)
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +96,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	s.router.ServeHTTP(w, req)
 }
 
-func (s *Server) HandleImportXML(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+func (s *Server) HandleConvertXML(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+	source := req.URL.Query().Get("source")
+	if source == "" {
+		http.Error(w, "missing source parameter", http.StatusBadRequest)
+		return
+	}
+
 	var context []*cid.Cid
 	if c := req.URL.Query().Get("context"); c != "" {
 		for _, v := range strings.Split(c, ",") {
@@ -109,7 +115,8 @@ func (s *Server) HandleImportXML(w http.ResponseWriter, req *http.Request, _ htt
 		}
 	}
 
-	obj, err := metaxml.EncodeXML(req.Body, context, s.store.Put)
+	converter := metaxml.NewConverter(s.store)
+	obj, err := converter.ConvertXML(req.Body, context, source)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -50,7 +50,7 @@ func TestIndex(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer f.Close()
-		cid, err := converter.ConvertERN(f)
+		cid, err := converter.ConvertERN(f, "test")
 		if err != nil {
 			t.Fatal(err)
 		}

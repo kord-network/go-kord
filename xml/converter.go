@@ -29,8 +29,18 @@ import (
 	"github.com/meta-network/go-meta"
 )
 
-// EncodeXMLSchema encodes an XML Schema document as a META object graph.
-func EncodeXMLSchema(src io.Reader, namespace, uri string, callback func(v interface{}) (*meta.Object, error)) (*meta.Object, error) {
+type Converter struct {
+	store *meta.Store
+}
+
+func NewConverter(store *meta.Store) *Converter {
+	return &Converter{
+		store: store,
+	}
+}
+
+// ConvertXMLSchema converts an XML Schema document into a META object graph.
+func (c *Converter) ConvertXMLSchema(src io.Reader, namespace, uri, source string) (*meta.Object, error) {
 	dec := xml.NewDecoder(src)
 
 	context := map[string]string{
@@ -70,15 +80,15 @@ func EncodeXMLSchema(src io.Reader, namespace, uri string, callback func(v inter
 			}
 		}
 	}
-	if callback != nil {
-		return callback(map[string]interface{}{"@context": context})
-	}
-	return nil, fmt.Errorf("EncodeXMLSchema : callback func is nil")
+	return c.store.Put(map[string]interface{}{
+		"@context": context,
+		"@source":  source,
+	})
 }
 
-// EncodeXML encodes an XML document as a META object graph.
-func EncodeXML(src io.Reader, context []*cid.Cid, callback func(v interface{}) (*meta.Object, error)) (*meta.Object, error) {
-	dec := xml.NewDecoder(src)
+// ConvertXML converts an XML document into a META object graph.
+func (c *Converter) ConvertXML(doc io.Reader, context []*cid.Cid, source string) (*meta.Object, error) {
+	dec := xml.NewDecoder(doc)
 	// read tokens until we find the root element (i.e. the first
 	// xml.StartElement)
 	var root xml.StartElement
@@ -94,7 +104,7 @@ func EncodeXML(src io.Reader, context []*cid.Cid, callback func(v interface{}) (
 	}
 
 	// convert the root element
-	obj, err := encodeXML(dec, &root, context, callback)
+	obj, err := c.convertXML(dec, &root, context, source)
 	if err != nil {
 		return nil, err
 	}
@@ -102,25 +112,21 @@ func EncodeXML(src io.Reader, context []*cid.Cid, callback func(v interface{}) (
 	// wrap it in an XML object
 	properties := map[string]interface{}{
 		"@type":         "meta:xml",
+		"@source":       source,
 		root.Name.Local: obj.Cid(),
 	}
 	if len(context) > 0 {
 		properties["@context"] = context
 	}
-	var xmlObj *meta.Object
-	if callback != nil {
-		xmlObj, err = callback(properties)
-		if err != nil {
-			return nil, err
-		}
-		return xmlObj, nil
-	}
-	return nil, fmt.Errorf("EncodeXML : callback func is nil")
+	return c.store.Put(properties)
 }
 
-func encodeXML(dec *xml.Decoder, el *xml.StartElement, context []*cid.Cid, callback func(v interface{}) (*meta.Object, error)) (*meta.Object, error) {
+func (c *Converter) convertXML(dec *xml.Decoder, el *xml.StartElement, context []*cid.Cid, source string) (*meta.Object, error) {
 	// create a new node with the type as the name of the element
-	node := map[string]interface{}{"@type": el.Name.Local}
+	node := map[string]interface{}{
+		"@type":   el.Name.Local,
+		"@source": source,
+	}
 
 	// add the context
 	if len(context) > 0 {
@@ -148,7 +154,7 @@ func encodeXML(dec *xml.Decoder, el *xml.StartElement, context []*cid.Cid, callb
 		// xml.StartElement is the start of a child element so convert
 		// it and add it as a property
 		case xml.StartElement:
-			child, err := encodeXML(dec, &token, context, callback)
+			child, err := c.convertXML(dec, &token, context, source)
 			if err != nil {
 				return nil, err
 			}
@@ -178,14 +184,7 @@ func encodeXML(dec *xml.Decoder, el *xml.StartElement, context []*cid.Cid, callb
 		// xml.EndElement marks the end of the current element,
 		// return it as a META object
 		case xml.EndElement:
-			if callback != nil {
-				obj, err := callback(node)
-				if err != nil {
-					return nil, err
-				}
-				return obj, nil
-			}
-			return nil, fmt.Errorf("encodeXML callback func is nil")
+			return c.store.Put(node)
 		}
 	}
 }

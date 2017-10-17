@@ -30,6 +30,11 @@ import (
 	multihash "github.com/multiformats/go-multihash"
 )
 
+// BaseObject contains the fields that all META objects should have.
+type BaseObject struct {
+	Source string `json:"@source"`
+}
+
 // Object is a META object which uses IPLD DAG CBOR as the byte representation,
 // and IPLD CID as the object identifier.
 type Object struct {

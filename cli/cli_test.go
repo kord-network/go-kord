@@ -38,8 +38,8 @@ import (
 	"github.com/meta-network/go-meta"
 )
 
-// TestCWRCommands tests running the 'meta cwr convert' and
-// 'meta cwr index' commands.
+// TestCWRCommands tests running the 'meta convert cwr' and
+// 'meta index cwr' commands.
 func TestCWRCommands(t *testing.T) {
 	c, err := newTestCLI(t)
 	if err != nil {
@@ -48,8 +48,9 @@ func TestCWRCommands(t *testing.T) {
 	defer os.RemoveAll(c.tmpDir)
 	defer c.srv.Close()
 
-	// check 'meta cwr convert' prints a CID
-	stdout := c.run("cwr", "convert",
+	// check 'meta convert cwr' prints a CID
+	stdout := c.run("convert", "cwr",
+		"--source", "test",
 		"../cwr/testdata/example_double_nwr.cwr",
 		"../cwr/testdata/example_nwr.cwr")
 	var ids []string
@@ -62,8 +63,8 @@ func TestCWRCommands(t *testing.T) {
 		ids = append(ids, id.String())
 	}
 	expected := []string{
-		"zdqaWGBExvi5qtMnW2JNMGjMdHvbFcJJxWbzSYRZTAjWoApCm",
-		"zdqaWPCaSDCmG664Rqka633WYVEKUcgQoetK6ZeuxTpw1Y5bJ",
+		"zdqaWBuxwxhZQj9PBzRsHSp2WEq9pF3tF9rP9KYb7TxgqfXQJ",
+		"zdqaWGLaDAkMomHFaooZ7GaxxvTmFCJ1DFCVLaQSvb8v2ewoN",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
@@ -71,9 +72,9 @@ func TestCWRCommands(t *testing.T) {
 
 	db := filepath.Join(c.tmpDir, "index.db")
 
-	// run 'meta cwr index' with the CIDs as stdin
+	// run 'meta index cwr' with the CIDs as stdin
 	stream := strings.NewReader(stdout)
-	c.runWithStdin(stream, "cwr", "index", db)
+	c.runWithStdin(stream, "index", "cwr", db)
 
 	// check the index was populated
 	cmd := exec.Command("sqlite3", db, "SELECT cwr_id FROM transmission_header ORDER BY cwr_id")
@@ -88,8 +89,8 @@ func TestCWRCommands(t *testing.T) {
 	}
 }
 
-// TestERNCommands tests running the 'meta ern convert' and
-// 'meta ern index' commands.
+// TestERNCommands tests running the 'meta convert ern' and
+// 'meta index ern' commands.
 func TestERNCommands(t *testing.T) {
 	c, err := newTestCLI(t)
 	if err != nil {
@@ -98,8 +99,9 @@ func TestERNCommands(t *testing.T) {
 	defer os.RemoveAll(c.tmpDir)
 	defer c.srv.Close()
 
-	// check 'meta ern convert' prints multiple CIDs
-	stdout := c.run("ern", "convert",
+	// check 'meta convert ern' prints multiple CIDs
+	stdout := c.run("convert", "ern",
+		"--source", "test",
 		"../ern/testdata/Profile_AudioAlbumMusicOnly.xml",
 		"../ern/testdata/Profile_AudioAlbum_WithBooklet.xml",
 		"../ern/testdata/Profile_AudioBook.xml",
@@ -116,11 +118,11 @@ func TestERNCommands(t *testing.T) {
 		ids = append(ids, id.String())
 	}
 	expected := []string{
-		"zdqaWFZus1xdS6ehSsMsVDjAj5VbmRoXjVSArNQCo83t4ZfPL",
-		"zdqaWLQKmXULssLQurdExgi4Qtj6eUYC9ZXWMDG9LUZuQkGX2",
-		"zdqaWBmEzYHUkKvFs8WsYqBv4RnUS9uK4JLgsSxDPFh98dnhq",
-		"zdqaWJ6kzSuv1q4XAciSeqvEBdnbv5jhxGh33vgYPzjn8vJ1h",
-		"zdqaWHDqp7MX7uFqrjB15D7F8QnXfgV5EoFAeCyo3pUe7qWMS",
+		"zdqaWQFfLpAj7Hi7B1DMsqfRzh2gtTWJb6PKzK2TJZgb3gCEM",
+		"zdqaWJ4jkU4haHkCfJY8Tz7bNtdi38Kq1bRy4iiU9DUDJqUkB",
+		"zdqaWRL5oXkGnwhf9JWzgMdV7H1YUWp6YociP5aWB9EU6qAJr",
+		"zdqaWSBmxw7xif1hx4ZXVyC6A6Fr6hcx34JLuf9BGDT7P7utp",
+		"zdqaWBoE9GfAc1dsJgW1jqtbHYKHgLcFfw55SKDyxEEGcQWso",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
@@ -128,9 +130,9 @@ func TestERNCommands(t *testing.T) {
 
 	db := filepath.Join(c.tmpDir, "index.db")
 
-	// run 'meta ern index' with the CIDs as stdin
+	// run 'meta index ern' with the CIDs as stdin
 	stream := strings.NewReader(stdout)
-	c.runWithStdin(stream, "ern", "index", db)
+	c.runWithStdin(stream, "index", "ern", db)
 
 	// check the index was populated
 	cmd := exec.Command("sqlite3", db, "SELECT cid FROM ern ORDER BY cid")
@@ -145,16 +147,17 @@ func TestERNCommands(t *testing.T) {
 	}
 }
 
-// TestERNCommands tests running the 'meta eidr convert' and
-// 'meta eidr index' commands.
+// TestERNCommands tests running the 'meta convert eidr' and
+// 'meta index eidr' commands.
 func TestEIDRCommands(t *testing.T) {
 	c, err := newTestCLI(t)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// check 'meta eidr convert' outputs expected rows
-	stdout := c.run("eidr", "convert",
+	// check 'meta convert eidr' outputs expected rows
+	stdout := c.run("convert", "eidr",
+		"--source", "test",
 		"../eidr/testdata/dummy_child.xml",
 		"../eidr/testdata/dummy_parent.xml",
 	)
@@ -168,8 +171,8 @@ func TestEIDRCommands(t *testing.T) {
 		ids = append(ids, id.String())
 	}
 	expected := []string{
-		"zdqaWJPALP7hJvSNbwQ7i6dYLbvtfXtWCFNZiSgwJCjgFzbkB",
-		"zdqaWN1MA87hZJC7LggR6wKZtVCcLURRjzVZDDgQzZJZR5a2F",
+		"zdqaWUgTjLPoFrMCmBcbPcJNPuHTvUs5fBn3f4iYsniHACo7q",
+		"zdqaWTaGbQFm2HEYo2iwHsFanffKDYq49XVk5ggEc6dYaBQkv",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
@@ -183,9 +186,9 @@ func TestEIDRCommands(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 	db := filepath.Join(tmpDir, "index.db")
 
-	// run 'meta ern index' with the CIDs as stdin
+	// run 'meta index eidr' with the CIDs as stdin
 	stream := strings.NewReader(stdout)
-	c.runWithStdin(stream, "eidr", "index", db)
+	c.runWithStdin(stream, "index", "eidr", db)
 
 	// check if the index has the baseobject and xobject
 	cmd := exec.Command("sqlite3", db, "select count(*) from xobject_baseobject_link x inner join baseobject p, xobject_episode e on p.doi_id = x.parent_doi_id where e.id = x.xobject_id")

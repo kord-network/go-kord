@@ -19,6 +19,8 @@
 
 package cwr
 
+import "github.com/meta-network/go-meta"
+
 // RegisteredWork represents a CWR work registratin , see
 // see http://musicmark.com/documents/cwr11-1494_cwr_user_manual_2011-09-23_e_2011-09-23_en.pdf
 // NWR or REV record
@@ -124,6 +126,8 @@ type WriterControlledbySubmitter struct {
 
 // Record - include all CWR records fields
 type Record struct {
+	meta.BaseObject
+
 	RecordType                     string `json:"record_type,omitempty"`
 	TransactionSequenceN           string `json:"transactionSequenceN,omitempty"`
 	RecordSequenceN                string `json:"recordSequenceN,omitempty"`

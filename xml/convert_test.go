@@ -28,15 +28,17 @@ import (
 	"github.com/meta-network/go-meta"
 )
 
-func TestEncodeXML(t *testing.T) {
+func TestConvertXML(t *testing.T) {
 	// create a context
 	context := []*cid.Cid{
 		meta.MustEncode(map[string]string{"foo": "bar"}).Cid(),
 	}
 
-	// encode the XML with the context, storing objects in memory
+	// convert the XML with the context, storing objects in memory
 	store := meta.NewMapDatastore()
-	xml, err := EncodeXML(bytes.NewReader(testXML), context, store.Put)
+	converter := NewConverter(store)
+	source := "test"
+	xml, err := converter.ConvertXML(bytes.NewReader(testXML), context, source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,6 +64,9 @@ func TestEncodeXML(t *testing.T) {
 	}
 	assertType := func(obj *meta.Object, typ string) {
 		assertString(obj, "@type", typ)
+	}
+	assertSource := func(obj *meta.Object) {
+		assertString(obj, "@source", source)
 	}
 	assertLink := func(obj *meta.Object, key string) *meta.Object {
 		link, err := obj.GetLink(key)
@@ -95,6 +100,9 @@ func TestEncodeXML(t *testing.T) {
 	// check it has the context
 	assertContext(xml)
 
+	// check it has the source
+	assertSource(xml)
+
 	// check the XML has a single catalog
 	catalog := assertLink(xml, "catalog")
 	assertContext(catalog)
@@ -104,6 +112,7 @@ func TestEncodeXML(t *testing.T) {
 	assertContext(product)
 
 	// check the product's attributes
+	assertSource(product)
 	assertString(product, "description", "Cardigan Sweater")
 	assertString(product, "product_image", "cardigan.jpg")
 
@@ -127,22 +136,26 @@ func TestEncodeXML(t *testing.T) {
 	// check the two items have the correct properties
 	item := get(itemLinks[0])
 	assertContext(item)
+	assertSource(item)
 	assertType(item, "catalog_item")
 	assertString(item, "gender", "Men's")
 	id := assertLink(item, "item_number")
 	assertType(id, "item_number")
+	assertSource(id)
 	assertString(id, "@value", "QWZ5671")
 
 	item = get(itemLinks[1])
 	assertContext(item)
+	assertSource(item)
 	assertType(item, "catalog_item")
 	assertString(item, "gender", "Women's")
 	id = assertLink(item, "item_number")
+	assertSource(id)
 	assertType(id, "item_number")
 	assertString(id, "@value", "RRX9856")
 }
 
-func TestEncodeXMLSchema(t *testing.T) {
+func TestConvertXMLSchema(t *testing.T) {
 	f, err := os.Open("testdata/xmldsig-core-schema.xsd")
 	if err != nil {
 		t.Fatal(err)
@@ -150,8 +163,8 @@ func TestEncodeXMLSchema(t *testing.T) {
 	defer f.Close()
 
 	store := meta.NewMapDatastore()
-
-	obj, err := EncodeXMLSchema(f, "ds", "http://www.w3.org/2000/09/xmldsig#", store.Put)
+	converter := NewConverter(store)
+	obj, err := converter.ConvertXMLSchema(f, "ds", "http://www.w3.org/2000/09/xmldsig#", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
