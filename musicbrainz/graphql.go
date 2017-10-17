@@ -39,6 +39,11 @@ type Query {
     ipi:  String,
     isni: String
   ): [Artist]!
+
+  recording_work_link(
+    isrc: String,
+    iswc: String
+  ): [RecordingWorkLink]!
 }
 
 type Artist {
@@ -56,6 +61,12 @@ type Artist {
   mbid:                   String!
   disambiguation_comment: String
   annotation:             [String!]
+}
+
+type RecordingWorkLink {
+  cid:  String!
+  isrc: String!
+  iswc: String!
 }
 `
 
@@ -198,4 +209,62 @@ func (a *artistResolver) Annotation() *[]string {
 		return nil
 	}
 	return &a.artist.Annotation
+}
+
+// recordingWorkLinkArgs are the arguments for a GraphQL recording_work_link query.
+type recordingWorkLinkArgs struct {
+	ISRC *string
+	ISWC *string
+}
+
+// RecordingWorkLink is a GraphQL resolver function which retrieves ISRC and
+// ISWC values from the recording_work index.
+func (g *Resolver) RecordingWorkLink(args recordingWorkLinkArgs) ([]*recordingWorkLinkResolver, error) {
+	var rows *sql.Rows
+	var err error
+	switch {
+	case args.ISRC != nil:
+		rows, err = g.db.Query("SELECT object_id, isrc, iswc FROM recording_work WHERE isrc = ?", *args.ISRC)
+	case args.ISWC != nil:
+		rows, err = g.db.Query("SELECT object_id, isrc, iswc FROM recording_work WHERE iswc = ?", *args.ISWC)
+	default:
+		return nil, errors.New("missing isrc or iswc argument")
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var resolvers []*recordingWorkLinkResolver
+	for rows.Next() {
+		var cid string
+		var link RecordingWorkLink
+		if err := rows.Scan(&cid, &link.ISRC, &link.ISWC); err != nil {
+			return nil, err
+		}
+		resolvers = append(resolvers, &recordingWorkLinkResolver{
+			cid:  cid,
+			link: link,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return resolvers, nil
+}
+
+type recordingWorkLinkResolver struct {
+	cid  string
+	link RecordingWorkLink
+}
+
+func (r *recordingWorkLinkResolver) Cid() string {
+	return r.cid
+}
+
+func (r *recordingWorkLinkResolver) ISRC() string {
+	return r.link.ISRC
+}
+
+func (r *recordingWorkLinkResolver) ISWC() string {
+	return r.link.ISWC
 }

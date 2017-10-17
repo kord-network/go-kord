@@ -28,7 +28,7 @@ import (
 	"github.com/meta-network/go-meta"
 )
 
-// Converter converts MusicBrainz data stored in a PostgeSQL database to META
+// Converter converts MusicBrainz data stored in a PostgreSQL database to META
 // objects.
 type Converter struct {
 	db    *sql.DB
@@ -36,7 +36,7 @@ type Converter struct {
 }
 
 // NewConverter returns a Converter which reads data from the given PostgreSQL
-// database connection and stores META object in the given META store.
+// database connection and stores META objects in the given META store.
 func NewConverter(db *sql.DB, store *meta.Store) *Converter {
 	return &Converter{
 		db:    db,
@@ -121,6 +121,40 @@ func (c *Converter) ConvertArtists(ctx context.Context, outStream chan *cid.Cid,
 
 		// convert the artist to a META object
 		obj, err := c.store.Put(a)
+		if err != nil {
+			return err
+		}
+
+		// send the object's CID to the output stream
+		select {
+		case outStream <- obj.Cid():
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	return rows.Err()
+}
+
+// ConvertRecordingWorkLinks loads ISRC to ISWC links from the database,
+// converts them to META objects and sends their CIDs to the given stream.
+func (c *Converter) ConvertRecordingWorkLinks(ctx context.Context, outStream chan *cid.Cid, source string) error {
+	// get all links from the db
+	rows, err := c.db.Query(recordingWorkLinksQuery)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var l RecordingWorkLink
+		if err := rows.Scan(&l.ISRC, &l.ISWC); err != nil {
+			return err
+		}
+		l.Source = source
+
+		// convert the link to a META object
+		obj, err := c.store.Put(l)
 		if err != nil {
 			return err
 		}

@@ -63,3 +63,12 @@ type Artist struct {
 	DisambiguationComment string   `json:"disambiguation_comment,omitempty"`
 	Annotation            []string `json:"annotation,omitempty"`
 }
+
+// RecordingWorkLink is a link between an ISRC and ISWC which comes from the
+// l_recording_work MusicBrainz table.
+type RecordingWorkLink struct {
+	meta.BaseObject
+
+	ISRC string `json:"isrc"`
+	ISWC string `json:"iswc"`
+}

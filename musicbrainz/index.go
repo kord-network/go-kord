@@ -112,3 +112,35 @@ func (i *Indexer) indexArtist(cid string, artist *Artist) error {
 
 	return nil
 }
+
+// IndexRecordingWorkLinks indexes a stream of META object links which are expected to
+// point at MusicBrainz RecordingWorkLinks.
+func (i *Indexer) IndexRecordingWorkLinks(ctx context.Context, stream chan *cid.Cid) error {
+	for {
+		select {
+		case cid, ok := <-stream:
+			if !ok {
+				return nil
+			}
+			obj, err := i.store.Get(cid)
+			if err != nil {
+				return err
+			}
+			var link RecordingWorkLink
+			if err := obj.Decode(&link); err != nil {
+				return err
+			}
+			log.Info("indexing recording work link", "isrc", link.ISRC, "iswc", link.ISWC)
+			_, err = i.indexDB.Exec(
+				`INSERT INTO recording_work (object_id, isrc, iswc) VALUES ($1, $2, $3)`,
+				cid.String(), link.ISRC, link.ISWC,
+			)
+			if err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
