@@ -42,13 +42,14 @@ import (
 	"github.com/meta-network/go-meta/ern"
 	"github.com/meta-network/go-meta/musicbrainz"
 	"github.com/meta-network/go-meta/xml"
+	"github.com/rs/cors"
 )
 
 var usage = `
 usage: meta import xml <file> [<context>...]
        meta import xsd <name> <uri> [<file>]
        meta dump [--format=<format>] <path>
-       meta server [--port=<port>] [--musicbrainz-index=<sqlite3-uri>] [--cwr-index=<sqlite3-uri>] [--ern-index=<sqlite3-uri>] [--eidr-index=<sqlite3-uri>]
+       meta server [--port=<port>] [--cors-domain=<domain>...] [--musicbrainz-index=<sqlite3-uri>] [--cwr-index=<sqlite3-uri>] [--ern-index=<sqlite3-uri>] [--eidr-index=<sqlite3-uri>]
        meta musicbrainz convert <postgres-uri>
        meta musicbrainz index <sqlite3-uri>
        meta cwr convert <files>...
@@ -236,6 +237,14 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 	httpSrv := http.Server{
 		Addr:    addr,
 		Handler: srv,
+	}
+	if _, ok := args["--cors-domain"]; ok {
+		httpSrv.Handler = cors.New(cors.Options{
+			AllowedOrigins: args.List("--cors-domain"),
+			AllowedMethods: []string{"POST", "GET", "DELETE", "PATCH", "PUT"},
+			MaxAge:         600,
+			AllowedHeaders: []string{"*"},
+		}).Handler(httpSrv.Handler)
 	}
 	go func() {
 		<-ctx.Done()
