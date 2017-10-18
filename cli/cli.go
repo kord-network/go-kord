@@ -52,12 +52,12 @@ usage: meta convert [--source=<source>] xml <file> [<context>...]
        meta convert [--source=<source>] ern <files>...
        meta convert [--source=<source>] eidr <files>...
        meta convert [--source=<source>] musicbrainz <postgres-uri>
-       meta index cwr <sqlite3-uri>
-       meta index ern <sqlite3-uri>
-       meta index eidr <sqlite3-uri>
-       meta index musicbrainz <sqlite3-uri>
+       meta index cwr <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
+       meta index ern <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
+       meta index eidr <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
+       meta index musicbrainz <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
        meta dump [--format=<format>] <path>
-       meta server [--port=<port>] [--cors-domain=<domain>...] [--index=<index>...]
+       meta server [--port=<port>] [--cors-domain=<domain>...] [--index=<index>...] [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
 
 options:
   --source=<source>           The value to set as @source on all created META objects
@@ -80,10 +80,16 @@ type CLI struct {
 	store  *meta.Store
 	stdin  io.Reader
 	stdout io.Writer
+	bzz    *SwarmBackend
 }
 
 func New(store *meta.Store, stdin io.Reader, stdout io.Writer) *CLI {
-	return &CLI{store, stdin, stdout}
+	return &CLI{
+		store:  store,
+		stdin:  stdin,
+		stdout: stdout,
+		bzz:    &SwarmBackend{},
+	}
 }
 
 func (cli *CLI) Run(ctx context.Context, cmdArgs ...string) error {
@@ -101,7 +107,9 @@ func (cli *CLI) Run(ctx context.Context, cmdArgs ...string) error {
 		}
 		return cli.RunConvert(ctx, args)
 	case args.Bool("index"):
-		return cli.RunIndex(ctx, args)
+		hash, err := cli.RunIndex(ctx, args)
+		cli.stdout.Write([]byte(hash))
+		return err
 	case args.Bool("dump"):
 		return cli.RunDump(ctx, args)
 	case args.Bool("server"):
@@ -130,7 +138,13 @@ func (cli *CLI) RunConvert(ctx context.Context, args Args) error {
 	}
 }
 
-func (cli *CLI) RunIndex(ctx context.Context, args Args) error {
+func (cli *CLI) RunIndex(ctx context.Context, args Args) (string, error) {
+
+	err := cli.bzz.OpenIndex(args.String("--bzzapi"), args.String("--bzzdir"))
+	if err != nil {
+		return "", err
+	}
+
 	switch {
 	case args.Bool("cwr"):
 		return cli.RunCwrIndex(ctx, args)
@@ -141,7 +155,7 @@ func (cli *CLI) RunIndex(ctx context.Context, args Args) error {
 	case args.Bool("musicbrainz"):
 		return cli.RunMusicBrainzIndex(ctx, args)
 	default:
-		return errors.New("unknown index")
+		return "", errors.New("unknown index")
 	}
 }
 
@@ -232,6 +246,10 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 	// parse the --index args which have the format <name>:<path>
 	// where <name> is one of musicbrainz, ern, eidr or cwr and
 	// <path> is the path to the relevant index.
+	err := cli.bzz.OpenIndex(args.String("--bzzapi"), args.String("--bzzdir"))
+	if err != nil {
+		return err
+	}
 	indexes := make(map[string]*sql.DB)
 	for _, index := range args.List("--index") {
 		namePath := strings.SplitN(index, ":", 2)
@@ -246,13 +264,16 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 		default:
 			return fmt.Errorf("invalid --index name %q", name)
 		}
-
-		db, err := sql.Open("sqlite3", path)
+		filename, err := cli.bzz.GetIndexFile(path, true)
+		if err != nil {
+			return err
+		}
+		db, err := sql.Open("sqlite3", filename)
 		if err != nil {
 			return err
 		}
 		defer db.Close()
-
+		defer cli.bzz.PutIndexFile(filename)
 		indexes[namePath[0]] = db
 	}
 
@@ -314,16 +335,18 @@ func (cli *CLI) RunMusicBrainzConvert(ctx context.Context, args Args) error {
 	return <-errC
 }
 
-func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, args Args) error {
-	db, err := sql.Open("sqlite3", args.String("<sqlite3-uri>"))
+func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, args Args) (string, error) {
+	filename := args.String("<sqlite3-filename>")
+	filepath, err := cli.bzz.GetIndexFile(filename, false)
+	db, err := sql.Open("sqlite3", filepath)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer db.Close()
 
 	indexer, err := musicbrainz.NewIndexer(db, cli.store)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// stream the CIDs from stdin
@@ -340,8 +363,11 @@ func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, args Args) error {
 			stream <- cid
 		}
 	}()
-
-	return indexer.IndexArtists(ctx, stream)
+	err = indexer.IndexArtists(ctx, stream)
+	if err != nil {
+		return "", err
+	}
+	return cli.bzz.PutIndexFile(filename)
 }
 
 func (cli *CLI) RunCwrConvert(ctx context.Context, args Args) error {
@@ -362,17 +388,17 @@ func (cli *CLI) RunCwrConvert(ctx context.Context, args Args) error {
 	return nil
 }
 
-func (cli *CLI) RunCwrIndex(ctx context.Context, args Args) error {
-
-	db, err := sql.Open("sqlite3", args.String("<sqlite3-uri>"))
+func (cli *CLI) RunCwrIndex(ctx context.Context, args Args) (string, error) {
+	filename := args.String("<sqlite3-filename>")
+	filepath, err := cli.bzz.GetIndexFile(filename, false)
+	db, err := sql.Open("sqlite3", filepath)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer db.Close()
-
 	indexer, err := cwr.NewIndexer(db, cli.store)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// stream the CIDs from stdin
@@ -389,8 +415,11 @@ func (cli *CLI) RunCwrIndex(ctx context.Context, args Args) error {
 			stream <- cid
 		}
 	}()
-
-	return indexer.Index(ctx, stream)
+	err = indexer.Index(ctx, stream)
+	if err != nil {
+		return "", err
+	}
+	return cli.bzz.PutIndexFile(filename)
 }
 
 func (cli *CLI) RunERNConvert(ctx context.Context, args Args) error {
@@ -411,15 +440,17 @@ func (cli *CLI) RunERNConvert(ctx context.Context, args Args) error {
 	return nil
 }
 
-func (cli *CLI) RunERNIndex(ctx context.Context, args Args) error {
-	db, err := sql.Open("sqlite3", args.String("<sqlite3-uri>"))
+func (cli *CLI) RunERNIndex(ctx context.Context, args Args) (string, error) {
+	filename := args.String("<sqlite3-filename>")
+	filepath, err := cli.bzz.GetIndexFile(filename, false)
+	db, err := sql.Open("sqlite3", filepath)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer db.Close()
 	indexer, err := ern.NewIndexer(db, cli.store)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// stream the CIDs from stdin
@@ -436,8 +467,11 @@ func (cli *CLI) RunERNIndex(ctx context.Context, args Args) error {
 			stream <- cid
 		}
 	}()
-
-	return indexer.Index(ctx, stream)
+	err = indexer.Index(ctx, stream)
+	if err != nil {
+		return "", err
+	}
+	return cli.bzz.PutIndexFile(filename)
 }
 
 func (cli *CLI) RunEIDRConvert(ctx context.Context, args Args) error {
@@ -467,17 +501,18 @@ func (cli *CLI) RunEIDRConvert(ctx context.Context, args Args) error {
 	return nil
 }
 
-func (cli *CLI) RunEIDRIndex(ctx context.Context, args Args) error {
-
-	db, err := sql.Open("sqlite3", args.String("<sqlite3-uri>"))
+func (cli *CLI) RunEIDRIndex(ctx context.Context, args Args) (string, error) {
+	filename := args.String("<sqlite3-filename>")
+	filepath, err := cli.bzz.GetIndexFile(filename, false)
+	db, err := sql.Open("sqlite3", filepath)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer db.Close()
 
 	indexer, err := eidr.NewIndexer(db, cli.store)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// stream the CIDs from stdin
@@ -494,7 +529,11 @@ func (cli *CLI) RunEIDRIndex(ctx context.Context, args Args) error {
 			stream <- cid
 		}
 	}()
-	return indexer.Index(ctx, stream)
+	err = indexer.Index(ctx, stream)
+	if err != nil {
+		return "", err
+	}
+	return cli.bzz.PutIndexFile(filename)
 }
 
 type Args map[string]interface{}
