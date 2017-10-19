@@ -43,8 +43,8 @@ func TestIndex(t *testing.T) {
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
 	converter := NewConverter(store)
-	cids := make(map[string]*cid.Cid, len(erns))
-	for _, path := range erns {
+	cids := make([]*cid.Cid, len(erns))
+	for i, path := range erns {
 		f, err := os.Open(filepath.Join("testdata", path))
 		if err != nil {
 			t.Fatal(err)
@@ -54,19 +54,19 @@ func TestIndex(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		cids[path] = cid
+		cids[i] = cid
 	}
 
-	// create a stream of ERNs
-	stream := make(chan *cid.Cid, len(erns))
-	go func() {
-		defer close(stream)
-		for _, cid := range cids {
-			stream <- cid
-		}
-	}()
-
 	// index the stream of ERNs
+	writer, err := store.StreamWriter("ern.meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	if err := writer.Write(cids...); err != nil {
+		t.Fatal(err)
+	}
+
 	index, err := store.OpenIndex("ern.index.meta")
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +77,12 @@ func TestIndex(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := indexer.Index(ctx, stream); err != nil {
+	reader, err := store.StreamReader("ern.meta", meta.StreamLimit(len(cids)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	if err := indexer.Index(ctx, reader); err != nil {
 		t.Fatal(err)
 	}
 

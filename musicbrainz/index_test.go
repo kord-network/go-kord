@@ -241,20 +241,36 @@ func newTestIndex(store *meta.Store) (x *testIndex, err error) {
 	}
 
 	// create streams
-	artistStream := make(chan *cid.Cid, len(x.artists))
-	go func() {
-		defer close(artistStream)
-		for _, cid := range artistCids {
-			artistStream <- cid
+	streams := func(name string, count int) (*meta.StreamReader, *meta.StreamWriter, error) {
+		reader, err := x.store.StreamReader(name, meta.StreamLimit(count))
+		if err != nil {
+			return nil, nil, err
 		}
-	}()
-	linkStream := make(chan *cid.Cid, len(x.links))
-	go func() {
-		defer close(linkStream)
-		for _, cid := range linkCids {
-			linkStream <- cid
+		writer, err := x.store.StreamWriter(name)
+		if err != nil {
+			reader.Close()
+			return nil, nil, err
 		}
-	}()
+		return reader, writer, nil
+	}
+	artistStreamR, artistStreamW, err := streams("artists.musicbrainz.meta", len(artistCids))
+	if err != nil {
+		return nil, err
+	}
+	defer artistStreamR.Close()
+	defer artistStreamW.Close()
+	if err := artistStreamW.Write(artistCids...); err != nil {
+		return nil, err
+	}
+	linkStreamR, linkStreamW, err := streams("links.musicbrainz.meta", len(linkCids))
+	if err != nil {
+		return nil, err
+	}
+	defer linkStreamR.Close()
+	defer linkStreamW.Close()
+	if err := linkStreamW.Write(linkCids...); err != nil {
+		return nil, err
+	}
 
 	// index the artists and links
 	x.index, err = store.OpenIndex("musicbrainz.index.meta")
@@ -265,10 +281,10 @@ func newTestIndex(store *meta.Store) (x *testIndex, err error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := indexer.IndexArtists(context.Background(), artistStream); err != nil {
+	if err := indexer.IndexArtists(context.Background(), artistStreamR); err != nil {
 		return nil, err
 	}
-	if err := indexer.IndexRecordingWorkLinks(context.Background(), linkStream); err != nil {
+	if err := indexer.IndexRecordingWorkLinks(context.Background(), linkStreamR); err != nil {
 		return nil, err
 	}
 	return x, nil

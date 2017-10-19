@@ -20,17 +20,15 @@
 package cli
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"io"
+	"os"
 	"os/exec"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/testutil"
 )
@@ -42,20 +40,12 @@ func TestCWRCommands(t *testing.T) {
 	defer cleanup()
 	c := &testCLI{t, store}
 
-	// check 'meta convert cwr' prints a CID
-	stdout := c.run("convert", "cwr",
+	// check 'meta convert cwr' adds CIDs to the cwr.meta stream
+	c.run("convert", "cwr",
 		"--source", "test",
 		"../cwr/testdata/example_double_nwr.cwr",
 		"../cwr/testdata/example_nwr.cwr")
-	var ids []string
-	s := bufio.NewScanner(strings.NewReader(stdout))
-	for s.Scan() {
-		id, err := cid.Parse(s.Text())
-		if err != nil {
-			t.Fatal(err)
-		}
-		ids = append(ids, id.String())
-	}
+	ids := c.readStream("cwr.meta", 2)
 	expected := []string{
 		"zdqaWBuxwxhZQj9PBzRsHSp2WEq9pF3tF9rP9KYb7TxgqfXQJ",
 		"zdqaWGLaDAkMomHFaooZ7GaxxvTmFCJ1DFCVLaQSvb8v2ewoN",
@@ -64,10 +54,9 @@ func TestCWRCommands(t *testing.T) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
-	// run 'meta index cwr' with the CIDs as stdin
+	// run 'meta index cwr'
 	indexName := "cwr.test"
-	stream := strings.NewReader(stdout)
-	c.runWithStdin(stream, "index", "cwr", indexName)
+	c.run("index", "cwr", indexName, "--count=2")
 
 	// check the index was populated
 	index, err := store.OpenIndex(indexName)
@@ -93,8 +82,8 @@ func TestERNCommands(t *testing.T) {
 	defer cleanup()
 	c := &testCLI{t, store}
 
-	// check 'meta convert ern' prints multiple CIDs
-	stdout := c.run("convert", "ern",
+	// check 'meta convert ern' adds CIDs to the ern.meta stream
+	c.run("convert", "ern",
 		"--source", "test",
 		"../ern/testdata/Profile_AudioAlbumMusicOnly.xml",
 		"../ern/testdata/Profile_AudioAlbum_WithBooklet.xml",
@@ -102,15 +91,7 @@ func TestERNCommands(t *testing.T) {
 		"../ern/testdata/Profile_AudioSingle.xml",
 		"../ern/testdata/Profile_AudioSingle_WithCompoundArtistsAndTerritorialOverride.xml",
 	)
-	var ids []string
-	s := bufio.NewScanner(strings.NewReader(stdout))
-	for s.Scan() {
-		id, err := cid.Parse(s.Text())
-		if err != nil {
-			t.Fatal(err)
-		}
-		ids = append(ids, id.String())
-	}
+	ids := c.readStream("ern.meta", 5)
 	expected := []string{
 		"zdqaWQFfLpAj7Hi7B1DMsqfRzh2gtTWJb6PKzK2TJZgb3gCEM",
 		"zdqaWJ4jkU4haHkCfJY8Tz7bNtdi38Kq1bRy4iiU9DUDJqUkB",
@@ -122,10 +103,9 @@ func TestERNCommands(t *testing.T) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
-	// run 'meta index ern' with the CIDs as stdin
+	// run 'meta index ern'
 	indexName := "ern.test"
-	stream := strings.NewReader(stdout)
-	c.runWithStdin(stream, "index", "ern", indexName)
+	c.run("index", "ern", indexName, "--count=5")
 
 	// check the index was populated
 	index, err := store.OpenIndex(indexName)
@@ -151,21 +131,13 @@ func TestEIDRCommands(t *testing.T) {
 	defer cleanup()
 	c := &testCLI{t, store}
 
-	// check 'meta convert eidr' outputs expected rows
-	stdout := c.run("convert", "eidr",
+	// check 'meta convert eidr' adds CIDs to the eidr.meta stream
+	c.run("convert", "eidr",
 		"--source", "test",
 		"../eidr/testdata/dummy_child.xml",
 		"../eidr/testdata/dummy_parent.xml",
 	)
-	var ids []string
-	s := bufio.NewScanner(strings.NewReader(stdout))
-	for s.Scan() {
-		id, err := cid.Parse(s.Text())
-		if err != nil {
-			t.Fatal(err)
-		}
-		ids = append(ids, id.String())
-	}
+	ids := c.readStream("eidr.meta", 2)
 	expected := []string{
 		"zdqaWUgTjLPoFrMCmBcbPcJNPuHTvUs5fBn3f4iYsniHACo7q",
 		"zdqaWTaGbQFm2HEYo2iwHsFanffKDYq49XVk5ggEc6dYaBQkv",
@@ -174,10 +146,9 @@ func TestEIDRCommands(t *testing.T) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
-	// run 'meta index eidr' with the CIDs as stdin
+	// run 'meta index eidr'
 	indexName := "eidr.test"
-	stream := strings.NewReader(stdout)
-	c.runWithStdin(stream, "index", "eidr", indexName)
+	c.run("index", "eidr", indexName, "--count=2")
 
 	// check the index was populated
 	index, err := store.OpenIndex(indexName)
@@ -219,15 +190,31 @@ type testCLI struct {
 	store *meta.Store
 }
 
-func (c *testCLI) runWithStdin(stdin io.Reader, args ...string) string {
-	var stdout bytes.Buffer
-	cli := New(c.store, stdin, &stdout)
+func (c *testCLI) run(args ...string) {
+	cli := New(c.store, nil, os.Stdout)
 	if err := cli.Run(context.Background(), args...); err != nil {
 		c.t.Fatal(err)
 	}
-	return stdout.String()
 }
 
-func (c *testCLI) run(args ...string) string {
-	return c.runWithStdin(nil, args...)
+func (c *testCLI) readStream(name string, count int) []string {
+	reader, err := c.store.StreamReader(name, meta.StreamLimit(count))
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	defer reader.Close()
+	var ids []string
+	timeout := time.After(10 * time.Second)
+	for n := 0; n < count; n++ {
+		select {
+		case id, ok := <-reader.Ch():
+			if !ok {
+				c.t.Fatal(reader.Err())
+			}
+			ids = append(ids, id.String())
+		case <-timeout:
+			c.t.Fatalf("timed out waiting for stream values")
+		}
+	}
+	return ids
 }

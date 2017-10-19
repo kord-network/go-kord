@@ -24,7 +24,6 @@ import (
 	"database/sql"
 
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
 )
 
@@ -52,13 +51,13 @@ func NewIndexer(index *meta.Index, store *meta.Store) (*Indexer, error) {
 
 // IndexArtists indexes a stream of META object links which are expected to
 // point at MusicBrainz Artists.
-func (i *Indexer) IndexArtists(ctx context.Context, stream chan *cid.Cid) error {
+func (i *Indexer) IndexArtists(ctx context.Context, stream *meta.StreamReader) error {
 	return i.index.Update(func(tx *sql.Tx) error {
 		for {
 			select {
-			case cid, ok := <-stream:
+			case cid, ok := <-stream.Ch():
 				if !ok {
-					return nil
+					return stream.Err()
 				}
 				obj, err := i.store.Get(cid)
 				if err != nil {
@@ -116,13 +115,13 @@ func (i *Indexer) indexArtist(tx *sql.Tx, cid string, artist *Artist) error {
 
 // IndexRecordingWorkLinks indexes a stream of META object links which are expected to
 // point at MusicBrainz RecordingWorkLinks.
-func (i *Indexer) IndexRecordingWorkLinks(ctx context.Context, stream chan *cid.Cid) error {
+func (i *Indexer) IndexRecordingWorkLinks(ctx context.Context, stream *meta.StreamReader) error {
 	return i.index.Update(func(tx *sql.Tx) error {
 		for {
 			select {
-			case cid, ok := <-stream:
+			case cid, ok := <-stream.Ch():
 				if !ok {
-					return nil
+					return stream.Err()
 				}
 				obj, err := i.store.Get(cid)
 				if err != nil {
