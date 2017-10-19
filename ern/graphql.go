@@ -22,11 +22,10 @@ package ern
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/ipfs/go-cid"
-	"github.com/ipfs/go-ipld-format"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/xml"
 )
 
 // Resolver is a general purpose GraphQL resolver function,
@@ -44,50 +43,94 @@ func NewResolver(db *sql.DB, store *meta.Store) *Resolver {
 
 // GraphQLSchema schema definition for Party on the ERN index
 const GraphQLSchema = `
-	schema {
-		query: Query
-	}
+schema {
+  query: Query
+}
 
-	type Query {
-		party(id: String, name: String): [Party]!
-		soundRecording(id: String, title: String): [SoundRecording]!
-		release(id: String, title: String): [Release]!
-	}
+type Query {
+  party(id: String, name: String): [Party]!
 
-	type Party {
-		cid: String!
-		partyID: String!
-		fullName: String!
-	}
+  soundRecording(id: String, title: String): [SoundRecording]!
 
-	# NEEDS ADDING TO QUERY RESPONSE
-	type ResourceContributor {
-		party: Party!
-		role: String!
-	}
+  release(id: String, title: String): [Release]!
+}
 
-	type SoundRecording {
-		artistName: String!
-		genre: String!
-		parentalWarningType: String
-		resourceReference: String!
-		subGenre: String
-		soundRecordingId: String!
-		territoryCode: String!
-		title: String!
-	}
+type Party {
+  cid:      String!
+  type:     String!
+  role:     String!
+  partyID:  String!
+  fullName: String!
 
-	type Release {
-		artistName: String!
-		displayTitle: String!
-		releaseId: String
-		genre: String
-		releaseType: String
-	}
+  soundRecordings: [SoundRecording]!
+  releases:        [Release]!
+}
+
+type Artist {
+  cid:   String!
+  party: Party!
+  role:  String!
+}
+
+type ResourceContributor {
+  cid:   String!
+  party: Party!
+  role:  String!
+}
+
+type SoundRecording {
+  cid:                String!
+  source:             String!
+  soundRecordingId:   String!
+  soundRecordingType: String!
+  referenceTitle:     String!
+  detailsByTerritory: [SoundRecordingDetailsByTerritory]!
+}
+
+type SoundRecordingDetailsByTerritory {
+  cid:                 String!
+  title:               [Title]!
+  displayArtist:       [Artist]!
+  displayArtistName:   String!
+  labelName:           String!
+  territoryCode:       String!
+  genre:               String!
+  parentalWarningType: String!
+}
+
+type Release {
+  cid:                String!
+  source:             String!
+  releaseId:          ReleaseID!
+  releaseType:        String!
+  referenceTitle:     String!
+  detailsByTerritory: [ReleaseDetailsByTerritory]!
+}
+
+type ReleaseDetailsByTerritory {
+  cid:               String!
+  title:             [Title]!
+  displayArtist:     [Artist]!
+  displayArtistName: String!
+  labelName:         String!
+  territoryCode:     String!
+  releaseDate:       String!
+  genre:             String!
+}
+
+type Title {
+  titleType: String!
+  titleText: String!
+}
+
+type ReleaseID {
+  grid: String!
+  icpn: String!
+}
 `
 
 // partyArgs query arguments for Party query
-type partyArgs struct {
+type PartyArgs struct {
 	Name *string
 	ID   *string
 }
@@ -96,31 +139,97 @@ type partyArgs struct {
  *	Party
  */
 
-// partyResolver defines grapQL resolver functions for the Party fields
-type partyResolver struct {
-	cid   string
-	party *Party
+// PartyResolver defines grapQL resolver functions for the Party fields
+type PartyResolver struct {
+	resolver  *Resolver
+	cid       string
+	source    string
+	typ       string
+	role      string
+	partyId   string
+	partyName string
 }
 
-func (pd *partyResolver) Cid() string {
+func (pd *PartyResolver) Cid() string {
 	return pd.cid
 }
 
-func (pd *partyResolver) Fullname() string {
-	return pd.party.PartyName
+func (pd *PartyResolver) Source() string {
+	return pd.source
 }
 
-func (pd *partyResolver) PartyId() string {
-	return pd.party.PartyId
+func (pd *PartyResolver) Type() string {
+	return pd.typ
+}
+
+func (pd *PartyResolver) Role() string {
+	return pd.role
+}
+
+func (pd *PartyResolver) Fullname() string {
+	return pd.partyName
+}
+
+func (pd *PartyResolver) PartyId() string {
+	return pd.partyId
+}
+
+func (pd *PartyResolver) SoundRecordings() ([]*SoundRecordingResolver, error) {
+	rows, err := pd.resolver.db.Query("SELECT sound_recording_id FROM sound_recording_contributor WHERE party_id = ?", pd.cid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var recordings []*SoundRecordingResolver
+	for rows.Next() {
+		var objectID string
+		if err := rows.Scan(&objectID); err != nil {
+			return nil, err
+		}
+		recording, err := pd.resolver.soundRecordingResolver(objectID)
+		if err != nil {
+			return nil, err
+		}
+		recordings = append(recordings, recording)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return recordings, nil
+}
+
+func (pd *PartyResolver) Releases() ([]*ReleaseResolver, error) {
+	rows, err := pd.resolver.db.Query(
+		"SELECT release_id FROM release_list INNER JOIN ern ON ern.cid = release_list.ern_id WHERE ern.sender_id = ?",
+		pd.cid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var releases []*ReleaseResolver
+	for rows.Next() {
+		var objectID string
+		if err := rows.Scan(&objectID); err != nil {
+			return nil, err
+		}
+		release, err := pd.resolver.releaseResolver(objectID)
+		if err != nil {
+			return nil, err
+		}
+		releases = append(releases, release)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return releases, nil
 }
 
 // Party is the resolver function to retrieve
 // the Party information from the SQLite index
-func (g *Resolver) Party(args partyArgs) ([]*partyResolver, error) {
-
+func (g *Resolver) Party(args PartyArgs) ([]*PartyResolver, error) {
 	var rows *sql.Rows
 	var err error
-
 	switch {
 	case args.Name != nil:
 		rows, err = g.db.Query("SELECT cid FROM party WHERE name = ?", *args.Name)
@@ -129,45 +238,24 @@ func (g *Resolver) Party(args partyArgs) ([]*partyResolver, error) {
 	default:
 		return nil, errors.New("Missing Name or ID argument in query")
 	}
-
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
-	var resolvers []*partyResolver
+
+	var resolvers []*PartyResolver
 	for rows.Next() {
 		var objectID string
 		if err := rows.Scan(&objectID); err != nil {
 			return nil, err
 		}
-		id, err := cid.Parse(objectID)
+
+		resolver, err := g.partyResolver(objectID)
 		if err != nil {
 			return nil, err
 		}
 
-		obj, err := g.store.Get(id)
-		if err != nil {
-			return nil, err
-		}
-
-		var DdexPartyId struct {
-			Value string `json:"@value"`
-		}
-		if err := DecodeObj(g.store, obj, &DdexPartyId, "PartyId"); err != nil {
-			pid := &DdexPartyId
-			pid.Value = ""
-		}
-
-		var DdexPartyName struct {
-			Value string `json:"@value"`
-		}
-		if err := DecodeObj(g.store, obj, &DdexPartyName, "PartyName", "FullName"); err != nil {
-			return nil, err
-		}
-		// Not keen on the below, but refinement will take time :)
-		party := Party{PartyId: DdexPartyId.Value, PartyName: DdexPartyName.Value}
-		resolvers = append(resolvers, &partyResolver{objectID, &party})
+		resolvers = append(resolvers, resolver)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -176,60 +264,239 @@ func (g *Resolver) Party(args partyArgs) ([]*partyResolver, error) {
 	return resolvers, nil
 }
 
+func (r *Resolver) partyResolver(objectID string) (*PartyResolver, error) {
+	id, err := cid.Parse(objectID)
+	if err != nil {
+		return nil, err
+	}
+
+	obj, err := r.store.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	source, err := obj.GetString("@source")
+	if err != nil {
+		return nil, err
+	}
+
+	typ, err := obj.GetString("@type")
+	if err != nil {
+		return nil, err
+	}
+
+	var artistRole metaxml.Value
+	if v, err := DecodeObj(r.store, obj, "ArtistRole"); err == nil {
+		artistRole = *v
+	}
+
+	var partyId metaxml.Value
+	if v, err := DecodeObj(r.store, obj, "PartyId"); err == nil {
+		partyId = *v
+	}
+
+	partyName, err := DecodeObj(r.store, obj, "PartyName", "FullName")
+	if err != nil {
+		return nil, err
+	}
+
+	return &PartyResolver{
+		resolver:  r,
+		cid:       objectID,
+		source:    source,
+		typ:       typ,
+		role:      artistRole.Value,
+		partyId:   partyId.Value,
+		partyName: partyName.Value,
+	}, nil
+}
+
 /**
  * SoundRecording
  */
 
-type soundRecordingArgs struct {
+type SoundRecordingArgs struct {
 	ID    *string
 	Title *string
 }
 
-type soundRecordingResolver struct {
-	cid            string
-	soundRecording *SoundRecording
+type SoundRecordingResolver struct {
+	resolver           *Resolver
+	cid                string
+	source             string
+	soundRecordingId   string
+	soundRecordingType string
+	referenceTitle     string
+	detailsByTerritory []*SoundRecordingDetailsResolver
 }
 
-func (sr *soundRecordingResolver) Cid() string {
+func (sr *SoundRecordingResolver) Cid() string {
 	return sr.cid
 }
 
-func (sr *soundRecordingResolver) ArtistName() string {
-	return sr.soundRecording.ArtistName
+func (sr *SoundRecordingResolver) Source() string {
+	return sr.source
 }
 
-func (sr *soundRecordingResolver) Genre() string {
-	return sr.soundRecording.GenreText
+func (sr *SoundRecordingResolver) SoundRecordingId() string {
+	return sr.soundRecordingId
 }
 
-func (sr *soundRecordingResolver) ParentalWarningType() *string {
-	return &sr.soundRecording.ParentalWarningType
+func (sr *SoundRecordingResolver) SoundRecordingType() string {
+	return sr.soundRecordingType
 }
 
-func (sr *soundRecordingResolver) ResourceReference() string {
-	return sr.soundRecording.ResourceReference
+func (sr *SoundRecordingResolver) ReferenceTitle() string {
+	return sr.referenceTitle
 }
 
-func (sr *soundRecordingResolver) SoundRecordingId() string {
-	return sr.soundRecording.SoundRecordingId
+func (sr *SoundRecordingResolver) DetailsByTerritory() []*SoundRecordingDetailsResolver {
+	return sr.detailsByTerritory
 }
 
-func (sr *soundRecordingResolver) SubGenre() *string {
-	return &sr.soundRecording.SubGenre
+func (sr *SoundRecordingResolver) Parties() ([]*PartyResolver, error) {
+	rows, err := sr.resolver.db.Query(
+		"SELECT party_id FROM sound_recording_contributor WHERE sound_recording_id = ?",
+		sr.cid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var parties []*PartyResolver
+	for rows.Next() {
+		var objectID string
+		if err := rows.Scan(&objectID); err != nil {
+			return nil, err
+		}
+		party, err := sr.resolver.partyResolver(objectID)
+		if err != nil {
+			return nil, err
+		}
+		parties = append(parties, party)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return parties, nil
 }
 
-func (sr *soundRecordingResolver) TerritoryCode() string {
-	return sr.soundRecording.TerritoryCode
+func (sr *SoundRecordingResolver) Releases() ([]*ReleaseResolver, error) {
+	rows, err := sr.resolver.db.Query(
+		"SELECT release_id FROM sound_recording_release WHERE sound_recording_id = ?",
+		sr.cid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var releases []*ReleaseResolver
+	for rows.Next() {
+		var objectID string
+		if err := rows.Scan(&objectID); err != nil {
+			return nil, err
+		}
+		release, err := sr.resolver.releaseResolver(objectID)
+		if err != nil {
+			return nil, err
+		}
+		releases = append(releases, release)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return releases, nil
 }
 
-func (sr *soundRecordingResolver) Title() string {
-	return sr.soundRecording.ReferenceTitle
+type SoundRecordingDetailsResolver struct {
+	cid                 string
+	title               []*TitleResolver
+	displayArtist       []*ArtistResolver
+	displayArtistName   string
+	labelName           string
+	territoryCode       string
+	genre               string
+	parentalWarningType string
 }
 
-func (g *Resolver) SoundRecording(args soundRecordingArgs) ([]*soundRecordingResolver, error) {
+func (s *SoundRecordingDetailsResolver) Cid() string {
+	return s.cid
+}
+
+func (s *SoundRecordingDetailsResolver) Title() []*TitleResolver {
+	return s.title
+}
+
+func (s *SoundRecordingDetailsResolver) DisplayArtist() []*ArtistResolver {
+	return s.displayArtist
+}
+
+func (s *SoundRecordingDetailsResolver) DisplayArtistName() string {
+	return s.displayArtistName
+}
+
+func (s *SoundRecordingDetailsResolver) LabelName() string {
+	return s.labelName
+}
+
+func (s *SoundRecordingDetailsResolver) TerritoryCode() string {
+	return s.territoryCode
+}
+
+func (s *SoundRecordingDetailsResolver) Genre() string {
+	return s.genre
+}
+
+func (s *SoundRecordingDetailsResolver) ParentalWarningType() string {
+	return s.parentalWarningType
+}
+
+type ArtistResolver struct {
+	party *PartyResolver
+	role  string
+}
+
+func (a *ArtistResolver) Cid() string {
+	return a.party.Cid()
+}
+
+func (a *ArtistResolver) Party() *PartyResolver {
+	return a.party
+}
+
+func (a *ArtistResolver) Role() string {
+	return a.role
+}
+
+type TitleResolver struct {
+	titleText string
+	titleType string
+}
+
+func (t *TitleResolver) TitleText() string {
+	return t.titleText
+}
+
+func (t *TitleResolver) TitleType() string {
+	return t.titleType
+}
+
+type ContibutorResolver struct {
+	party *PartyResolver
+	role  string
+}
+
+func (c *ContibutorResolver) Party() *PartyResolver {
+	return c.party
+}
+
+func (c *ContibutorResolver) Role() string {
+	return c.role
+}
+
+func (g *Resolver) SoundRecording(args SoundRecordingArgs) ([]*SoundRecordingResolver, error) {
 	var rows *sql.Rows
 	var err error
-
 	switch {
 	case args.ID != nil:
 		rows, err = g.db.Query("SELECT cid FROM sound_recording WHERE id = ?", *args.ID)
@@ -238,160 +505,315 @@ func (g *Resolver) SoundRecording(args soundRecordingArgs) ([]*soundRecordingRes
 	default:
 		return nil, errors.New("Missing ID or Title argument in query")
 	}
-
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
 
-	var response []*soundRecordingResolver
-
+	var recordings []*SoundRecordingResolver
 	for rows.Next() {
 		var objectID string
-
 		if err := rows.Scan(&objectID); err != nil {
 			return nil, err
 		}
 
-		id, err := cid.Parse(objectID)
-
+		recording, err := g.soundRecordingResolver(objectID)
 		if err != nil {
 			return nil, err
 		}
 
-		obj, err := g.store.Get(id)
-
-		if err != nil {
-			return nil, err
-		}
-
-		var ArtistName struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &ArtistName, "SoundRecordingDetailsByTerritory", "DisplayArtist", "PartyName", "FullName"); err != nil {
-			return nil, err
-		}
-
-		var GenreText struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &GenreText, "SoundRecordingDetailsByTerritory", "Genre", "GenreText"); err != nil {
-			return nil, err
-		}
-
-		var ParentalWarningType struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &ParentalWarningType, "SoundRecordingDetailsByTerritory", "ParentalWarningType"); err != nil {
-			return nil, err
-		}
-
-		var ReferenceTitle struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &ReferenceTitle, "ReferenceTitle", "TitleText"); err != nil {
-			return nil, err
-		}
-
-		var ResourceReference struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &ResourceReference, "ResourceReference"); err != nil {
-			return nil, err
-		}
-
-		var SoundRecordingId struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &SoundRecordingId, "SoundRecordingId", "ISRC"); err != nil {
-			return nil, err
-		}
-
-		var SubGenre struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &SubGenre, "SoundRecordingDetailsByTerritory", "Genre", "SubGenre"); err != nil {
-			return nil, err
-		}
-
-		var TerritoryCode struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &TerritoryCode, "SoundRecordingDetailsByTerritory", "TerritoryCode"); err != nil {
-			return nil, err
-		}
-
-		var soundRecording SoundRecording
-		soundRecording.ArtistName = ArtistName.Value
-		soundRecording.GenreText = GenreText.Value
-		soundRecording.ParentalWarningType = ParentalWarningType.Value
-		soundRecording.ReferenceTitle = ReferenceTitle.Value
-		soundRecording.ResourceReference = ResourceReference.Value
-		soundRecording.SoundRecordingId = SoundRecordingId.Value
-		soundRecording.SubGenre = SubGenre.Value
-		soundRecording.TerritoryCode = TerritoryCode.Value
-
-		response = append(response, &soundRecordingResolver{objectID, &soundRecording})
+		recordings = append(recordings, recording)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return response, nil
+	return recordings, nil
+}
+
+func (r *Resolver) soundRecordingResolver(objectID string) (*SoundRecordingResolver, error) {
+	id, err := cid.Parse(objectID)
+	if err != nil {
+		return nil, err
+	}
+
+	obj, err := r.store.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	source, err := obj.GetString("@source")
+	if err != nil {
+		return nil, err
+	}
+
+	soundRecordingId, err := DecodeObj(r.store, obj, "SoundRecordingId", "ISRC")
+	if err != nil {
+		return nil, err
+	}
+
+	soundRecordingType, err := DecodeObj(r.store, obj, "SoundRecordingType")
+	if err != nil {
+		return nil, err
+	}
+
+	referenceTitle, err := DecodeObj(r.store, obj, "ReferenceTitle", "TitleText")
+	if err != nil {
+		return nil, err
+	}
+
+	recording := &SoundRecordingResolver{
+		resolver:           r,
+		cid:                objectID,
+		source:             source,
+		soundRecordingId:   soundRecordingId.Value,
+		soundRecordingType: soundRecordingType.Value,
+		referenceTitle:     referenceTitle.Value,
+	}
+
+	detailIDs, err := decodeLinks(r.store, obj, "SoundRecordingDetailsByTerritory")
+	if err != nil {
+		return nil, err
+	}
+	for _, detailID := range detailIDs {
+		obj, err := r.store.Get(detailID)
+		if err != nil {
+			return nil, err
+		}
+		titleIDs, err := decodeLinks(r.store, obj, "Title")
+		if err != nil {
+			return nil, err
+		}
+		var titles []*TitleResolver
+		for _, titleID := range titleIDs {
+			obj, err := r.store.Get(titleID)
+			if err != nil {
+				return nil, err
+			}
+			titleText, err := DecodeObj(r.store, obj, "TitleText")
+			if err != nil {
+				return nil, err
+			}
+			var titleType metaxml.Value
+			if v, err := DecodeObj(r.store, obj, "TitleType"); err == nil {
+				titleType = *v
+			}
+			titles = append(titles, &TitleResolver{
+				titleType: titleType.Value,
+				titleText: titleText.Value,
+			})
+		}
+		var artistName metaxml.Value
+		if v, err := DecodeObj(r.store, obj, "DisplayArtistName"); err == nil {
+			artistName = *v
+		}
+		var labelName metaxml.Value
+		if v, err := DecodeObj(r.store, obj, "LabelName"); err == nil {
+			labelName = *v
+		}
+		var territoryCode metaxml.Value
+		if v, err := DecodeObj(r.store, obj, "TerritoryCode"); err == nil {
+			territoryCode = *v
+		}
+		var genre metaxml.Value
+		if v, err := DecodeObj(r.store, obj, "Genre", "GenreText"); err == nil {
+			genre = *v
+		}
+		var parentalWarningType metaxml.Value
+		if v, err := DecodeObj(r.store, obj, "ParentalWarningType"); err == nil {
+			parentalWarningType = *v
+		}
+		artistIDs, err := decodeLinks(r.store, obj, "DisplayArtist")
+		if err != nil {
+			return nil, err
+		}
+		var artists []*ArtistResolver
+		for _, artistID := range artistIDs {
+			party, err := r.partyResolver(artistID.String())
+			if err != nil {
+				return nil, err
+			}
+			var role metaxml.Value
+			if v, err := DecodeObj(r.store, obj, "ArtistRole"); err == nil {
+				role = *v
+			}
+			artists = append(artists, &ArtistResolver{
+				party: party,
+				role:  role.Value,
+			})
+		}
+		recording.detailsByTerritory = append(recording.detailsByTerritory, &SoundRecordingDetailsResolver{
+			cid:                 obj.Cid().String(),
+			title:               titles,
+			displayArtist:       artists,
+			displayArtistName:   artistName.Value,
+			labelName:           labelName.Value,
+			territoryCode:       territoryCode.Value,
+			genre:               genre.Value,
+			parentalWarningType: parentalWarningType.Value,
+		})
+
+	}
+	return recording, nil
 }
 
 /*
 * Release
  */
 
-type releaseArgs struct {
+type ReleaseArgs struct {
 	ID    *string
 	Title *string
 }
 
-type releaseResolver struct {
-	cid     string
-	release *Release
+type ReleaseResolver struct {
+	resolver           *Resolver
+	cid                string
+	source             string
+	releaseID          *ReleaseIDResolver
+	releaseType        string
+	referenceTitle     string
+	detailsByTerritory []*ReleaseDetailsResolver
 }
 
-func (rl *releaseResolver) Cid() string {
-	return rl.cid
+func (r *ReleaseResolver) Cid() string {
+	return r.cid
 }
 
-func (rl *releaseResolver) ArtistName() string {
-	return rl.release.ArtistName
+func (r *ReleaseResolver) Source() string {
+	return r.source
 }
 
-func (rl *releaseResolver) DisplayTitle() string {
-	return rl.release.DisplayTitle
+func (r *ReleaseResolver) ReleaseID() *ReleaseIDResolver {
+	return r.releaseID
 }
 
-func (rl *releaseResolver) Genre() *string {
-	return &rl.release.Genre
+func (r *ReleaseResolver) ReleaseType() string {
+	return r.releaseType
 }
 
-func (rl *releaseResolver) ReleaseType() *string {
-	return &rl.release.ReleaseType
+func (r *ReleaseResolver) ReferenceTitle() string {
+	return r.referenceTitle
 }
 
-func (rl *releaseResolver) ReleaseId() *string {
-	return &rl.release.ReleaseId
+func (r *ReleaseResolver) DetailsByTerritory() []*ReleaseDetailsResolver {
+	return r.detailsByTerritory
 }
 
-func (g *Resolver) Release(args releaseArgs) ([]*releaseResolver, error) {
+func (r *ReleaseResolver) Parties() ([]*PartyResolver, error) {
+	rows, err := r.resolver.db.Query(
+		"SELECT sender_id FROM ern INNER JOIN release_list ON release_list.ern_id = ern.cid WHERE release_list.release_id = ?",
+		r.cid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var parties []*PartyResolver
+	for rows.Next() {
+		var objectID string
+		if err := rows.Scan(&objectID); err != nil {
+			return nil, err
+		}
+		party, err := r.resolver.partyResolver(objectID)
+		if err != nil {
+			return nil, err
+		}
+		parties = append(parties, party)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return parties, nil
+}
+
+func (r *ReleaseResolver) SoundRecordings() ([]*SoundRecordingResolver, error) {
+	rows, err := r.resolver.db.Query(
+		"SELECT sound_recording_id FROM sound_recording_release WHERE release_id = ?",
+		r.cid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var recordings []*SoundRecordingResolver
+	for rows.Next() {
+		var objectID string
+		if err := rows.Scan(&objectID); err != nil {
+			return nil, err
+		}
+		recording, err := r.resolver.soundRecordingResolver(objectID)
+		if err != nil {
+			return nil, err
+		}
+		recordings = append(recordings, recording)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return recordings, nil
+}
+
+type ReleaseIDResolver struct {
+	grid string
+	icpn string
+}
+
+func (r *ReleaseIDResolver) GRID() string {
+	return r.grid
+}
+
+func (r *ReleaseIDResolver) ICPN() string {
+	return r.icpn
+}
+
+type ReleaseDetailsResolver struct {
+	cid               string
+	title             []*TitleResolver
+	displayArtist     []*ArtistResolver
+	displayArtistName string
+	labelName         string
+	territoryCode     string
+	releaseDate       string
+	genre             string
+}
+
+func (r *ReleaseDetailsResolver) Cid() string {
+	return r.cid
+}
+
+func (r *ReleaseDetailsResolver) Title() []*TitleResolver {
+	return r.title
+}
+
+func (r *ReleaseDetailsResolver) DisplayArtist() []*ArtistResolver {
+	return r.displayArtist
+}
+
+func (r *ReleaseDetailsResolver) DisplayArtistName() string {
+	return r.displayArtistName
+}
+
+func (r *ReleaseDetailsResolver) LabelName() string {
+	return r.labelName
+}
+
+func (r *ReleaseDetailsResolver) TerritoryCode() string {
+	return r.territoryCode
+}
+
+func (r *ReleaseDetailsResolver) ReleaseDate() string {
+	return r.releaseDate
+}
+
+func (r *ReleaseDetailsResolver) Genre() string {
+	return r.genre
+}
+
+func (g *Resolver) Release(args ReleaseArgs) ([]*ReleaseResolver, error) {
 	var rows *sql.Rows
 	var err error
-
 	switch {
 	case args.ID != nil:
 		rows, err = g.db.Query("SELECT cid FROM release WHERE id = ?", *args.ID)
@@ -400,122 +822,163 @@ func (g *Resolver) Release(args releaseArgs) ([]*releaseResolver, error) {
 	default:
 		return nil, errors.New("Missing ID or Title argument in query")
 	}
-
 	if err != nil {
 		return nil, err
 	}
-
 	defer rows.Close()
 
-	var response []*releaseResolver
-
+	var releases []*ReleaseResolver
 	for rows.Next() {
 		var objectID string
-
 		if err := rows.Scan(&objectID); err != nil {
 			return nil, err
 		}
 
-		id, err := cid.Parse(objectID)
-
+		release, err := g.releaseResolver(objectID)
 		if err != nil {
 			return nil, err
 		}
 
-		obj, err := g.store.Get(id)
-
-		if err != nil {
-			return nil, err
-		}
-
-		var ArtistName struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &ArtistName, "ReleaseDetailsByTerritory", "DisplayArtist", "PartyName", "FullName"); err != nil {
-			return nil, err
-		}
-
-		// Title field can be either a single object, or multiple
-		// with varying "TitleType"s
-		// So the parent object should be loaded and then traversed accordingly
-		graph := meta.NewGraph(g.store, obj)
-		titles, err := graph.Get("ReleaseDetailsByTerritory", "Title")
-		if err != nil {
-			return nil, err
-		}
-		var cids []*cid.Cid
-		switch titles := titles.(type) {
-		case *format.Link:
-			cids = []*cid.Cid{titles.Cid}
-		case []interface{}:
-			for _, x := range titles {
-				cid, ok := x.(*cid.Cid)
-				if !ok {
-					return nil, fmt.Errorf("invalid resource type %T, expected *cid.Cid", x)
-				}
-				cids = append(cids, cid)
-			}
-		}
-
-		var DisplayTitle struct {
-			Value string `json:"@value"`
-		}
-		// Load each title CID and check for the TitleType
-		for _, cid := range cids {
-			obj, err := g.store.Get(cid)
-			if err != nil {
-				return nil, err
-			}
-			tt, err := obj.Get("TitleType")
-			if err != nil {
-				return nil, err
-			}
-
-			if tt.(string) == "DisplayTitle" {
-				if err := DecodeObj(g.store, obj, &DisplayTitle, "TitleText"); err != nil {
-					return nil, err
-				}
-			}
-		}
-
-		var Genre struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &Genre, "ReleaseDetailsByTerritory", "Genre", "GenreText"); err != nil {
-			return nil, err
-		}
-
-		var ReleaseType struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &ReleaseType, "ReleaseType"); err != nil {
-			return nil, err
-		}
-
-		var ReleaseId struct {
-			Value string `json:"@value"`
-		}
-
-		if err := DecodeObj(g.store, obj, &ReleaseId, "ReleaseId", "ISRC"); err != nil {
-			return nil, err
-		}
-
-		var release Release
-		release.ArtistName = ArtistName.Value
-		release.DisplayTitle = DisplayTitle.Value
-		release.Genre = Genre.Value
-		release.ReleaseType = ReleaseType.Value
-		release.ReleaseId = ReleaseId.Value
-
-		response = append(response, &releaseResolver{objectID, &release})
+		releases = append(releases, release)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return response, nil
+	return releases, nil
+}
+
+func (r *Resolver) releaseResolver(objectID string) (*ReleaseResolver, error) {
+	id, err := cid.Parse(objectID)
+	if err != nil {
+		return nil, err
+	}
+
+	obj, err := r.store.Get(id)
+	if err != nil {
+		return nil, err
+	}
+
+	source, err := obj.GetString("@source")
+	if err != nil {
+		return nil, err
+	}
+
+	var grid metaxml.Value
+	if v, err := DecodeObj(r.store, obj, "ReleaseId", "GRid"); err == nil {
+		grid = *v
+	}
+
+	var icpn metaxml.Value
+	if v, err := DecodeObj(r.store, obj, "ReleaseId", "ICPN"); err == nil {
+		icpn = *v
+	}
+
+	releaseType, err := DecodeObj(r.store, obj, "ReleaseType")
+	if err != nil {
+		return nil, err
+	}
+
+	referenceTitle, err := DecodeObj(r.store, obj, "ReferenceTitle", "TitleText")
+	if err != nil {
+		return nil, err
+	}
+
+	release := &ReleaseResolver{
+		resolver: r,
+		cid:      objectID,
+		source:   source,
+		releaseID: &ReleaseIDResolver{
+			grid: grid.Value,
+			icpn: icpn.Value,
+		},
+		releaseType:    releaseType.Value,
+		referenceTitle: referenceTitle.Value,
+	}
+
+	detailIDs, err := decodeLinks(r.store, obj, "ReleaseDetailsByTerritory")
+	if err != nil {
+		return nil, err
+	}
+	for _, detailID := range detailIDs {
+		obj, err := r.store.Get(detailID)
+		if err != nil {
+			return nil, err
+		}
+		titleIDs, err := decodeLinks(r.store, obj, "Title")
+		if err != nil {
+			return nil, err
+		}
+		var titles []*TitleResolver
+		for _, titleID := range titleIDs {
+			obj, err := r.store.Get(titleID)
+			if err != nil {
+				return nil, err
+			}
+			titleText, err := DecodeObj(r.store, obj, "TitleText")
+			if err != nil {
+				return nil, err
+			}
+			var titleType metaxml.Value
+			if v, err := DecodeObj(r.store, obj, "TitleType"); err == nil {
+				titleType = *v
+			}
+			titles = append(titles, &TitleResolver{
+				titleType: titleType.Value,
+				titleText: titleText.Value,
+			})
+		}
+		var artistName metaxml.Value
+		if v, err := DecodeObj(r.store, obj, "DisplayArtistName"); err == nil {
+			artistName = *v
+		}
+		var labelName metaxml.Value
+		if v, err := DecodeObj(r.store, obj, "LabelName"); err == nil {
+			labelName = *v
+		}
+		var territoryCode metaxml.Value
+		if v, err := DecodeObj(r.store, obj, "TerritoryCode"); err == nil {
+			territoryCode = *v
+		}
+		var genre metaxml.Value
+		if v, err := DecodeObj(r.store, obj, "Genre", "GenreText"); err == nil {
+			genre = *v
+		}
+		var releaseDate metaxml.Value
+		if v, err := DecodeObj(r.store, obj, "ReleaseDate"); err == nil {
+			releaseDate = *v
+		}
+		artistIDs, err := decodeLinks(r.store, obj, "DisplayArtist")
+		if err != nil {
+			return nil, err
+		}
+		var artists []*ArtistResolver
+		for _, artistID := range artistIDs {
+			party, err := r.partyResolver(artistID.String())
+			if err != nil {
+				return nil, err
+			}
+			var role metaxml.Value
+			if v, err := DecodeObj(r.store, obj, "ArtistRole"); err == nil {
+				role = *v
+			}
+			artists = append(artists, &ArtistResolver{
+				party: party,
+				role:  role.Value,
+			})
+		}
+		release.detailsByTerritory = append(release.detailsByTerritory, &ReleaseDetailsResolver{
+			cid:               obj.Cid().String(),
+			title:             titles,
+			displayArtist:     artists,
+			displayArtistName: artistName.Value,
+			labelName:         labelName.Value,
+			territoryCode:     territoryCode.Value,
+			releaseDate:       releaseDate.Value,
+			genre:             genre.Value,
+		})
+
+	}
+	return release, nil
 }

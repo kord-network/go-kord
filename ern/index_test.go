@@ -17,78 +17,26 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package ern
+package ern_test
 
 import (
-	"context"
-	"os"
-	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/ipfs/go-cid"
-	"github.com/meta-network/go-meta"
+	cid "github.com/ipfs/go-cid"
+	meta "github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/testutil"
+	"github.com/meta-network/go-meta/testutil/index"
 )
 
 func TestIndex(t *testing.T) {
-	// convert the test ERNs to META objects
-	erns := []string{
-		"Profile_AudioAlbumMusicOnly.xml",
-		"Profile_AudioSingle.xml",
-		"Profile_AudioAlbum_WithBooklet.xml",
-		"Profile_AudioSingle_WithCompoundArtistsAndTerritorialOverride.xml",
-		"Profile_AudioBook.xml",
-	}
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	converter := NewConverter(store)
-	cids := make([]*cid.Cid, len(erns))
-	for i, path := range erns {
-		f, err := os.Open(filepath.Join("testdata", path))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer f.Close()
-		cid, err := converter.ConvertERN(f, "test")
-		if err != nil {
-			t.Fatal(err)
-		}
-		cids[i] = cid
-	}
 
-	// index the stream of ERNs
-	writer, err := store.StreamWriter("ern.meta")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer writer.Close()
-	if err := writer.Write(cids...); err != nil {
-		t.Fatal(err)
-	}
-
-	index, err := store.OpenIndex("ern.index.meta")
-	if err != nil {
-		t.Fatal(err)
-	}
-	indexer, err := NewIndexer(index, store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	reader, err := store.StreamReader("ern.meta", meta.StreamLimit(len(cids)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer reader.Close()
-	if err := indexer.Index(ctx, reader); err != nil {
-		t.Fatal(err)
-	}
+	index, cids := testindex.GenerateERNIndex(t, ".", store)
 
 	// check the MessageSender, MessageRecipient and DisplayArtist were indexed into the
 	// party table
-	for _, partyName := range []string{"NAME_OF_THE_SENDER", "NAME_OF_THE_RECIPIENT", "Monkey Claw"} {
+	for _, partyName := range []string{"NAME_OF_THE_SENDER", "NAME_OF_THE_RECIPIENT", "Ape Hand"} {
 		rows, err := index.Query(`SELECT cid FROM party WHERE name = ?`, partyName)
 		if err != nil {
 			t.Fatal(err)
