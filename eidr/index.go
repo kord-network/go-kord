@@ -53,13 +53,13 @@ func NewIndexer(index *meta.Index, store *meta.Store) (*Indexer, error) {
 	}, nil
 }
 
-func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) error {
+func (i *Indexer) Index(ctx context.Context, stream *meta.StreamReader) error {
 	return i.index.Update(func(tx *sql.Tx) error {
 		for {
 			select {
-			case cid, ok := <-stream:
+			case cid, ok := <-stream.Ch():
 				if !ok {
-					return nil
+					return stream.Err()
 				}
 				obj, err := i.store.Get(cid)
 				if err != nil {

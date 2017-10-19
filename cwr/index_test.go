@@ -215,11 +215,14 @@ func newTestIndex(t *testing.T, store *meta.Store) (x *testIndex, err error) {
 	}
 
 	// create a stream of CWR
-	stream := make(chan *cid.Cid)
-	go func() {
-		defer close(stream)
-		stream <- x.cwrCid
-	}()
+	writer, err := x.store.StreamWriter("cwr.meta")
+	if err != nil {
+		return nil, err
+	}
+	defer writer.Close()
+	if err := writer.Write(x.cwrCid); err != nil {
+		return nil, err
+	}
 
 	// index the stream of CWR txs
 	x.index, err = store.OpenIndex("cwr.index.meta")
@@ -233,7 +236,12 @@ func newTestIndex(t *testing.T, store *meta.Store) (x *testIndex, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := indexer.Index(ctx, stream); err != nil {
+	reader, err := x.store.StreamReader("cwr.meta", meta.StreamLimit(1))
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	if err := indexer.Index(ctx, reader); err != nil {
 		return nil, err
 	}
 	return x, nil

@@ -26,6 +26,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -225,23 +226,29 @@ func (g *Graph) Get(path ...string) (interface{}, error) {
 // Store provides storage for objects using a local Swarm chunk database
 // and uses ENS to resolve names to hashes.
 type Store struct {
-	api *swarmapi.Api
-	dpa *storage.DPA
-	ens ENS
+	api       *swarmapi.Api
+	dpa       *storage.DPA
+	ens       ENS
+	streamDir string
 }
 
 // NewStore returns a new store which maintains a local Swarm chunk databsse
 // in the given directory and uses the given ENS to resolve names to hashes.
 func NewStore(dir string, ens ENS) (*Store, error) {
+	streamDir := filepath.Join(dir, "streams")
+	if err := os.MkdirAll(streamDir, 0755); err != nil {
+		return nil, err
+	}
 	dpa, err := storage.NewLocalDPA(dir)
 	if err != nil {
 		return nil, err
 	}
 	dpa.Start()
 	return &Store{
-		api: swarmapi.NewApi(dpa, ens),
-		dpa: dpa,
-		ens: ens,
+		api:       swarmapi.NewApi(dpa, ens),
+		dpa:       dpa,
+		ens:       ens,
+		streamDir: streamDir,
 	}, nil
 }
 
@@ -300,6 +307,20 @@ func (s *Store) MustPut(v interface{}) *Object {
 		panic(err)
 	}
 	return obj
+}
+
+// StreamWriter returns a StreamWriter which writes CIDs to a local file.
+func (s *Store) StreamWriter(name string) (*StreamWriter, error) {
+	return NewStreamWriter(s.streamPath(name))
+}
+
+// StreamReader returns a StreamReader which reads CIDs from a local file.
+func (s *Store) StreamReader(name string, opts ...StreamOpts) (*StreamReader, error) {
+	return NewStreamReader(s.streamPath(name), opts...)
+}
+
+func (s *Store) streamPath(name string) string {
+	return filepath.Join(s.streamDir, name)
 }
 
 // OpenIndex opens the META index with the given name by fetching it from

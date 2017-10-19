@@ -20,7 +20,6 @@
 package cli
 
 import (
-	"bufio"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -29,6 +28,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/docopt/docopt-go"
@@ -52,16 +52,18 @@ usage: meta convert [--source=<source>] xml <file> [<context>...]
        meta convert [--source=<source>] ern <files>...
        meta convert [--source=<source>] eidr <files>...
        meta convert [--source=<source>] musicbrainz <type> <postgres-uri>
-       meta index cwr <ens-name>
-       meta index ern <ens-name>
-       meta index eidr <ens-name>
-       meta index musicbrainz <type> <ens-name>
+       meta index cwr <ens-name> [--count=<count>]
+       meta index ern <ens-name> [--count=<count>]
+       meta index eidr <ens-name> [--count=<count>]
+       meta index musicbrainz <type> <ens-name> [--count=<count>]
        meta dump [--format=<format>] <path>
        meta server [--port=<port>] [--cors-domain=<domain>...] [--index=<index>...]
 
 options:
   --source=<source>           The value to set as @source on all created META objects
                               (defaults to value of the META_SOURCE environment variable).
+
+  --count=<count>             The number of CIDs to index from a stream.
 
   --format=<format>           The format to dump objects when running 'meta dump'.
 
@@ -307,7 +309,7 @@ func (cli *CLI) RunMusicBrainzConvert(ctx context.Context, args Args) error {
 	defer db.Close()
 
 	converter := musicbrainz.NewConverter(db, cli.store)
-	var convertFn func(context.Context, chan *cid.Cid, string) error
+	var convertFn func(context.Context, *meta.StreamWriter, string) error
 	switch args.String("<type>") {
 	case "artists":
 		convertFn = converter.ConvertArtists
@@ -317,21 +319,14 @@ func (cli *CLI) RunMusicBrainzConvert(ctx context.Context, args Args) error {
 		return errors.New("unknown musicbrainz convert command")
 	}
 
-	// run the converter in a goroutine so that we only exit once all CIDs
-	// have been read from the stream
-	stream := make(chan *cid.Cid)
-	errC := make(chan error, 1)
-	go func() {
-		defer close(stream)
-		errC <- convertFn(ctx, stream, args.String("--source"))
-	}()
-
-	// output the resulting CIDs to stdout
-	for cid := range stream {
-		fmt.Fprintln(cli.stdout, cid.String())
+	streamName := fmt.Sprintf("%s.musicbrainz.meta", args.String("<type>"))
+	stream, err := cli.store.StreamWriter(streamName)
+	if err != nil {
+		return err
 	}
+	defer stream.Close()
 
-	return <-errC
+	return convertFn(ctx, stream, args.String("--source"))
 }
 
 func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, index *meta.Index, args Args) error {
@@ -340,7 +335,7 @@ func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, index *meta.Index, args
 		return err
 	}
 
-	var indexFn func(context.Context, chan *cid.Cid) error
+	var indexFn func(context.Context, *meta.StreamReader) error
 	switch args.String("<type>") {
 	case "artists":
 		indexFn = indexer.IndexArtists
@@ -350,37 +345,49 @@ func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, index *meta.Index, args
 		return errors.New("unknown musicbrainz index command")
 	}
 
-	// stream the CIDs from stdin
-	stream := make(chan *cid.Cid)
-	go func() {
-		defer close(stream)
-		s := bufio.NewScanner(cli.stdin)
-		for s.Scan() {
-			cid, err := cid.Parse(s.Text())
-			if err != nil {
-				log.Error("error parsing cid", "value", s.Text(), "err", err)
-				return
-			}
-			stream <- cid
-		}
-	}()
-	return indexFn(ctx, stream)
+	streamName := fmt.Sprintf("%s.musicbrainz.meta", args.String("<type>"))
+	var streamOpts []meta.StreamOpts
+	if _, ok := args["--count"]; ok {
+		streamOpts = append(streamOpts, meta.StreamLimit(args.Int("--count")))
+	}
+	reader, err := cli.store.StreamReader(streamName, streamOpts...)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	return indexFn(ctx, reader)
 }
 
 func (cli *CLI) RunCwrConvert(ctx context.Context, args Args) error {
+	stream, err := cli.store.StreamWriter("cwr.meta")
+	if err != nil {
+		return err
+	}
+	defer stream.Close()
+
 	converter := cwr.NewConverter(cli.store)
-	files := args.List("<files>")
-	for _, file := range files {
+	for _, file := range args.List("<files>") {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		f, err := os.Open(file)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
+
 		cid, err := converter.ConvertCWR(f, args.String("--source"))
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(cli.stdout, cid.String())
+
+		if err := stream.Write(cid); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -391,37 +398,48 @@ func (cli *CLI) RunCwrIndex(ctx context.Context, index *meta.Index, args Args) e
 		return err
 	}
 
-	// stream the CIDs from stdin
-	stream := make(chan *cid.Cid)
-	go func() {
-		defer close(stream)
-		s := bufio.NewScanner(cli.stdin)
-		for s.Scan() {
-			cid, err := cid.Parse(s.Text())
-			if err != nil {
-				log.Error("error parsing cid", "value", s.Text(), "err", err)
-				return
-			}
-			stream <- cid
-		}
-	}()
-	return indexer.Index(ctx, stream)
+	var streamOpts []meta.StreamOpts
+	if _, ok := args["--count"]; ok {
+		streamOpts = append(streamOpts, meta.StreamLimit(args.Int("--count")))
+	}
+	reader, err := cli.store.StreamReader("cwr.meta", streamOpts...)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	return indexer.Index(ctx, reader)
 }
 
 func (cli *CLI) RunERNConvert(ctx context.Context, args Args) error {
+	stream, err := cli.store.StreamWriter("ern.meta")
+	if err != nil {
+		return err
+	}
+	defer stream.Close()
+
 	converter := ern.NewConverter(cli.store)
-	files := args.List("<files>")
-	for _, file := range files {
+	for _, file := range args.List("<files>") {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
 		f, err := os.Open(file)
 		if err != nil {
 			return err
 		}
 		defer f.Close()
+
 		cid, err := converter.ConvertERN(f, args.String("--source"))
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(cli.stdout, cid.String())
+
+		if err := stream.Write(cid); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -432,47 +450,50 @@ func (cli *CLI) RunERNIndex(ctx context.Context, index *meta.Index, args Args) e
 		return err
 	}
 
-	// stream the CIDs from stdin
-	stream := make(chan *cid.Cid)
-	go func() {
-		defer close(stream)
-		s := bufio.NewScanner(cli.stdin)
-		for s.Scan() {
-			cid, err := cid.Parse(s.Text())
-			if err != nil {
-				log.Error("error parsing cid", "value", s.Text(), "err", err)
-				return
-			}
-			stream <- cid
-		}
-	}()
-	return indexer.Index(ctx, stream)
+	var streamOpts []meta.StreamOpts
+	if _, ok := args["--count"]; ok {
+		streamOpts = append(streamOpts, meta.StreamLimit(args.Int("--count")))
+	}
+	reader, err := cli.store.StreamReader("ern.meta", streamOpts...)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	return indexer.Index(ctx, reader)
 }
 
 func (cli *CLI) RunEIDRConvert(ctx context.Context, args Args) error {
-	converter := eidr.NewConverter(cli.store)
-	files := args.List("<files>")
-	stream := make(chan *cid.Cid)
-	go func() {
-		defer close(stream)
-		for _, file := range files {
-			f, err := os.Open(file)
-			if err != nil {
-				continue
-			}
-			defer f.Close()
-			cid, err := converter.ConvertEIDRXML(f, args.String("--source"))
-			if err != nil {
-				continue
-			}
-			stream <- cid
-		}
-	}()
-
-	// output the resulting CIDs to stdout
-	for cid := range stream {
-		fmt.Fprintln(cli.stdout, cid.String())
+	stream, err := cli.store.StreamWriter("eidr.meta")
+	if err != nil {
+		return err
 	}
+	defer stream.Close()
+
+	converter := eidr.NewConverter(cli.store)
+	for _, file := range args.List("<files>") {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		f, err := os.Open(file)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		cid, err := converter.ConvertEIDRXML(f, args.String("--source"))
+		if err != nil {
+			return err
+		}
+
+		if err := stream.Write(cid); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -482,21 +503,17 @@ func (cli *CLI) RunEIDRIndex(ctx context.Context, index *meta.Index, args Args) 
 		return err
 	}
 
-	// stream the CIDs from stdin
-	stream := make(chan *cid.Cid)
-	go func() {
-		defer close(stream)
-		s := bufio.NewScanner(cli.stdin)
-		for s.Scan() {
-			cid, err := cid.Parse(s.Text())
-			if err != nil {
-				log.Error("error parsing cid", "value", s.Text(), "err", err)
-				return
-			}
-			stream <- cid
-		}
-	}()
-	return indexer.Index(ctx, stream)
+	var streamOpts []meta.StreamOpts
+	if _, ok := args["--count"]; ok {
+		streamOpts = append(streamOpts, meta.StreamLimit(args.Int("--count")))
+	}
+	reader, err := cli.store.StreamReader("eidr.meta", streamOpts...)
+	if err != nil {
+		return err
+	}
+	defer reader.Close()
+
+	return indexer.Index(ctx, reader)
 }
 
 type Args map[string]interface{}
@@ -514,6 +531,25 @@ func (a Args) String(name string) string {
 		panic(fmt.Sprintf("invalid string arg: %s", name))
 	}
 	return s
+}
+
+func (a Args) Int(name string) int {
+	v, ok := a[name]
+	if !ok {
+		panic(fmt.Sprintf("missing arg: %s", name))
+	}
+	if v == nil {
+		return 0
+	}
+	s, ok := v.(string)
+	if !ok {
+		panic(fmt.Sprintf("invalid int arg: %s", name))
+	}
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		panic(fmt.Sprintf("invalid int arg: %s", name))
+	}
+	return i
 }
 
 func (a Args) List(name string) []string {
