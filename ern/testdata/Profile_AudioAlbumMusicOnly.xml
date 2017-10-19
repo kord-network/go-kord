@@ -424,6 +424,7 @@
 		<Release IsMainRelease="true">
 			<ReleaseId>
 				<GRid>A1UCASE0000000401X</GRid>
+				<ICPN IsEan="false">UPC000000001</ICPN>
 			</ReleaseId>
 			<ReleaseReference>R0</ReleaseReference>
 			<ReferenceTitle>

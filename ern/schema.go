@@ -206,6 +206,21 @@ CREATE TABLE sound_recording_contributor (
 CREATE INDEX sound_recording_contributor_id_idx    ON sound_recording_contributor (sound_recording_id);
 CREATE INDEX sound_recording_contributor_party_idx ON sound_recording_contributor (party_id);
 CREATE UNIQUE INDEX sound_recording_contributor_unique_idx ON sound_recording_contributor (sound_recording_id, party_id);
+
+--
+-- the sound_recording_release table associates a SoundRecording with one or
+-- many releases through the ResourceReference property
+--
+CREATE TABLE sound_recording_release (
+	-- sound_recording_id is the cid of the SoundRecording
+	sound_recording_id text NOT NULL,
+
+	-- release_id is the cid of the release
+	release_id text NOT NULL
+);
+CREATE INDEX sound_recording_release_id_idx      ON sound_recording_release (sound_recording_id);
+CREATE INDEX sound_recording_release_release_idx ON sound_recording_release (release_id);
+CREATE UNIQUE INDEX sound_recording_release_unique_idx ON sound_recording_release (sound_recording_id, release_id);
 `,
 	)
 }

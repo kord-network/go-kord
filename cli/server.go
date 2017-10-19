@@ -33,6 +33,7 @@ import (
 	"github.com/meta-network/go-meta/eidr"
 	"github.com/meta-network/go-meta/ern"
 	"github.com/meta-network/go-meta/identity"
+	"github.com/meta-network/go-meta/media"
 	"github.com/meta-network/go-meta/musicbrainz"
 	"github.com/meta-network/go-meta/stream"
 	"github.com/meta-network/go-meta/xml"
@@ -51,7 +52,8 @@ func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, erro
 	router.POST("/convert/xml", srv.HandleConvertXML)
 
 	// add the identity API at /meta-id
-	identityAPI := identity.NewAPI(identity.NewMemoryStore())
+	identityStore := identity.NewMemoryStore()
+	identityAPI := identity.NewAPI(identityStore)
 	router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
 	router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
 
@@ -60,40 +62,55 @@ func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, erro
 	router.Handler("GET", "/stream/*path", http.StripPrefix("/stream", streamAPI))
 	router.Handler("POST", "/stream/*path", http.StripPrefix("/stream", streamAPI))
 
+	mediaResolver := &media.Resolver{
+		Store:   store,
+		IDStore: identityStore,
+	}
+
 	if index, ok := indexes["musicbrainz"]; ok {
-		musicbrainzApi, err := musicbrainz.NewAPI(index.DB, store)
+		api, err := musicbrainz.NewAPI(index.DB, store)
 		if err != nil {
 			return nil, err
 		}
-		router.Handler("GET", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
-		router.Handler("POST", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
+		mediaResolver.MusicBrainz = api.Resolver()
+		router.Handler("GET", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", api))
+		router.Handler("POST", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", api))
 	}
 
 	if index, ok := indexes["cwr"]; ok {
-		cwrApi, err := cwr.NewAPI(index.DB, store)
+		api, err := cwr.NewAPI(index.DB, store)
 		if err != nil {
 			return nil, err
 		}
-		router.Handler("GET", "/cwr/*path", http.StripPrefix("/cwr", cwrApi))
-		router.Handler("POST", "/cwr/*path", http.StripPrefix("/cwr", cwrApi))
+		mediaResolver.Cwr = api.Resolver()
+		router.Handler("GET", "/cwr/*path", http.StripPrefix("/cwr", api))
+		router.Handler("POST", "/cwr/*path", http.StripPrefix("/cwr", api))
 	}
 
 	if index, ok := indexes["ern"]; ok {
-		ernApi, err := ern.NewAPI(index.DB, store)
+		api, err := ern.NewAPI(index.DB, store)
 		if err != nil {
 			return nil, err
 		}
-		router.Handler("GET", "/ern/*path", http.StripPrefix("/ern", ernApi))
-		router.Handler("POST", "/ern/*path", http.StripPrefix("/ern", ernApi))
+		mediaResolver.Ern = api.Resolver()
+		router.Handler("GET", "/ern/*path", http.StripPrefix("/ern", api))
+		router.Handler("POST", "/ern/*path", http.StripPrefix("/ern", api))
 	}
 	if index, ok := indexes["eidr"]; ok {
-		eidrApi, err := eidr.NewAPI(index.DB, store)
+		api, err := eidr.NewAPI(index.DB, store)
 		if err != nil {
 			return nil, err
 		}
-		router.Handler("GET", "/eidr/*path", http.StripPrefix("/eidr", eidrApi))
-		router.Handler("POST", "/eidr/*path", http.StripPrefix("/eidr", eidrApi))
+		router.Handler("GET", "/eidr/*path", http.StripPrefix("/eidr", api))
+		router.Handler("POST", "/eidr/*path", http.StripPrefix("/eidr", api))
 	}
+
+	mediaAPI, err := media.NewAPI(mediaResolver)
+	if err != nil {
+		return nil, err
+	}
+	router.Handler("GET", "/media/*path", http.StripPrefix("/media", mediaAPI))
+	router.Handler("POST", "/media/*path", http.StripPrefix("/media", mediaAPI))
 
 	// add the Swarm API at /bzz: and /bzzr:
 	swarmSrv := swarmhttp.NewServer(store.SwarmAPI())

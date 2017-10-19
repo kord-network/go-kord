@@ -31,27 +31,31 @@ import (
 
 // API is a http.Handler which serves GraphQL query responses using a Resolver.
 type API struct {
-	db     *sql.DB
-	store  *meta.Store
-	router *httprouter.Router
+	db       *sql.DB
+	store    *meta.Store
+	router   *httprouter.Router
+	resolver *Resolver
 }
 
 func NewAPI(db *sql.DB, store *meta.Store) (*API, error) {
-	schema, err := graphql.ParseSchema(
-		GraphQLSchema,
-		NewResolver(db, store),
-	)
+	resolver := NewResolver(db, store)
+	schema, err := graphql.ParseSchema(GraphQLSchema, resolver)
 	if err != nil {
 		return nil, err
 	}
 	api := &API{
-		db:     db,
-		store:  store,
-		router: httprouter.New(),
+		db:       db,
+		store:    store,
+		router:   httprouter.New(),
+		resolver: resolver,
 	}
 	api.router.GET("/", api.HandleIndex)
 	api.router.Handler("POST", "/graphql", &relay.Handler{Schema: schema})
 	return api, nil
+}
+
+func (a *API) Resolver() *Resolver {
+	return a.resolver
 }
 
 func (a *API) ServeHTTP(w http.ResponseWriter, req *http.Request) {

@@ -17,45 +17,30 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package ern
+package media
 
 import (
-	"database/sql"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/meta-network/go-meta"
-	"github.com/neelance/graphql-go"
+	graphql "github.com/neelance/graphql-go"
 	"github.com/neelance/graphql-go/relay"
 )
 
 // API is a http.Handler which serves GraphQL query responses using a Resolver.
 type API struct {
-	db       *sql.DB
-	store    *meta.Store
-	router   *httprouter.Router
-	resolver *Resolver
+	router *httprouter.Router
 }
 
-func NewAPI(db *sql.DB, store *meta.Store) (*API, error) {
-	resolver := NewResolver(db, store)
+func NewAPI(resolver *Resolver) (*API, error) {
 	schema, err := graphql.ParseSchema(GraphQLSchema, resolver)
 	if err != nil {
 		return nil, err
 	}
-	api := &API{
-		db:       db,
-		store:    store,
-		router:   httprouter.New(),
-		resolver: resolver,
-	}
+	api := &API{router: httprouter.New()}
 	api.router.GET("/", api.HandleIndex)
 	api.router.Handler("POST", "/graphql", &relay.Handler{Schema: schema})
 	return api, nil
-}
-
-func (a *API) Resolver() *Resolver {
-	return a.resolver
 }
 
 func (a *API) ServeHTTP(w http.ResponseWriter, req *http.Request) {

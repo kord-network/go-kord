@@ -23,11 +23,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-ipld-format"
+	"github.com/lmars/go-ipld-cbor"
 	"github.com/mattn/go-sqlite3"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/xml"
 )
 
 // Indexer is a META indexer which indexes a stream of META objects
@@ -76,18 +79,36 @@ func (i *Indexer) Index(ctx context.Context, stream *meta.StreamReader) error {
 	})
 }
 
+type indexContext struct {
+	tx   *sql.Tx
+	ern  *meta.Object
+	refs map[string]*cid.Cid
+}
+
 // indexERN indexes a DDEX ERN based on its MessageHeader, WorkList,
 // ResourceList and ReleaseList.
 func (i *Indexer) indexERN(tx *sql.Tx, ern *meta.Object) error {
 	graph := meta.NewGraph(i.store, ern)
+	ctx := &indexContext{
+		tx:   tx,
+		ern:  ern,
+		refs: make(map[string]*cid.Cid),
+	}
 
-	for field, indexFn := range map[string]func(*sql.Tx, *cid.Cid, *meta.Object) error{
-		"MessageHeader": i.indexMessageHeader,
-		"WorkList":      i.indexWorkList,
-		"ResourceList":  i.indexResourceList,
-		"ReleaseList":   i.indexReleaseList,
+	// index the properties in order to ensure we index ResourceReferences
+	// in the correct order (i.e. get the SoundRecording refs before
+	// indexing the Release)
+	type indexTask struct {
+		field   string
+		indexFn func(*indexContext, *meta.Object) error
+	}
+	for _, t := range []indexTask{
+		{"MessageHeader", i.indexMessageHeader},
+		{"WorkList", i.indexWorkList},
+		{"ResourceList", i.indexResourceList},
+		{"ReleaseList", i.indexReleaseList},
 	} {
-		v, err := graph.Get("NewReleaseMessage", field)
+		v, err := graph.Get("NewReleaseMessage", t.field)
 		if meta.IsPathNotFound(err) {
 			continue
 		} else if err != nil {
@@ -95,24 +116,18 @@ func (i *Indexer) indexERN(tx *sql.Tx, ern *meta.Object) error {
 		}
 		id, ok := v.(*cid.Cid)
 		if !ok {
-			return fmt.Errorf("unexpected field type for %q, expected *cid.Cid, got %T", field, v)
+			return fmt.Errorf("unexpected field type for %q, expected *cid.Cid, got %T", t.field, v)
 		}
-		if err := i.indexProperty(tx, ern.Cid(), id, indexFn); err != nil {
+		obj, err := i.store.Get(id)
+		if err != nil {
+			return err
+		}
+		if err := t.indexFn(ctx, obj); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-// indexProperty indexes a particular ERN property using the provided index
-// function.
-func (i *Indexer) indexProperty(tx *sql.Tx, ernID, cid *cid.Cid, indexFn func(*sql.Tx, *cid.Cid, *meta.Object) error) error {
-	obj, err := i.store.Get(cid)
-	if err != nil {
-		return err
-	}
-	return indexFn(tx, ernID, obj)
 }
 
 // isUniqueErr determines whether an error is a SQLite3 uniqueness error.
@@ -125,48 +140,47 @@ func isUniqueErr(err error) bool {
 }
 
 // DecodeObj decodes whatever is stored at path into the given value
-func DecodeObj(metaStore *meta.Store, metaObj *meta.Object, v interface{}, path ...string) (err error) {
-	graph := meta.NewGraph(metaStore, metaObj)
+func DecodeObj(store *meta.Store, obj *meta.Object, path ...string) (v *metaxml.Value, err error) {
+	graph := meta.NewGraph(store, obj)
 
 	defer func() {
 		if err != nil {
-			err = fmt.Errorf("Error decoding %s into %T: %s", path, v, err)
+			err = fmt.Errorf("Error decoding %s as metaxml.Value: %s", path, err)
 		}
 	}()
 
 	x, err := graph.Get(path...)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	id, ok := x.(*cid.Cid)
 	if !ok {
-		return fmt.Errorf("Expected %s to be *cid.Cid, got %T", path, x)
+		return nil, fmt.Errorf("Expected %s to be *cid.Cid, got %T", path, x)
 	}
 
-	obj, err := metaStore.Get(id)
+	obj, err = store.Get(id)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return obj.Decode(v)
+	v = &metaxml.Value{}
+	return v, obj.Decode(v)
 }
 
 // insertParty inserts the PartyName and PartyId fields of a Party object into
 // the party index.
 func (i *Indexer) insertParty(tx *sql.Tx, obj *meta.Object) error {
-	var partyID struct {
-		Value string `json:"@value"`
-	}
 	// explicitly ignore the returned error as it is ok for the PartyId to
 	// be missing
-	_ = DecodeObj(i.store, obj, &partyID, "PartyId")
-
-	var partyName struct {
-		Value string `json:"@value"`
+	var partyID metaxml.Value
+	if v, err := DecodeObj(i.store, obj, "PartyId"); err == nil {
+		partyID = *v
 	}
-	if err := DecodeObj(i.store, obj, &partyName, "PartyName", "FullName"); err != nil {
+
+	partyName, err := DecodeObj(i.store, obj, "PartyName", "FullName")
+	if err != nil {
 		return err
 	}
-	_, err := tx.Exec(
+	_, err = tx.Exec(
 		"INSERT INTO party (cid, id, name) VALUES ($1, $2, $3)",
 		obj.Cid().String(), partyID.Value, partyName.Value,
 	)
@@ -179,22 +193,9 @@ func (i *Indexer) insertParty(tx *sql.Tx, obj *meta.Object) error {
 // insertParties loads parties from the given field and inserts them into the
 // party index.
 func (i *Indexer) insertParties(tx *sql.Tx, obj *meta.Object, field string) ([]*cid.Cid, error) {
-	var ids []*cid.Cid
-	v, err := obj.Get(field)
+	ids, err := decodeLinks(i.store, obj, field)
 	if err != nil {
 		return nil, err
-	}
-	switch v := v.(type) {
-	case *format.Link:
-		ids = []*cid.Cid{v.Cid}
-	case []interface{}:
-		for _, x := range v {
-			id, ok := x.(*cid.Cid)
-			if !ok {
-				return nil, fmt.Errorf("invalid party type %T, expected *cid.Cid", x)
-			}
-			ids = append(ids, id)
-		}
 	}
 	for _, id := range ids {
 		party, err := i.store.Get(id)
@@ -210,8 +211,8 @@ func (i *Indexer) insertParties(tx *sql.Tx, obj *meta.Object, field string) ([]*
 
 // indexMessageHeader indexes an ERN MessageHeader based on its MessageId,
 // MessageThreadId, MessageSender, MessageRecipient and MessageCreatedDateTime.
-func (i *Indexer) indexMessageHeader(tx *sql.Tx, ernID *cid.Cid, obj *meta.Object) error {
-	senders, err := i.insertParties(tx, obj, "MessageSender")
+func (i *Indexer) indexMessageHeader(ctx *indexContext, obj *meta.Object) error {
+	senders, err := i.insertParties(ctx.tx, obj, "MessageSender")
 	if err != nil {
 		return err
 	}
@@ -220,7 +221,7 @@ func (i *Indexer) indexMessageHeader(tx *sql.Tx, ernID *cid.Cid, obj *meta.Objec
 	}
 	sender := senders[0]
 
-	recipients, err := i.insertParties(tx, obj, "MessageRecipient")
+	recipients, err := i.insertParties(ctx.tx, obj, "MessageRecipient")
 	if err != nil {
 		return err
 	}
@@ -231,60 +232,41 @@ func (i *Indexer) indexMessageHeader(tx *sql.Tx, ernID *cid.Cid, obj *meta.Objec
 
 	// get the MessageId, MessageThreadId and MessageCreatedDateTime
 	// values
-	var messageID struct {
-		Value string `json:"@value"`
-	}
-	if err := DecodeObj(i.store, obj, &messageID, "MessageId"); err != nil {
+	messageID, err := DecodeObj(i.store, obj, "MessageId")
+	if err != nil {
 		return err
 	}
-	var threadID struct {
-		Value string `json:"@value"`
-	}
-	if err := DecodeObj(i.store, obj, &threadID, "MessageThreadId"); err != nil {
+	threadID, err := DecodeObj(i.store, obj, "MessageThreadId")
+	if err != nil {
 		return err
 	}
-	var created struct {
-		Value string `json:"@value"`
-	}
-	if err := DecodeObj(i.store, obj, &created, "MessageCreatedDateTime"); err != nil {
+	created, err := DecodeObj(i.store, obj, "MessageCreatedDateTime")
+	if err != nil {
 		return err
 	}
 
 	// update the ERN index
-	_, err = tx.Exec(
+	_, err = ctx.tx.Exec(
 		"INSERT INTO ern (cid, message_id, thread_id, sender_id, recipient_id, created) VALUES ($1, $2, $3, $4, $5, $6)",
-		ernID.String(), messageID.Value, threadID.Value, sender.String(), recipient.String(), created.Value,
+		ctx.ern.Cid().String(), messageID.Value, threadID.Value, sender.String(), recipient.String(), created.Value,
 	)
 	return err
 }
 
-func (i *Indexer) indexWorkList(tx *sql.Tx, ernID *cid.Cid, obj *meta.Object) error {
+func (i *Indexer) indexWorkList(ctx *indexContext, obj *meta.Object) error {
 	// TODO: index MusicalWorks
 	return nil
 }
 
 // indexResourceList indexes an ERN ResourceList based on SoundRecordings.
-func (i *Indexer) indexResourceList(tx *sql.Tx, ernID *cid.Cid, obj *meta.Object) error {
+func (i *Indexer) indexResourceList(ctx *indexContext, obj *meta.Object) error {
 	// the SoundRecording property can either be a link if there is only
 	// one SoundRecording in the list, or an array of links if there are
 	// multiple SoundRecordings in the list, so we need to handle both
 	// cases
-	v, err := obj.Get("SoundRecording")
+	cids, err := decodeLinks(i.store, obj, "SoundRecording")
 	if err != nil {
 		return err
-	}
-	var cids []*cid.Cid
-	switch v := v.(type) {
-	case *format.Link:
-		cids = []*cid.Cid{v.Cid}
-	case []interface{}:
-		for _, x := range v {
-			cid, ok := x.(*cid.Cid)
-			if !ok {
-				return fmt.Errorf("invalid resource type %T, expected *cid.Cid", x)
-			}
-			cids = append(cids, cid)
-		}
 	}
 
 	// load and index each SoundRecording link
@@ -293,7 +275,7 @@ func (i *Indexer) indexResourceList(tx *sql.Tx, ernID *cid.Cid, obj *meta.Object
 		if err != nil {
 			return err
 		}
-		if err := i.indexSoundRecording(tx, ernID, obj); err != nil {
+		if err := i.indexSoundRecording(ctx, obj); err != nil {
 			return err
 		}
 	}
@@ -301,73 +283,90 @@ func (i *Indexer) indexResourceList(tx *sql.Tx, ernID *cid.Cid, obj *meta.Object
 	return nil
 }
 
-// indexSoundRecording indexes an ERN SoundRecording based on its ID (either an
-// ISRC, CatalogNumber or ProprietaryId) and its ReferenceTitle.
-func (i *Indexer) indexSoundRecording(tx *sql.Tx, ernID *cid.Cid, obj *meta.Object) error {
-	graph := meta.NewGraph(i.store, obj)
-
-	// Only *attempt* to load the ISRC, other IDs can be retrieved via GraphQL
-	// Default to empty string if not present
-	var isrc string
-	v, err := graph.Get("SoundRecordingId", "ISRC", "@value")
-	if err == nil {
-		isrc = v.(string)
-	}
-
-	// Insert the DisplayArtist to party table
-	srCid, err := obj.Get("SoundRecordingDetailsByTerritory")
+func decodeLinks(store *meta.Store, obj *meta.Object, field string) (cids []*cid.Cid, err error) {
+	v, err := obj.Get(field)
 	if err != nil {
-		return err
+		if strings.HasSuffix(err.Error(), cbornode.ErrNoSuchLink.Error()) {
+			err = nil
+		}
+		return nil, err
 	}
-	var cids []*cid.Cid
-	switch srCid := srCid.(type) {
+	switch v := v.(type) {
 	case *format.Link:
-		cids = []*cid.Cid{srCid.Cid}
+		cids = []*cid.Cid{v.Cid}
 	case []interface{}:
-		for _, x := range srCid {
+		for _, x := range v {
 			cid, ok := x.(*cid.Cid)
 			if !ok {
-				return fmt.Errorf("invalid resource type %T, expected *cid.Cid", x)
+				return nil, fmt.Errorf("invalid resource type %T, expected *cid.Cid", x)
 			}
 			cids = append(cids, cid)
 		}
 	}
+	return
+}
+
+// indexSoundRecording indexes an ERN SoundRecording based on its ID (either an
+// ISRC, CatalogNumber or ProprietaryId) and its ReferenceTitle.
+func (i *Indexer) indexSoundRecording(ctx *indexContext, obj *meta.Object) error {
+	// Only *attempt* to load the ISRC, other IDs can be retrieved via GraphQL
+	// Default to empty string if not present
+	var isrc metaxml.Value
+	if v, err := DecodeObj(i.store, obj, "SoundRecordingId", "ISRC"); err == nil {
+		isrc = *v
+	}
+
+	// Insert the DisplayArtist to party table
+	cids, err := decodeLinks(i.store, obj, "SoundRecordingDetailsByTerritory")
+	if err != nil {
+		return err
+	}
 	for _, cid := range cids {
-		obj, err := i.store.Get(cid)
+		detailsObj, err := i.store.Get(cid)
 		if err != nil {
 			return err
 		}
-		_, err = i.insertParties(tx, obj, "DisplayArtist")
+		artistIDs, err := i.insertParties(ctx.tx, detailsObj, "DisplayArtist")
 		if err != nil {
 			return err
+		}
+		for _, artistID := range artistIDs {
+			if _, err := ctx.tx.Exec(
+				"INSERT INTO sound_recording_contributor (sound_recording_id, party_id) VALUES($1, $2)",
+				obj.Cid().String(), artistID.String(),
+			); err != nil && !isUniqueErr(err) {
+				return err
+			}
 		}
 	}
 
 	// load the ReferenceTitle
-	var title string
-	rt, err := graph.Get("ReferenceTitle", "TitleText", "@value")
-	if err == nil {
-		title = rt.(string)
-	} else if !meta.IsPathNotFound(err) {
-		return err
+	var title metaxml.Value
+	if v, err := DecodeObj(i.store, obj, "ReferenceTitle", "TitleText"); err == nil {
+		title = *v
 	}
 
 	// return an error if there is no ReferenceTitle, SoundRecordingId can be empty
-	if title == "" {
+	if title.Value == "" {
 		return fmt.Errorf("SoundRecording missing ReferenceTitle")
 	}
 
+	// add the ResourceReference to ctx.refs
+	if ref, err := DecodeObj(i.store, obj, "ResourceReference"); err == nil {
+		ctx.refs[ref.Value] = obj.Cid()
+	}
+
 	// update the sound_recording and resource_list indexes
-	if _, err := tx.Exec(
+	if _, err := ctx.tx.Exec(
 		"INSERT INTO sound_recording (cid, id, title) VALUES ($1, $2, $3)",
-		obj.Cid().String(), isrc, title,
+		obj.Cid().String(), isrc.Value, title.Value,
 	); err != nil {
 		return err
 	}
 
-	if _, err := tx.Exec(
+	if _, err := ctx.tx.Exec(
 		"INSERT INTO resource_list (ern_id, resource_id) VALUES ($1, $2)",
-		ernID.String(), obj.Cid().String(),
+		ctx.ern.Cid().String(), obj.Cid().String(),
 	); err != nil {
 		return err
 	}
@@ -376,25 +375,12 @@ func (i *Indexer) indexSoundRecording(tx *sql.Tx, ernID *cid.Cid, obj *meta.Obje
 }
 
 // indexReleaseList indexes the ReleaseList for each Release composite
-func (i *Indexer) indexReleaseList(tx *sql.Tx, ernID *cid.Cid, metaObj *meta.Object) error {
+func (i *Indexer) indexReleaseList(ctx *indexContext, metaObj *meta.Object) error {
 	// Much like the resource list, the release propoerty can be
 	// a single release, or an array of links.
-	rls, err := metaObj.Get("Release")
+	cids, err := decodeLinks(i.store, metaObj, "Release")
 	if err != nil {
 		return err
-	}
-	var cids []*cid.Cid
-	switch rls := rls.(type) {
-	case *format.Link:
-		cids = []*cid.Cid{rls.Cid}
-	case []interface{}:
-		for _, x := range rls {
-			id, ok := x.(*cid.Cid)
-			if !ok {
-				return fmt.Errorf("Invalid release type %T, expected *cid.Cid", x)
-			}
-			cids = append(cids, id)
-		}
 	}
 
 	// load and index each Release link
@@ -403,7 +389,7 @@ func (i *Indexer) indexReleaseList(tx *sql.Tx, ernID *cid.Cid, metaObj *meta.Obj
 		if err != nil {
 			return err
 		}
-		if err := i.indexRelease(tx, ernID, rObj); err != nil {
+		if err := i.indexRelease(ctx, rObj); err != nil {
 			return err
 		}
 	}
@@ -411,43 +397,92 @@ func (i *Indexer) indexReleaseList(tx *sql.Tx, ernID *cid.Cid, metaObj *meta.Obj
 }
 
 // indexRelease index each Release composite in the ReelaseList
-func (i *Indexer) indexRelease(tx *sql.Tx, ernID *cid.Cid, metaObj *meta.Object) error {
-
-	graph := meta.NewGraph(i.store, metaObj)
-
+func (i *Indexer) indexRelease(ctx *indexContext, obj *meta.Object) error {
 	// Only *attempt* to load the GRid, other IDs can be retrieved via GraphQL
-	var grId string
-	v, err := graph.Get("ReleaseId", "GRid", "@value")
-	if err == nil {
-		grId = v.(string)
+	var grid metaxml.Value
+	if v, err := DecodeObj(i.store, obj, "ReleaseId", "GRid"); err == nil {
+		grid = *v
 	}
 
-	// load the ReferenceTitle
-	var title string
-	rtl, err := graph.Get("ReferenceTitle", "TitleText", "@value")
-	if err == nil {
-		title = rtl.(string)
-	} else if !meta.IsPathNotFound(err) {
-		return err
+	var icpn metaxml.Value
+	if v, err := DecodeObj(i.store, obj, "ReleaseId", "ICPN"); err == nil {
+		icpn = *v
 	}
 
-	// return an error if there is no ReferenceTitle, ReleaseId can be empty
-	if title == "" {
-		return fmt.Errorf("Release missing ReferenceTitle")
-	}
-
-	// update the release and release_list indexes
-	_, err = tx.Exec(
-		"INSERT INTO release (cid, id, title) VALUES ($1, $2, $3)",
-		metaObj.Cid().String(), grId, title,
-	)
+	// Insert the DisplayArtist to party table
+	cids, err := decodeLinks(i.store, obj, "ReleaseDetailsByTerritory")
 	if err != nil {
 		return err
 	}
+	for _, cid := range cids {
+		obj, err := i.store.Get(cid)
+		if err != nil {
+			return err
+		}
+		_, err = i.insertParties(ctx.tx, obj, "DisplayArtist")
+		if err != nil {
+			return err
+		}
+	}
 
-	_, err = tx.Exec(
+	// load the ReferenceTitle
+	var title metaxml.Value
+	if v, err := DecodeObj(i.store, obj, "ReferenceTitle", "TitleText"); err == nil {
+		title = *v
+	}
+
+	// return an error if there is no ReferenceTitle, ReleaseId can be empty
+	if title.Value == "" {
+		return fmt.Errorf("Release missing ReferenceTitle")
+	}
+
+	// update the sound_recording_release index
+	if listLink, err := obj.GetLink("ReleaseResourceReferenceList"); err == nil {
+		listObj, err := i.store.Get(listLink.Cid)
+		if err != nil {
+			return err
+		}
+		refIDs, err := decodeLinks(i.store, listObj, "ReleaseResourceReference")
+		if err != nil {
+			return err
+		}
+		for _, refID := range refIDs {
+			refObj, err := i.store.Get(refID)
+			if err != nil {
+				return err
+			}
+			var ref metaxml.Value
+			if err := refObj.Decode(&ref); err != nil {
+				return err
+			}
+			soundRecording, ok := ctx.refs[ref.Value]
+			if !ok {
+				continue
+			}
+			_, err = ctx.tx.Exec(
+				"INSERT INTO sound_recording_release (sound_recording_id, release_id) VALUES ($1, $2)",
+				soundRecording.String(), obj.Cid().String(),
+			)
+			if err != nil && !isUniqueErr(err) {
+				return err
+			}
+		}
+	}
+
+	// update the release and release_list indexes
+	for _, id := range []string{grid.Value, icpn.Value} {
+		_, err = ctx.tx.Exec(
+			"INSERT INTO release (cid, id, title) VALUES ($1, $2, $3)",
+			obj.Cid().String(), id, title.Value,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = ctx.tx.Exec(
 		"INSERT INTO release_list (ern_id, release_id) VALUES ($1, $2)",
-		ernID.String(), metaObj.Cid().String(),
+		ctx.ern.Cid().String(), obj.Cid().String(),
 	)
 	return err
 

@@ -55,24 +55,28 @@
 					<TitleText>Can you feel ...the Monkey Claw!</TitleText>
 				</Title>
 				<DisplayArtist SequenceNumber="1">
+					<PartyId>DPID_OF_THE_ARTIST_1</PartyId>
 					<PartyName>
 						<FullName>Monkey Claw</FullName>
 					</PartyName>
 					<ArtistRole>MainArtist</ArtistRole>
 				</DisplayArtist>
 				<DisplayArtist SequenceNumber="2">
+					<PartyId>DPID_OF_THE_ARTIST_1</PartyId>
 					<PartyName>
 						<FullName>Monkey Claw</FullName>
 					</PartyName>
                                         <ArtistRole>FeaturedArtist</ArtistRole>
 				</DisplayArtist>
 				<ResourceContributor SequenceNumber="1">
+					<PartyId>DPID_OF_THE_ARTIST_2</PartyId>
 					<PartyName>
 						<FullName>Steve Albino</FullName>
 					</PartyName>
 					<ResourceContributorRole>Producer</ResourceContributorRole>
 				</ResourceContributor>
 				<IndirectResourceContributor SequenceNumber="1">
+					<PartyId>DPID_OF_THE_ARTIST_3</PartyId>
 					<PartyName>
 						<FullName>Bob Black</FullName>
 					</PartyName>
@@ -147,12 +151,14 @@
 					<TitleText>Can you feel ...the Monkey Claw!</TitleText>
 				</Title>
 				<DisplayArtist SequenceNumber="1">
+					<PartyId>DPID_OF_THE_ARTIST_1</PartyId>
 					<PartyName>
 						<FullName>Monkey Claw</FullName>
 					</PartyName>
 					<ArtistRole>MainArtist</ArtistRole>
 				</DisplayArtist>
 				<DisplayArtist SequenceNumber="2">
+					<PartyId>DPID_OF_THE_ARTIST_4</PartyId>
 					<PartyName>
 						<FullName>Ape Hand</FullName>
 					</PartyName>
@@ -219,6 +225,7 @@
 					<TitleText>Can you feel ...the Monkey Claw!</TitleText>
 				</Title>
 				<DisplayArtist SequenceNumber="1">
+					<PartyId>DPID_OF_THE_ARTIST_1</PartyId>
 					<PartyName>
 						<FullName>Monkey Claw</FullName>
 					</PartyName>

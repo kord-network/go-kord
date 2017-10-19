@@ -93,10 +93,10 @@ func TestERNCommands(t *testing.T) {
 	)
 	ids := c.readStream("ern.meta", 5)
 	expected := []string{
-		"zdqaWQFfLpAj7Hi7B1DMsqfRzh2gtTWJb6PKzK2TJZgb3gCEM",
+		"zdqaWMMSZgBtPNTUJj6s9GxWdaNLiF8oEGLDc2uYqG7T9nmqL",
 		"zdqaWJ4jkU4haHkCfJY8Tz7bNtdi38Kq1bRy4iiU9DUDJqUkB",
 		"zdqaWRL5oXkGnwhf9JWzgMdV7H1YUWp6YociP5aWB9EU6qAJr",
-		"zdqaWSBmxw7xif1hx4ZXVyC6A6Fr6hcx34JLuf9BGDT7P7utp",
+		"zdqaWQnNQ9oTMxVnDWWKagJWAwcfQQuirAmgYAPc9CPnRsFR9",
 		"zdqaWBoE9GfAc1dsJgW1jqtbHYKHgLcFfw55SKDyxEEGcQWso",
 	}
 	if !reflect.DeepEqual(ids, expected) {
