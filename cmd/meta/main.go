@@ -54,13 +54,12 @@ func main() {
 }
 
 func openStore() (*meta.Store, error) {
-	metaSwarmURL := os.Getenv("META_SWARM_URL")
-	if metaSwarmURL != "" {
-		return meta.NewSwarmDatastore(metaSwarmURL), nil
-	}
 	metaDir := ".meta"
 	if err := os.MkdirAll(metaDir, 0755); err != nil {
 		return nil, err
+	}
+	if url := os.Getenv("META_SWARM_URL"); url != "" {
+		return meta.NewSwarmDatastore(metaDir, url)
 	}
 	return meta.NewFSDatastore(metaDir)
 }

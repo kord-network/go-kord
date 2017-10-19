@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"io/ioutil"
+	"os"
 	"reflect"
 	"runtime"
 	"strings"
@@ -99,27 +101,24 @@ func TestEncodeDecode(t *testing.T) {
 	}
 }
 
-type testMeta struct {
-	store *Store
-	srv   *testutil.TestSwarmServer
-}
-
-func (tm *testMeta) openSwarmStore(t *testing.T) *Store {
-	tm.srv = testutil.NewTestSwarmServer(t)
-	return NewSwarmDatastore(tm.srv.URL)
-}
-
 func TestSwarmDatastore(t *testing.T) {
+	// open the store
+	tmpDir, err := ioutil.TempDir("", "meta-test-swarm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	srv := testutil.NewTestSwarmServer(t)
+	defer srv.Close()
+	store, err := NewSwarmDatastore(tmpDir, srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	type Person struct {
 		Name     string     `json:"name"`
 		Children []*cid.Cid `json:"children,omitempty"`
 	}
-
-	x := &testMeta{}
-
-	store := x.openSwarmStore(t)
-
-	defer x.srv.Close()
 
 	storeObj := store.MustPut(&Person{
 		Name: "parent",

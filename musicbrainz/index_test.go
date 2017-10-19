@@ -32,6 +32,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/stream"
 )
 
 // TestIndex tests indexing a stream of MusicBrainz artists and recording work
@@ -242,20 +243,33 @@ func newTestIndex() (x *testIndex, err error) {
 	}
 
 	// create streams
-	artistStream := make(chan *cid.Cid, len(x.artists))
-	go func() {
-		defer close(artistStream)
-		for _, cid := range artistCids {
-			artistStream <- cid
+	streams := func(name string) (stream.StreamReader, stream.StreamWriter, error) {
+		stream := x.store.Stream(name)
+		reader, err := stream.NewReader()
+		if err != nil {
+			return nil, nil, err
 		}
-	}()
-	linkStream := make(chan *cid.Cid, len(x.links))
-	go func() {
-		defer close(linkStream)
-		for _, cid := range linkCids {
-			linkStream <- cid
+		writer, err := stream.NewWriter()
+		if err != nil {
+			reader.Close()
+			return nil, nil, err
 		}
-	}()
+		return reader, writer, nil
+	}
+	artistStreamR, artistStreamW, err := streams("artists.musicbrainz.meta")
+	if err != nil {
+		return nil, err
+	}
+	defer artistStreamR.Close()
+	defer artistStreamW.Close()
+	go artistStreamW.Write(artistCids...)
+	linkStreamR, linkStreamW, err := streams("links.musicbrainz.meta")
+	if err != nil {
+		return nil, err
+	}
+	defer linkStreamR.Close()
+	defer linkStreamW.Close()
+	go linkStreamW.Write(linkCids...)
 
 	// create a test SQLite3 db
 	x.tmpDir, err = ioutil.TempDir("", "musicbrainz-index-test")
@@ -272,10 +286,12 @@ func newTestIndex() (x *testIndex, err error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := indexer.IndexArtists(context.Background(), artistStream); err != nil {
+	artistStreamR = stream.LimitedReader(artistStreamR, len(artistCids))
+	if err := indexer.IndexArtists(context.Background(), artistStreamR); err != nil {
 		return nil, err
 	}
-	if err := indexer.IndexRecordingWorkLinks(context.Background(), linkStream); err != nil {
+	linkStreamR = stream.LimitedReader(linkStreamR, len(linkCids))
+	if err := indexer.IndexRecordingWorkLinks(context.Background(), linkStreamR); err != nil {
 		return nil, err
 	}
 	return x, nil

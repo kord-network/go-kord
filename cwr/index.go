@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/stream"
 )
 
 // Indexer is a META indexer which indexes a stream of META objects
@@ -62,12 +63,12 @@ func NewIndexer(indexDB *sql.DB, store *meta.Store) (*Indexer, error) {
 
 // Index indexes a stream of META object links which are expected to
 // point at CWRs.
-func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) error {
+func (i *Indexer) Index(ctx context.Context, stream stream.StreamReader) error {
 	for {
 		select {
-		case cid, ok := <-stream:
+		case cid, ok := <-stream.Ch():
 			if !ok {
-				return nil
+				return stream.Err()
 			}
 			obj, err := i.store.Get(cid)
 			if err != nil {

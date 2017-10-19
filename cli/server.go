@@ -34,6 +34,7 @@ import (
 	"github.com/meta-network/go-meta/ern"
 	"github.com/meta-network/go-meta/identity"
 	"github.com/meta-network/go-meta/musicbrainz"
+	streamapi "github.com/meta-network/go-meta/stream/api"
 	"github.com/meta-network/go-meta/xml"
 )
 
@@ -54,6 +55,11 @@ func NewServer(store *meta.Store, indexes map[string]*sql.DB) (*Server, error) {
 	identityAPI := identity.NewAPI(identity.NewMemoryStore())
 	srv.router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
 	srv.router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
+
+	// add the stream API at /stream
+	streamAPI := streamapi.NewAPI(store)
+	srv.router.Handler("GET", "/stream/*path", http.StripPrefix("/stream", streamAPI))
+	srv.router.Handler("POST", "/stream/*path", http.StripPrefix("/stream", streamAPI))
 
 	if db, ok := indexes["musicbrainz"]; ok {
 		musicbrainzApi, err := musicbrainz.NewAPI(db, store)

@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -47,22 +46,14 @@ func TestCWRCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(c.bzz.indexDir)
-	defer c.srv.Close()
-	// check 'meta convert cwr' prints a CID
-	stdout := c.run("convert", "cwr",
+	defer c.cleanup()
+
+	// check 'meta convert cwr' adds CIDs to the cwr.meta stream
+	c.run("convert", "cwr",
 		"--source", "test",
 		"../cwr/testdata/example_double_nwr.cwr",
 		"../cwr/testdata/example_nwr.cwr")
-	var ids []string
-	s := bufio.NewScanner(strings.NewReader(stdout))
-	for s.Scan() {
-		id, err := cid.Parse(s.Text())
-		if err != nil {
-			t.Fatal(err)
-		}
-		ids = append(ids, id.String())
-	}
+	ids := c.readStream("cwr.meta")
 	expected := []string{
 		"zdqaWBuxwxhZQj9PBzRsHSp2WEq9pF3tF9rP9KYb7TxgqfXQJ",
 		"zdqaWGLaDAkMomHFaooZ7GaxxvTmFCJ1DFCVLaQSvb8v2ewoN",
@@ -73,9 +64,8 @@ func TestCWRCommands(t *testing.T) {
 
 	db := filepath.Join(c.bzz.indexDir, "1_index.db")
 
-	// run 'meta index cwr' with the CIDs as stdin
-	stream := strings.NewReader(stdout)
-	c.bzz.indexDirHash = c.runWithStdin(stream, "index", "cwr", filepath.Base(db), fmt.Sprintf("--bzzapi=%s", c.srv.Server.URL), fmt.Sprintf("--bzzdir=%s", c.bzz.indexDirHash))
+	// run 'meta index cwr'
+	c.bzz.indexDirHash = c.run("index", "cwr", filepath.Base(db), "--count=2", fmt.Sprintf("--bzzapi=%s", c.srv.Server.URL), fmt.Sprintf("--bzzdir=%s", c.bzz.indexDirHash))
 	if c.bzz.indexDirHash == "" {
 		t.Fatal("No hash returned")
 	}
@@ -102,11 +92,10 @@ func TestERNCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(c.bzz.indexDir)
-	defer c.srv.Close()
+	defer c.cleanup()
 
-	// check 'meta convert ern' prints multiple CIDs
-	stdout := c.run("convert", "ern",
+	// check 'meta convert ern' adds CIDs to the ern.meta stream
+	c.run("convert", "ern",
 		"--source", "test",
 		"../ern/testdata/Profile_AudioAlbumMusicOnly.xml",
 		"../ern/testdata/Profile_AudioAlbum_WithBooklet.xml",
@@ -114,15 +103,7 @@ func TestERNCommands(t *testing.T) {
 		"../ern/testdata/Profile_AudioSingle.xml",
 		"../ern/testdata/Profile_AudioSingle_WithCompoundArtistsAndTerritorialOverride.xml",
 	)
-	var ids []string
-	s := bufio.NewScanner(strings.NewReader(stdout))
-	for s.Scan() {
-		id, err := cid.Parse(s.Text())
-		if err != nil {
-			t.Fatal(err)
-		}
-		ids = append(ids, id.String())
-	}
+	ids := c.readStream("ern.meta")
 	expected := []string{
 		"zdqaWQFfLpAj7Hi7B1DMsqfRzh2gtTWJb6PKzK2TJZgb3gCEM",
 		"zdqaWJ4jkU4haHkCfJY8Tz7bNtdi38Kq1bRy4iiU9DUDJqUkB",
@@ -135,9 +116,9 @@ func TestERNCommands(t *testing.T) {
 	}
 
 	db := filepath.Join(c.bzz.indexDir, "2_index.db")
-	// run 'meta index ern' with the CIDs as stdin
-	stream := strings.NewReader(stdout)
-	c.bzz.indexDirHash = c.runWithStdin(stream, "index", "ern", filepath.Base(db), fmt.Sprintf("--bzzapi=%s", c.srv.Server.URL), fmt.Sprintf("--bzzdir=%s", c.bzz.indexDirHash))
+
+	// run 'meta index ern'
+	c.bzz.indexDirHash = c.run("index", "ern", filepath.Base(db), "--count=5", fmt.Sprintf("--bzzapi=%s", c.srv.Server.URL), fmt.Sprintf("--bzzdir=%s", c.bzz.indexDirHash))
 	if c.bzz.indexDirHash == "" {
 		t.Fatal("No hash returned")
 	}
@@ -156,29 +137,22 @@ func TestERNCommands(t *testing.T) {
 	}
 }
 
-// TestERNCommands tests running the 'meta convert eidr' and
+// TestEIDRCommands tests running the 'meta convert eidr' and
 // 'meta index eidr' commands.
 func TestEIDRCommands(t *testing.T) {
 	c, err := newTestCLI(t)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer c.cleanup()
 
-	// check 'meta convert eidr' outputs expected rows
-	stdout := c.run("convert", "eidr",
+	// check 'meta convert eidr' adds CIDs to the eidr.meta stream
+	c.run("convert", "eidr",
 		"--source", "test",
 		"../eidr/testdata/dummy_child.xml",
 		"../eidr/testdata/dummy_parent.xml",
 	)
-	var ids []string
-	s := bufio.NewScanner(strings.NewReader(stdout))
-	for s.Scan() {
-		id, err := cid.Parse(s.Text())
-		if err != nil {
-			t.Fatal(err)
-		}
-		ids = append(ids, id.String())
-	}
+	ids := c.readStream("eidr.meta")
 	expected := []string{
 		"zdqaWUgTjLPoFrMCmBcbPcJNPuHTvUs5fBn3f4iYsniHACo7q",
 		"zdqaWTaGbQFm2HEYo2iwHsFanffKDYq49XVk5ggEc6dYaBQkv",
@@ -189,9 +163,8 @@ func TestEIDRCommands(t *testing.T) {
 
 	db := filepath.Join(c.bzz.indexDir, "3_index.db")
 
-	// run 'meta index eidr' with the CIDs as stdin
-	stream := strings.NewReader(stdout)
-	c.bzz.indexDirHash = c.runWithStdin(stream, "index", "eidr", filepath.Base(db), fmt.Sprintf("--bzzapi=%s", c.srv.Server.URL), fmt.Sprintf("--bzzdir=%s", c.bzz.indexDirHash))
+	// run 'meta index eidr'
+	c.bzz.indexDirHash = c.run("index", "eidr", filepath.Base(db), "--count=2", fmt.Sprintf("--bzzapi=%s", c.srv.Server.URL), fmt.Sprintf("--bzzdir=%s", c.bzz.indexDirHash))
 	if c.bzz.indexDirHash == "" {
 		t.Fatal("No hash returned")
 	}
@@ -229,55 +202,75 @@ func TestEIDRCommands(t *testing.T) {
 }
 
 type testCLI struct {
-	t     *testing.T
-	store *meta.Store
-	bzz   *SwarmBackend
-	srv   *testutil.TestSwarmServer
+	t      *testing.T
+	store  *meta.Store
+	tmpDir string
+	srv    *testutil.TestSwarmServer
+	bzz    *SwarmBackend
 }
 
-func newTestCLI(t *testing.T) (*testCLI, error) {
+func newTestCLI(t *testing.T) (c *testCLI, err error) {
+	c = &testCLI{t: t}
+	defer func() {
+		if err != nil {
+			c.cleanup()
+		}
+	}()
+
 	// create a path to store the index and to store the meta objects.
-	tmpDir, err := ioutil.TempDir("", "meta-main-test")
+	c.tmpDir, err = ioutil.TempDir("", "meta-main-test")
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if err != nil {
-			os.RemoveAll(tmpDir)
-		}
-	}()
-	srv := testutil.NewTestSwarmServer(t)
+	c.srv = testutil.NewTestSwarmServer(t)
 
-	bzzbackend := &SwarmBackend{
-		api:      bzzclient.NewClient(srv.Server.URL),
-		indexDir: tmpDir,
+	c.bzz = &SwarmBackend{
+		api:      bzzclient.NewClient(c.srv.URL),
+		indexDir: c.tmpDir,
 	}
-	hash, err := bzzbackend.api.UploadDirectory(tmpDir, "", "")
+	hash, err := c.bzz.api.UploadDirectory(c.tmpDir, "", "")
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
-	err = bzzbackend.OpenIndex(srv.Server.URL, hash)
-	if err != nil {
-		t.Fatal(err)
+	if err := c.bzz.OpenIndex(c.srv.URL, hash); err != nil {
+		return nil, err
 	}
-	store := meta.NewSwarmDatastore(srv.URL)
-	return &testCLI{
-		t:     t,
-		store: store,
-		bzz:   bzzbackend,
-		srv:   srv,
-	}, nil
+	c.bzz.indexDirHash = hash
+	c.store, err = meta.NewSwarmDatastore(c.tmpDir, c.srv.URL)
+	return
 }
 
-func (c *testCLI) runWithStdin(stdin io.Reader, args ...string) string {
+func (c *testCLI) cleanup() {
+	if c.tmpDir != "" {
+		os.RemoveAll(c.tmpDir)
+	}
+	if c.srv != nil {
+		c.srv.Close()
+	}
+}
+
+func (c *testCLI) run(args ...string) string {
 	var stdout bytes.Buffer
-	cli := New(c.store, stdin, &stdout)
+	cli := New(c.store, nil, &stdout)
 	if err := cli.Run(context.Background(), args...); err != nil {
 		c.t.Fatal(err)
 	}
 	return stdout.String()
 }
 
-func (c *testCLI) run(args ...string) string {
-	return c.runWithStdin(nil, args...)
+func (c *testCLI) readStream(name string) []string {
+	data, err := ioutil.ReadFile(filepath.Join(c.tmpDir, "streams", name))
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	var ids []string
+	s := bufio.NewScanner(bytes.NewReader(data))
+	for s.Scan() {
+		id, err := cid.Parse(s.Text())
+		if err != nil {
+			c.t.Fatal(err)
+		}
+		ids = append(ids, id.String())
+	}
+	return ids
 }

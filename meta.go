@@ -27,6 +27,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-ipld-format"
 	"github.com/lmars/go-ipld-cbor"
+	"github.com/meta-network/go-meta/stream"
 	multihash "github.com/multiformats/go-multihash"
 )
 
@@ -234,8 +235,12 @@ func NewFSDatastore(dir string) (*Store, error) {
 }
 
 // NewSwarmDatastore returns a new Swarm Store which uses an underlying datastore.
-func NewSwarmDatastore(serverURL string) *Store {
-	return &Store{newSwarmDatastore(serverURL)}
+func NewSwarmDatastore(localDir, serverURL string) (*Store, error) {
+	store, err := newSwarmDatastore(localDir, serverURL)
+	if err != nil {
+		return nil, err
+	}
+	return &Store{store}, nil
 }
 
 // Get gets an object from the store.
@@ -272,6 +277,11 @@ func (s *Store) MustPut(v interface{}) *Object {
 		panic(err)
 	}
 	return obj
+}
+
+// Stream returns a META stream identified by the given name.
+func (s *Store) Stream(name string) stream.Stream {
+	return s.store.stream(name)
 }
 
 // cidV1 is the number which identifies a CID as being CIDv1.

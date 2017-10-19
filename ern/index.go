@@ -28,6 +28,7 @@ import (
 	"github.com/ipfs/go-ipld-format"
 	"github.com/mattn/go-sqlite3"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/stream"
 )
 
 // Indexer is a META indexer which indexes a stream of META objects
@@ -55,7 +56,7 @@ func NewIndexer(db *sql.DB, store *meta.Store) (*Indexer, error) {
 
 // Index indexes a stream of META object links which are expected to
 // point at DDEX ERNs.
-func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) (err error) {
+func (i *Indexer) Index(ctx context.Context, stream stream.StreamReader) (err error) {
 	// wrap the indexing in a single transaction
 	tx, err := i.db.Begin()
 	if err != nil {
@@ -74,9 +75,9 @@ func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) (err error) {
 
 	for {
 		select {
-		case cid, ok := <-stream:
+		case cid, ok := <-stream.Ch():
 			if !ok {
-				return nil
+				return stream.Err()
 			}
 			obj, err := i.store.Get(cid)
 			if err != nil {

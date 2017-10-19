@@ -20,6 +20,7 @@
 package ern
 
 import (
+	"context"
 	"database/sql"
 	"io/ioutil"
 	"os"
@@ -29,7 +30,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
-	"golang.org/x/net/context"
+	"github.com/meta-network/go-meta/stream"
 )
 
 func TestIndex(t *testing.T) {
@@ -43,8 +44,8 @@ func TestIndex(t *testing.T) {
 	}
 	store := meta.NewMapDatastore()
 	converter := NewConverter(store)
-	cids := make(map[string]*cid.Cid, len(erns))
-	for _, path := range erns {
+	cids := make([]*cid.Cid, len(erns))
+	for i, path := range erns {
 		f, err := os.Open(filepath.Join("testdata", path))
 		if err != nil {
 			t.Fatal(err)
@@ -54,17 +55,22 @@ func TestIndex(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		cids[path] = cid
+		cids[i] = cid
 	}
 
 	// create a stream of ERNs
-	stream := make(chan *cid.Cid, len(erns))
-	go func() {
-		defer close(stream)
-		for _, cid := range cids {
-			stream <- cid
-		}
-	}()
+	s := store.Stream("ern.meta")
+	reader, err := s.NewReader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	writer, err := s.NewWriter()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	go writer.Write(cids...)
 
 	// create a test SQLite3 db
 	tmpDir, err := ioutil.TempDir("", "musicbrainz-index-test")
@@ -85,7 +91,8 @@ func TestIndex(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := indexer.Index(ctx, stream); err != nil {
+	reader = stream.LimitedReader(reader, len(cids))
+	if err := indexer.Index(ctx, reader); err != nil {
 		t.Fatal(err)
 	}
 
