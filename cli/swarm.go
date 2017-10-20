@@ -39,6 +39,10 @@ func (bzz *SwarmBackend) OpenIndex(bzzuri string, indexDirHash string) (err erro
 	return nil
 }
 
+func (bzz *SwarmBackend) CloseIndex() {
+	os.RemoveAll(bzz.indexDir)
+}
+
 // TODO: will match if file name start is unique, and will not return pathname due to bzz bugs
 func (bzz *SwarmBackend) GetIndexFile(path string, mustfind bool) (string, error) {
 	olddir, err := os.Getwd()
