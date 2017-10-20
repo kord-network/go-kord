@@ -138,25 +138,28 @@ func (cli *CLI) RunConvert(ctx context.Context, args Args) error {
 	}
 }
 
-func (cli *CLI) RunIndex(ctx context.Context, args Args) (string, error) {
+func (cli *CLI) RunIndex(ctx context.Context, args Args) (hash string, err error) {
 
-	err := cli.bzz.OpenIndex(args.String("--bzzapi"), args.String("--bzzdir"))
+	err = cli.bzz.OpenIndex(args.String("--bzzapi"), args.String("--bzzdir"))
 	if err != nil {
 		return "", err
 	}
+	defer cli.bzz.CloseIndex()
 
 	switch {
 	case args.Bool("cwr"):
-		return cli.RunCwrIndex(ctx, args)
+		hash, err = cli.RunCwrIndex(ctx, args)
 	case args.Bool("ern"):
-		return cli.RunERNIndex(ctx, args)
+		hash, err = cli.RunERNIndex(ctx, args)
 	case args.Bool("eidr"):
-		return cli.RunEIDRIndex(ctx, args)
+		hash, err = cli.RunEIDRIndex(ctx, args)
 	case args.Bool("musicbrainz"):
-		return cli.RunMusicBrainzIndex(ctx, args)
+		hash, err = cli.RunMusicBrainzIndex(ctx, args)
 	default:
-		return "", errors.New("unknown index")
+		err = errors.New("unknown index")
 	}
+
+	return
 }
 
 func (cli *CLI) RunConvertXML(ctx context.Context, args Args) error {
@@ -250,6 +253,8 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 	if err != nil {
 		return err
 	}
+	defer cli.bzz.CloseIndex()
+
 	indexes := make(map[string]*sql.DB)
 	for _, index := range args.List("--index") {
 		namePath := strings.SplitN(index, ":", 2)
@@ -273,7 +278,6 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 			return err
 		}
 		defer db.Close()
-		defer cli.bzz.PutIndexFile(filename)
 		indexes[namePath[0]] = db
 	}
 
