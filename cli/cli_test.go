@@ -241,13 +241,8 @@ func newTestCLI(t *testing.T) (*testCLI, error) {
 	if err != nil {
 		return nil, err
 	}
-	tmpFile, err := ioutil.TempFile(tmpDir, "_")
-	if err != nil {
-		return nil, err
-	}
 	defer func() {
 		if err != nil {
-			tmpFile.Close()
 			os.RemoveAll(tmpDir)
 		}
 	}()
