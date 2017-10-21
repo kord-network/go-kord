@@ -24,8 +24,8 @@ import (
 	"database/sql"
 	"strings"
 
-	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/stream"
 )
 
 // Converter converts MusicBrainz data stored in a PostgreSQL database to META
@@ -47,9 +47,9 @@ func NewConverter(db *sql.DB, store *meta.Store) *Converter {
 // ConvertArtists reads all artists from the database, converts them to META
 // objects, stores them in the META store and sends their CIDs to the given
 // stream.
-func (c *Converter) ConvertArtists(ctx context.Context, outStream chan *cid.Cid, source string) error {
+func (c *Converter) ConvertArtists(ctx context.Context, stream stream.StreamWriter, source string) error {
 	// get all artists from the db
-	rows, err := c.db.Query(artistsQuery)
+	rows, err := c.db.QueryContext(ctx, artistsQuery)
 	if err != nil {
 		return err
 	}
@@ -126,10 +126,8 @@ func (c *Converter) ConvertArtists(ctx context.Context, outStream chan *cid.Cid,
 		}
 
 		// send the object's CID to the output stream
-		select {
-		case outStream <- obj.Cid():
-		case <-ctx.Done():
-			return ctx.Err()
+		if err := stream.Write(obj.Cid()); err != nil {
+			return err
 		}
 	}
 
@@ -138,9 +136,9 @@ func (c *Converter) ConvertArtists(ctx context.Context, outStream chan *cid.Cid,
 
 // ConvertRecordingWorkLinks loads ISRC to ISWC links from the database,
 // converts them to META objects and sends their CIDs to the given stream.
-func (c *Converter) ConvertRecordingWorkLinks(ctx context.Context, outStream chan *cid.Cid, source string) error {
+func (c *Converter) ConvertRecordingWorkLinks(ctx context.Context, stream stream.StreamWriter, source string) error {
 	// get all links from the db
-	rows, err := c.db.Query(recordingWorkLinksQuery)
+	rows, err := c.db.QueryContext(ctx, recordingWorkLinksQuery)
 	if err != nil {
 		return err
 	}
@@ -160,10 +158,8 @@ func (c *Converter) ConvertRecordingWorkLinks(ctx context.Context, outStream cha
 		}
 
 		// send the object's CID to the output stream
-		select {
-		case outStream <- obj.Cid():
-		case <-ctx.Done():
-			return ctx.Err()
+		if err := stream.Write(obj.Cid()); err != nil {
+			return err
 		}
 	}
 

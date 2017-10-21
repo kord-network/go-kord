@@ -30,6 +30,7 @@ import (
 	"golang.org/x/sync/syncmap"
 
 	"github.com/ethereum/go-ethereum/swarm/api/client"
+	"github.com/meta-network/go-meta/stream"
 	multihash "github.com/multiformats/go-multihash"
 )
 
@@ -40,6 +41,9 @@ type Datastore interface {
 	// get retrieves the `value` named by `key`.
 	//`key` should be the hex encoding of the hash part of the multihash returned from put
 	get(key string) (value []byte, err error)
+
+	// stream returns a META stream identified by the given name.
+	stream(name string) stream.Stream
 }
 
 // MapDatastore uses a standard Go map for internal storage.
@@ -77,6 +81,10 @@ func (d *MapDatastore) get(key string) (value []byte, err error) {
 	return val.([]byte), nil
 }
 
+func (d *MapDatastore) stream(name string) stream.Stream {
+	return stream.NewMemoryStream()
+}
+
 const multihashSwarmCode = 0x30
 
 func init() {
@@ -85,14 +93,21 @@ func init() {
 
 // SwarmDatastore struct
 type SwarmDatastore struct {
-	client *client.Client
+	client  *client.Client
+	fsStore *FSDatastore
 }
 
 // newSwarmDatastore returns a new swarm Datastore
-func newSwarmDatastore(serverURL string) *SwarmDatastore {
-	return &SwarmDatastore{
-		client: client.NewClient(serverURL),
+func newSwarmDatastore(localDir, serverURL string) (*SwarmDatastore, error) {
+	// use an FSDatastore for the streams until we have ENS
+	fsStore, err := newFSDatastore(localDir)
+	if err != nil {
+		return nil, err
 	}
+	return &SwarmDatastore{
+		client:  client.NewClient(serverURL),
+		fsStore: fsStore,
+	}, nil
 }
 
 // put stores the given value and return its hash
@@ -119,11 +134,17 @@ func (ds *SwarmDatastore) get(key string) (value []byte, err error) {
 	return ioutil.ReadAll(res)
 }
 
+func (s *SwarmDatastore) stream(name string) stream.Stream {
+	// TODO: implement a Swarm + ENS stream
+	return s.fsStore.stream(name)
+}
+
 var ObjectKeySuffix = ".dsobject"
 
 // FSDatastore use a file per key to store values.
 type FSDatastore struct {
-	path string
+	path       string
+	streamsDir string
 }
 
 // newFSDatastore returns a new fs Datastore at given `path`
@@ -132,7 +153,12 @@ func newFSDatastore(path string) (*FSDatastore, error) {
 		return nil, fmt.Errorf("Failed to find directory at: %v (file? perms?)", path)
 	}
 
-	return &FSDatastore{path: path}, nil
+	streamsDir := filepath.Join(path, "streams")
+	if err := os.MkdirAll(streamsDir, 0755); err != nil {
+		return nil, err
+	}
+
+	return &FSDatastore{path: path, streamsDir: streamsDir}, nil
 }
 
 // KeyFilename returns the filename associated with `key`
@@ -166,6 +192,10 @@ func (d *FSDatastore) get(key string) (value []byte, err error) {
 		return nil, fmt.Errorf("FSDatastore get: file %q not found ", key)
 	}
 	return ioutil.ReadFile(fn)
+}
+
+func (d *FSDatastore) stream(name string) stream.Stream {
+	return stream.NewFileStream(filepath.Join(d.streamsDir, name))
 }
 
 // isDir returns whether given path is a directory

@@ -31,6 +31,7 @@ import (
 
 	cid "github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/stream"
 )
 
 type testIndex struct {
@@ -226,11 +227,18 @@ func newTestIndex() (x *testIndex, err error) {
 	}
 
 	// create a stream of CWR
-	stream := make(chan *cid.Cid)
-	go func() {
-		defer close(stream)
-		stream <- x.cwrCid
-	}()
+	s := x.store.Stream("cwr.meta")
+	reader, err := s.NewReader()
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	writer, err := s.NewWriter()
+	if err != nil {
+		return nil, err
+	}
+	defer writer.Close()
+	go writer.Write(x.cwrCid)
 
 	// create a test SQLite3 db
 	x.db, err = sql.Open("sqlite3", filepath.Join(x.tmpDir, "index.db"))
@@ -245,7 +253,8 @@ func newTestIndex() (x *testIndex, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := indexer.Index(ctx, stream); err != nil {
+	reader = stream.LimitedReader(reader, 1)
+	if err := indexer.Index(ctx, reader); err != nil {
 		return nil, err
 	}
 	return x, nil
