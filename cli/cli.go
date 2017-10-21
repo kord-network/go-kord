@@ -268,15 +268,17 @@ func (cli *CLI) RunDump(ctx context.Context, args Args) error {
 }
 
 func (cli *CLI) RunServer(ctx context.Context, args Args) error {
+	if cli.bzz != nil {
+		err := cli.bzz.OpenIndex(args.String("--bzzapi"), args.String("--bzzdir"))
+		if err != nil {
+			return err
+		}
+		defer cli.bzz.CloseIndex()
+	}
+
 	// parse the --index args which have the format <name>:<path>
 	// where <name> is one of musicbrainz, ern, eidr or cwr and
 	// <path> is the path to the relevant index.
-	err := cli.bzz.OpenIndex(args.String("--bzzapi"), args.String("--bzzdir"))
-	if err != nil {
-		return err
-	}
-	defer cli.bzz.CloseIndex()
-
 	indexes := make(map[string]*sql.DB)
 	for _, index := range args.List("--index") {
 		namePath := strings.SplitN(index, ":", 2)
@@ -291,16 +293,19 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 		default:
 			return fmt.Errorf("invalid --index name %q", name)
 		}
-		filename, err := cli.bzz.GetIndexFile(path, true)
-		if err != nil {
-			return err
+		if cli.bzz != nil {
+			var err error
+			path, err = cli.bzz.GetIndexFile(path, true)
+			if err != nil {
+				return err
+			}
 		}
-		db, err := sql.Open("sqlite3", filename)
+		db, err := sql.Open("sqlite3", path)
 		if err != nil {
 			return err
 		}
 		defer db.Close()
-		indexes[namePath[0]] = db
+		indexes[name] = db
 	}
 
 	srv, err := NewServer(cli.store, indexes)
