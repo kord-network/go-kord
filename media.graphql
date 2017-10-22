@@ -70,7 +70,7 @@ type MusicPublisher {
 }
 
 type MusicRecording {
-  isrc: ID
+  isrc: StringValue
 
   title: StringValue
 
@@ -82,7 +82,7 @@ type MusicRecording {
 }
 
 type MusicWork {
-  iswc: ID
+  iswc: StringValue
 
   title: StringValue
 
@@ -92,7 +92,7 @@ type MusicWork {
 }
 
 type MusicRelease {
-  grid: ID
+  grid: StringValue
 
   title: StringValue
 
