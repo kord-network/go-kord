@@ -20,9 +20,17 @@
 package meta
 
 import (
-	"encoding/hex"
+	"bytes"
+	"database/sql"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"sync"
 
+	"github.com/ethereum/go-ethereum/common"
+	swarmapi "github.com/ethereum/go-ethereum/swarm/api"
+	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/ipfs/go-ipld-format"
@@ -214,28 +222,32 @@ func (g *Graph) Get(path ...string) (interface{}, error) {
 	return NewGraph(g.store, obj).Get(rest...)
 }
 
-// Store provides storage for objects.
+// Store provides storage for objects using a local Swarm chunk database
+// and uses ENS to resolve names to hashes.
 type Store struct {
-	store Datastore
+	api *swarmapi.Api
+	dpa *storage.DPA
+	ens ENS
 }
 
-// NewMapDatastore returns a new memory Map Store which uses an underlying datastore.
-func NewMapDatastore() *Store {
-	return &Store{newMapDatastore()}
-}
-
-// NewFSDatastore returns a new FS Store which uses an underlying datastore.
-func NewFSDatastore(dir string) (*Store, error) {
-	store, err := newFSDatastore(dir)
+// NewStore returns a new store which maintains a local Swarm chunk databsse
+// in the given directory and uses the given ENS to resolve names to hashes.
+func NewStore(dir string, ens ENS) (*Store, error) {
+	dpa, err := storage.NewLocalDPA(dir)
 	if err != nil {
 		return nil, err
 	}
-	return &Store{store}, nil
+	dpa.Start()
+	return &Store{
+		api: swarmapi.NewApi(dpa, ens),
+		dpa: dpa,
+		ens: ens,
+	}, nil
 }
 
-// NewSwarmDatastore returns a new Swarm Store which uses an underlying datastore.
-func NewSwarmDatastore(serverURL string) *Store {
-	return &Store{newSwarmDatastore(serverURL)}
+// Close stops the underlying Swarm chunk database storage and retrieval loops.
+func (s *Store) Close() {
+	s.dpa.Stop()
 }
 
 // Get gets an object from the store.
@@ -244,25 +256,41 @@ func (s *Store) Get(cid *cid.Cid) (*Object, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := s.store.get(hex.EncodeToString(hash.Digest))
+	reader := s.dpa.Retrieve(hash.Digest)
+	size, err := reader.Size(nil)
 	if err != nil {
+		return nil, err
+	}
+	data := make([]byte, size)
+	if _, err := io.ReadFull(reader, data); err != nil {
 		return nil, err
 	}
 	return NewObject(cid, data)
 }
 
+const multihashSwarmCode = 0x30
+
+func init() {
+	multihash.Codes[multihashSwarmCode] = "swarm-hash-v1"
+}
+
 // Put encodes and stores object in the store.
 func (s *Store) Put(v interface{}) (*Object, error) {
-	enc, err := encode(v)
+	data, err := encode(v)
 	if err != nil {
 		return nil, err
 	}
-	mhash, err := s.store.put(enc)
+	hash, err := s.api.Store(
+		bytes.NewReader(data),
+		int64(len(data)),
+		&sync.WaitGroup{},
+	)
+	mhash, err := multihash.Encode(hash, multihashSwarmCode)
 	if err != nil {
 		return nil, err
 	}
 	cid := cid.NewCidV1(cid.DagCBOR, mhash)
-	return NewObject(cid, enc)
+	return NewObject(cid, data)
 }
 
 // MustPut is like Put but panics if v cannot be encoded or stored
@@ -272,6 +300,123 @@ func (s *Store) MustPut(v interface{}) *Object {
 		panic(err)
 	}
 	return obj
+}
+
+// OpenIndex opens the META index with the given name by fetching it from
+// Swarm to a temp file and opening it as a SQLite3 database.
+func (s *Store) OpenIndex(name string) (index *Index, err error) {
+	hash, err := s.ens.Resolve(name)
+	if err == ErrNameNotExist {
+		// if the name doesn't exist, create a new empty index (which
+		// mimics the behaviour of opening a new SQLite3 file)
+		hash, err = s.createIndex(name)
+		if err != nil {
+			return nil, err
+		}
+	} else if err != nil {
+		return nil, err
+	}
+	reader := s.dpa.Retrieve(hash[:])
+	size, err := reader.Size(nil)
+	if err != nil {
+		return nil, fmt.Errorf("index %s (%s) not found", name, hash)
+	}
+	tmp, err := ioutil.TempFile("", "meta-index")
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		tmp.Close()
+		if err != nil {
+			os.Remove(tmp.Name())
+		}
+	}()
+	n, err := io.Copy(tmp, io.LimitReader(reader, size))
+	if err != nil {
+		return nil, err
+	} else if n != size {
+		return nil, io.ErrShortWrite
+	}
+	db, err := sql.Open("sqlite3", tmp.Name())
+	if err != nil {
+		return nil, err
+	}
+	return &Index{
+		DB:    db,
+		name:  name,
+		store: s,
+		path:  tmp.Name(),
+	}, nil
+}
+
+// createIndex creates a new, empty index and points name at it.
+func (s *Store) createIndex(name string) (common.Hash, error) {
+	// store an empty file in Swarm
+	hash, err := s.api.Store(bytes.NewReader(nil), 0, &sync.WaitGroup{})
+	if err != nil {
+		return common.Hash{}, err
+	}
+	// point name at the hash of the empty file
+	if err := s.ens.SetContentHash(name, common.BytesToHash(hash)); err != nil {
+		return common.Hash{}, err
+	}
+	return common.BytesToHash(hash), nil
+}
+
+// Index wraps an open SQLite3 database and provides an Update function which
+// can be called to commit changes to the index and upload the result to Swarm.
+type Index struct {
+	*sql.DB
+
+	name  string
+	store *Store
+	path  string
+}
+
+// Path returns the filesystem path of the SQLite3 database file.
+func (i *Index) Path() string {
+	return i.path
+}
+
+// Close closes the SQLite3 database and deletes the file.
+func (i *Index) Close() error {
+	defer os.Remove(i.path)
+	return i.DB.Close()
+}
+
+// Update starts a transaction to update the index, passes it to the given
+// function, then uploads the updated index to Swarm.
+func (i *Index) Update(fn func(*sql.Tx) error) error {
+	tx, err := i.Begin()
+	if err != nil {
+		return err
+	}
+	if err := fn(tx); err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	tmp, err := os.Open(i.path)
+	if err != nil {
+		return err
+	}
+	defer tmp.Close()
+	info, err := tmp.Stat()
+	if err != nil {
+		return err
+	}
+	hash, err := i.store.dpa.Store(
+		tmp,
+		info.Size(),
+		&sync.WaitGroup{},
+		&sync.WaitGroup{},
+	)
+	if err != nil {
+		return err
+	}
+	return i.store.ens.SetContentHash(i.name, common.BytesToHash(hash))
 }
 
 // cidV1 is the number which identifies a CID as being CIDv1.

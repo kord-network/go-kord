@@ -35,47 +35,48 @@ import (
 // representing EIDR media objects into a SQLite3 database, getting the
 // associated META objects from a META store.
 type Indexer struct {
-	db    *sql.DB
+	index *meta.Index
 	store *meta.Store
 }
 
 // NewIndexer returns an Indexer which updates the indexes in the given SQLite3
 // database connection, getting META objects from the given META store.
-func NewIndexer(indexDB *sql.DB, store *meta.Store) (*Indexer, error) {
+func NewIndexer(index *meta.Index, store *meta.Store) (*Indexer, error) {
 	// migrate the db to ensure it has an up-to-date schema
-	if err := migrations.Run(indexDB); err != nil {
+	if err := migrations.Run(index.DB); err != nil {
 		return nil, err
 	}
 
 	return &Indexer{
-		db:    indexDB,
+		index: index,
 		store: store,
 	}, nil
 }
 
 func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) error {
-	for {
-		select {
-		case cid, ok := <-stream:
-			if !ok {
-				return nil
+	return i.index.Update(func(tx *sql.Tx) error {
+		for {
+			select {
+			case cid, ok := <-stream:
+				if !ok {
+					return nil
+				}
+				obj, err := i.store.Get(cid)
+				if err != nil {
+					return err
+				}
+				if err := i.indexEIDR(tx, obj); err != nil {
+					return err
+				}
+			case <-ctx.Done():
+				return ctx.Err()
 			}
-			obj, err := i.store.Get(cid)
-			if err != nil {
-				return err
-			}
-			if err := i.index(obj); err != nil {
-				return err
-			}
-		case <-ctx.Done():
-			return ctx.Err()
 		}
-	}
-	return nil
+	})
 }
 
 // Based on EIDR 2.0 Data Types
-func (i *Indexer) index(eidrobj *meta.Object) error {
+func (i *Indexer) indexEIDR(tx *sql.Tx, eidrobj *meta.Object) error {
 
 	topgraph := meta.NewGraph(i.store, eidrobj)
 
@@ -314,10 +315,9 @@ func (i *Indexer) index(eidrobj *meta.Object) error {
 	}
 
 	// INSERT INTO INDEX DB
-	// TODO: rollback on unsuccessful reset
 
 	// insert baseobject single item fields
-	_, err = i.db.Exec(
+	_, err = tx.Exec(
 		"INSERT INTO baseobject (doi_id, structural_type, referent_type, resource_name, resource_name_lang, resource_name_class, status) VALUES ($1, $2, $3, $4, $5, $6, $7)",
 		baseObject.id,
 		baseObject.simple["StructuralType"],
@@ -331,7 +331,7 @@ func (i *Indexer) index(eidrobj *meta.Object) error {
 	}
 	// insert multiple value base object fields
 	for _, org := range baseObject.associatedOrg {
-		_, err = i.db.Exec(
+		_, err = tx.Exec(
 			"INSERT INTO org (id, idtype, display_name, role, base_doi_id) VALUES ($1, $2, $3, $4, $5)",
 			org.ID,
 			org.IDType,
@@ -343,7 +343,7 @@ func (i *Indexer) index(eidrobj *meta.Object) error {
 		}
 	}
 	for _, altid := range baseObject.alternateID {
-		_, err = i.db.Exec(
+		_, err = tx.Exec(
 			"INSERT INTO alternateid (id, type, domain, relation, base_doi_id) VALUES ($1, $2, $3, $4, $5)",
 			altid.ID,
 			altid.Type,
@@ -366,7 +366,7 @@ func (i *Indexer) index(eidrobj *meta.Object) error {
 		case episode:
 			log.Warn(fmt.Sprintf("%v", t))
 			o, _ := extratype.(episode)
-			r, err := i.db.Exec(
+			r, err := tx.Exec(
 				"INSERT INTO xobject_episode (episode_class) VALUES ($1)",
 				o.EpisodeClass)
 			if err != nil {
@@ -380,7 +380,7 @@ func (i *Indexer) index(eidrobj *meta.Object) error {
 			break
 		}
 		// TODO: check availablility of parent (should probably be linked OR cleaned after the fact)
-		_, err := i.db.Exec(
+		_, err := tx.Exec(
 			"INSERT INTO xobject_baseobject_link (base_doi_id, xobject_id, parent_doi_id, xobject_type) VALUES ($1, $2, $3, $4)",
 			baseObject.id,
 			extraid,

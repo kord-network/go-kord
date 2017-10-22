@@ -23,6 +23,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -54,13 +55,13 @@ func main() {
 }
 
 func openStore() (*meta.Store, error) {
-	metaSwarmURL := os.Getenv("META_SWARM_URL")
-	if metaSwarmURL != "" {
-		return meta.NewSwarmDatastore(metaSwarmURL), nil
-	}
 	metaDir := ".meta"
 	if err := os.MkdirAll(metaDir, 0755); err != nil {
 		return nil, err
 	}
-	return meta.NewFSDatastore(metaDir)
+	ensDir := filepath.Join(metaDir, "ens")
+	if err := os.Mkdir(ensDir, 0755); err != nil {
+		return nil, err
+	}
+	return meta.NewStore(metaDir, meta.LocalENS(ensDir))
 }

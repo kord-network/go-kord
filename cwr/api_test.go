@@ -31,20 +31,23 @@ import (
 
 	cid "github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/testutil"
 	"github.com/neelance/graphql-go"
 )
 
 // TestRegisteredWorkAPI tests querying a registered work(NWR/REV) transacation's records index via the GraphQL API.
 func TestRegisteredWorkAPI(t *testing.T) {
 	// create a test index of registeredWorks
-	x, err := newTestIndex()
+	store, cleanup := testutil.NewTestStore(t)
+	defer cleanup()
+	x, err := newTestIndex(t, store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer x.cleanup()
 
 	// start the API server
-	s, err := newTestAPI(x.db, x.store)
+	s, err := newTestAPI(x.index.DB, x.store)
 	if err != nil {
 		t.Fatal(err)
 	}

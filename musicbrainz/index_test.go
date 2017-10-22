@@ -21,23 +21,23 @@ package musicbrainz
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/testutil"
 )
 
 // TestIndex tests indexing a stream of MusicBrainz artists and recording work
 // links.
 func TestIndex(t *testing.T) {
-	x, err := newTestIndex()
+	store, cleanup := testutil.NewTestStore(t)
+	defer cleanup()
+	x, err := newTestIndex(store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +46,7 @@ func TestIndex(t *testing.T) {
 	// check all the artists were indexed
 	for _, artist := range x.artists {
 		// check the name, type and mbid indexes
-		rows, err := x.db.Query(
+		rows, err := x.index.Query(
 			`SELECT object_id FROM artist WHERE name = ? AND type = ? AND mbid = ?`,
 			artist.Name, artist.Type, artist.MBID,
 		)
@@ -100,7 +100,7 @@ func TestIndex(t *testing.T) {
 		// check the IPI index
 		if len(artist.IPI) > 0 {
 			var ipis []string
-			rows, err = x.db.Query(
+			rows, err = x.index.Query(
 				`SELECT ipi FROM artist_ipi WHERE object_id = ?`,
 				objectID,
 			)
@@ -126,7 +126,7 @@ func TestIndex(t *testing.T) {
 		// check the ISNI index
 		if len(artist.ISNI) > 0 {
 			var isnis []string
-			rows, err = x.db.Query(
+			rows, err = x.index.Query(
 				`SELECT isni FROM artist_isni WHERE object_id = ?`,
 				objectID,
 			)
@@ -153,7 +153,7 @@ func TestIndex(t *testing.T) {
 	// check all the links were indexed
 	for _, link := range x.links {
 		var count int
-		row := x.db.QueryRow("SELECT COUNT(*) FROM recording_work WHERE isrc = ? AND iswc = ?", link.ISRC, link.ISWC)
+		row := x.index.QueryRow("SELECT COUNT(*) FROM recording_work WHERE isrc = ? AND iswc = ?", link.ISRC, link.ISWC)
 		if err := row.Scan(&count); err != nil {
 			t.Fatal(err)
 		}
@@ -164,7 +164,7 @@ func TestIndex(t *testing.T) {
 }
 
 type testIndex struct {
-	db      *sql.DB
+	index   *meta.Index
 	store   *meta.Store
 	artists []*Artist
 	links   []*RecordingWorkLink
@@ -172,16 +172,16 @@ type testIndex struct {
 }
 
 func (t *testIndex) cleanup() {
-	if t.db != nil {
-		t.db.Close()
+	if t.index != nil {
+		t.index.Close()
 	}
 	if t.tmpDir != "" {
 		os.RemoveAll(t.tmpDir)
 	}
 }
 
-func newTestIndex() (x *testIndex, err error) {
-	x = &testIndex{}
+func newTestIndex(store *meta.Store) (x *testIndex, err error) {
+	x = &testIndex{store: store}
 	defer func() {
 		if err != nil {
 			x.cleanup()
@@ -223,7 +223,6 @@ func newTestIndex() (x *testIndex, err error) {
 	}
 
 	// store the artists and links in a test store
-	x.store = meta.NewMapDatastore()
 	artistCids := make([]*cid.Cid, len(x.artists))
 	for i, artist := range x.artists {
 		obj, err := x.store.Put(artist)
@@ -257,18 +256,12 @@ func newTestIndex() (x *testIndex, err error) {
 		}
 	}()
 
-	// create a test SQLite3 db
-	x.tmpDir, err = ioutil.TempDir("", "musicbrainz-index-test")
-	if err != nil {
-		return nil, err
-	}
-	x.db, err = sql.Open("sqlite3", filepath.Join(x.tmpDir, "index.db"))
-	if err != nil {
-		return nil, err
-	}
-
 	// index the artists and links
-	indexer, err := NewIndexer(x.db, x.store)
+	x.index, err = store.OpenIndex("musicbrainz.index.meta")
+	if err != nil {
+		return nil, err
+	}
+	indexer, err := NewIndexer(x.index, x.store)
 	if err != nil {
 		return nil, err
 	}
@@ -279,5 +272,4 @@ func newTestIndex() (x *testIndex, err error) {
 		return nil, err
 	}
 	return x, nil
-
 }

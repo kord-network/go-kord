@@ -29,20 +29,23 @@ import (
 	"testing"
 
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/testutil"
 	"github.com/neelance/graphql-go"
 )
 
 // TestAPI tests querying a MusicBrainz index via the GraphQL API.
 func TestAPI(t *testing.T) {
 	// create a test index
-	x, err := newTestIndex()
+	store, cleanup := testutil.NewTestStore(t)
+	defer cleanup()
+	x, err := newTestIndex(store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer x.cleanup()
 
 	// start the API server
-	s, err := newTestAPI(x.db, x.store)
+	s, err := newTestAPI(x.index.DB, x.store)
 	if err != nil {
 		t.Fatal(err)
 	}

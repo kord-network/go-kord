@@ -35,68 +35,62 @@ import (
 // representing records (represented in cwr files) into a SQLite3 database, getting the
 // associated META objects from a META store.
 type Indexer struct {
-	indexDB *sql.DB
-	sqlTx   *sql.Tx
-	store   *meta.Store
+	index *meta.Index
+	store *meta.Store
 }
 
 type jobIn struct {
+	tx      *sql.Tx
 	cwrID   *cid.Cid
-	tx      map[string]interface{}
-	indexFn func(cwrID *cid.Cid, tx map[string]interface{}) error
+	txs     map[string]interface{}
+	indexFn func(*sql.Tx, *cid.Cid, map[string]interface{}) error
 }
 
 // NewIndexer returns an Indexer which updates the indexes in the given SQLite3
 // database connection, getting META objects from the given META store.
-func NewIndexer(indexDB *sql.DB, store *meta.Store) (*Indexer, error) {
+func NewIndexer(index *meta.Index, store *meta.Store) (*Indexer, error) {
 	// migrate the db to ensure it has an up-to-date schema
-	if err := migrations.Run(indexDB); err != nil {
+	if err := migrations.Run(index.DB); err != nil {
 		return nil, err
 	}
 
 	return &Indexer{
-		indexDB: indexDB,
-		store:   store,
+		index: index,
+		store: store,
 	}, nil
 }
 
 // Index indexes a stream of META object links which are expected to
 // point at CWRs.
 func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) error {
-	for {
-		select {
-		case cid, ok := <-stream:
-			if !ok {
-				return nil
+	return i.index.Update(func(tx *sql.Tx) error {
+		for {
+			select {
+			case cid, ok := <-stream:
+				if !ok {
+					return nil
+				}
+				obj, err := i.store.Get(cid)
+				if err != nil {
+					return err
+				}
+				if err := i.indexCWR(tx, obj); err != nil {
+					return err
+				}
+			case <-ctx.Done():
+				return ctx.Err()
 			}
-			obj, err := i.store.Get(cid)
-			if err != nil {
-				return err
-			}
-			i.sqlTx, err = i.indexDB.Begin()
-			if err != nil {
-				return err
-			}
-			if err := i.index(obj); err != nil {
-				i.sqlTx.Rollback()
-				return err
-			}
-			if err := i.sqlTx.Commit(); err != nil {
-				return err
-			}
-		case <-ctx.Done():
-			return ctx.Err()
 		}
-	}
+	})
 }
 
 // index indexes a CWR based on its NWR,REV
-func (i *Indexer) index(cwr *meta.Object) (err error) {
+func (i *Indexer) indexCWR(tx *sql.Tx, cwr *meta.Object) (err error) {
 	graph := meta.NewGraph(i.store, cwr)
 	jobs := make(chan jobIn)
 	results := make(chan error)
 
-	for field, indexFn := range map[string]func(*cid.Cid, *meta.Object) error{
+	for field, indexFn := range map[string]func(*sql.Tx, *cid.Cid, *meta.Object) error{
 		"HDR": i.indexTransmissionHeader,
 		"TRL": i.indexTransmissionTrailer,
 	} {
@@ -110,7 +104,7 @@ func (i *Indexer) index(cwr *meta.Object) (err error) {
 		if !ok {
 			return fmt.Errorf("unexpected field type for %q, expected *cid.Cid, got %T", field, v)
 		}
-		if err := i.indexRecord(cwr.Cid(), id, indexFn); err != nil {
+		if err := i.indexRecord(tx, cwr.Cid(), id, indexFn); err != nil {
 			return err
 		}
 	}
@@ -133,7 +127,7 @@ func (i *Indexer) index(cwr *meta.Object) (err error) {
 		defer func() {
 			results <- err
 		}()
-		for field, indexFn := range map[string]func(cwrID *cid.Cid, tx map[string]interface{}) error{
+		for field, indexFn := range map[string]func(*sql.Tx, *cid.Cid, map[string]interface{}) error{
 			"NWR": i.indexNWR,
 			"REV": i.indexNWR,
 			"ISW": i.indexISW,
@@ -155,7 +149,7 @@ func (i *Indexer) index(cwr *meta.Object) (err error) {
 				if !ok {
 					return fmt.Errorf("unexpected field type for %q, expected *cid.Cid, got %T", field, v)
 				}
-				if err := i.indexRecord(cwr.Cid(), id, i.indexGroupHeader); err != nil {
+				if err := i.indexRecord(tx, cwr.Cid(), id, i.indexGroupHeader); err != nil {
 					return err
 				}
 				v, err = graph.Get("Groups", strconv.Itoa(k), "Transactions", field)
@@ -173,11 +167,11 @@ func (i *Indexer) index(cwr *meta.Object) (err error) {
 					} else if err != nil {
 						return err
 					}
-					tx, ok := v.(map[string]interface{})
+					txs, ok := v.(map[string]interface{})
 					if !ok {
 						return fmt.Errorf("unexpected field type .Expected map[string]interface{}, got %T", v)
 					}
-					jobs <- jobIn{cwr.Cid(), tx, indexFn}
+					jobs <- jobIn{tx, cwr.Cid(), txs, indexFn}
 				}
 			}
 		}
@@ -201,23 +195,23 @@ func (i *Indexer) index(cwr *meta.Object) (err error) {
 
 func (i *Indexer) worker(jobs <-chan jobIn, results chan<- error) {
 	for job := range jobs {
-		results <- job.indexFn(job.cwrID, job.tx)
+		results <- job.indexFn(job.tx, job.cwrID, job.txs)
 	}
 }
 
 // indexRecord indexes a particular CWR record using the provided index
 // function.
-func (i *Indexer) indexRecord(cwrID, cid *cid.Cid, indexFn func(*cid.Cid, *meta.Object) error) error {
+func (i *Indexer) indexRecord(tx *sql.Tx, cwrID, cid *cid.Cid, indexFn func(*sql.Tx, *cid.Cid, *meta.Object) error) error {
 	obj, err := i.store.Get(cid)
 	if err != nil {
 		return err
 	}
-	return indexFn(cwrID, obj)
+	return indexFn(tx, cwrID, obj)
 }
 
 // indexRegisteredWork indexes the given registeredWork record on its title,iswc,CompositeType and record_type
 // properties.
-func (i *Indexer) indexRegisteredWork(cwrID *cid.Cid, obj *meta.Object) error {
+func (i *Indexer) indexRegisteredWork(tx *sql.Tx, cwrID *cid.Cid, obj *meta.Object) error {
 	registeredWork := &RegisteredWork{}
 
 	if err := obj.Decode(registeredWork); err != nil {
@@ -226,14 +220,14 @@ func (i *Indexer) indexRegisteredWork(cwrID *cid.Cid, obj *meta.Object) error {
 
 	log.Info("indexing nwr (registered work)", "object_id", obj.Cid().String(), "Title", registeredWork.Title, "ISWC", registeredWork.ISWC, "Composite Type", registeredWork.CompositeType, "Record Type", registeredWork.RecordType)
 
-	_, err := i.sqlTx.Exec(`INSERT INTO registered_work (cwr_id,object_id, title, iswc, composite_type,record_type) VALUES ($1, $2, $3, $4, $5, $6)`,
+	_, err := tx.Exec(`INSERT INTO registered_work (cwr_id,object_id, title, iswc, composite_type,record_type) VALUES ($1, $2, $3, $4, $5, $6)`,
 		cwrID.String(), obj.Cid().String(), registeredWork.Title, registeredWork.ISWC, registeredWork.CompositeType, registeredWork.RecordType)
 	return err
 }
 
 // indexTransmissionHeader indexes the given transmission header (HDR) record on its sender_type,sender_id,sender_name and record_type
 // properties.
-func (i *Indexer) indexTransmissionHeader(cwrID *cid.Cid, hdr *meta.Object) error {
+func (i *Indexer) indexTransmissionHeader(tx *sql.Tx, cwrID *cid.Cid, hdr *meta.Object) error {
 	transmissionHeader := &TransmissionHeader{}
 
 	if err := hdr.Decode(transmissionHeader); err != nil {
@@ -241,33 +235,33 @@ func (i *Indexer) indexTransmissionHeader(cwrID *cid.Cid, hdr *meta.Object) erro
 	}
 	log.Info("indexing cwr transmission  header", "Sender  Type", transmissionHeader.SenderType, "Sender Id", transmissionHeader.SenderID, "Record Type", transmissionHeader.RecordType)
 
-	_, err := i.sqlTx.Exec(`INSERT INTO transmission_header (cwr_id,object_id,sender_type,sender_id,sender_name,record_type) VALUES ($1, $2, $3, $4, $5, $6)`,
+	_, err := tx.Exec(`INSERT INTO transmission_header (cwr_id,object_id,sender_type,sender_id,sender_name,record_type) VALUES ($1, $2, $3, $4, $5, $6)`,
 		cwrID.String(), hdr.Cid().String(), transmissionHeader.SenderType, transmissionHeader.SenderID, transmissionHeader.SenderName, transmissionHeader.RecordType)
 	return err
 }
 
 // indexTransmissionTrailer indexes the given TRL record
-func (i *Indexer) indexTransmissionTrailer(cwrID *cid.Cid, obj *meta.Object) error {
+func (i *Indexer) indexTransmissionTrailer(tx *sql.Tx, cwrID *cid.Cid, obj *meta.Object) error {
 	// TODO: index TRL
 	return nil
 }
 
 // indexGroupHeader indexes the given GRH record
-func (i *Indexer) indexGroupHeader(cwrID *cid.Cid, grhr *meta.Object) error {
+func (i *Indexer) indexGroupHeader(tx *sql.Tx, cwrID *cid.Cid, grhr *meta.Object) error {
 
 	// TODO: index GRH
 	return nil
 }
 
 // indexPublisherControlledBySubmiter indexes the given SPU record on its properties.
-func (i *Indexer) indexPublisherControlledBySubmiter(cwrID *cid.Cid, txCid *cid.Cid, obj *meta.Object) error {
+func (i *Indexer) indexPublisherControlledBySubmiter(tx *sql.Tx, cwrID *cid.Cid, txCid *cid.Cid, obj *meta.Object) error {
 	publisherControlledBySubmitter := &PublisherControllBySubmitter{}
 
 	if err := obj.Decode(publisherControlledBySubmitter); err != nil {
 		return err
 	}
 	log.Info("indexing publisherControlledBySubmitter ", "cwr_id", cwrID.String(), "tx_id", txCid.String(), "object_id", obj.Cid().String())
-	_, err := i.sqlTx.Exec(`INSERT INTO publisher_control
+	_, err := tx.Exec(`INSERT INTO publisher_control
 		(cwr_id,
 		 tx_id,
 		 object_id,
@@ -309,14 +303,14 @@ func (i *Indexer) indexPublisherControlledBySubmiter(cwrID *cid.Cid, txCid *cid.
 }
 
 // indexWriterControlledbySubmitter indexes the given SWR or OWR record on its properties.
-func (i *Indexer) indexWriterControlledbySubmitter(cwrID *cid.Cid, txCid *cid.Cid, obj *meta.Object) error {
+func (i *Indexer) indexWriterControlledbySubmitter(tx *sql.Tx, cwrID *cid.Cid, txCid *cid.Cid, obj *meta.Object) error {
 	writerControlledbySubmitter := &WriterControlledbySubmitter{}
 
 	if err := obj.Decode(writerControlledbySubmitter); err != nil {
 		return err
 	}
 	log.Info("indexing writerControlledbySubmitter ", "cwr_id", cwrID.String(), "tx_id", txCid.String(), "object_id", obj.Cid().String())
-	_, err := i.sqlTx.Exec(`INSERT INTO writer_control
+	_, err := tx.Exec(`INSERT INTO writer_control
 		( cwr_id,
 			tx_id,
 			object_id,
@@ -348,10 +342,10 @@ func (i *Indexer) indexWriterControlledbySubmitter(cwrID *cid.Cid, txCid *cid.Ci
 
 // indexNWR indexes the given cwr transaction by indexing each transacation's record and link it to its
 // transaction.
-func (i *Indexer) indexNWR(cwrID *cid.Cid, tx map[string]interface{}) error {
-	mainRecordTx, ok := tx["MainRecord"].(map[string]interface{})
+func (i *Indexer) indexNWR(tx *sql.Tx, cwrID *cid.Cid, txs map[string]interface{}) error {
+	mainRecordTx, ok := txs["MainRecord"].(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("error indexing CWR: expected MainRecord property to be map[string]interface{}, got %T", tx["MainRecord"])
+		return fmt.Errorf("error indexing CWR: expected MainRecord property to be map[string]interface{}, got %T", txs["MainRecord"])
 	}
 	nwrCid, ok := mainRecordTx["NWR"].(*cid.Cid)
 	if !ok {
@@ -365,47 +359,47 @@ func (i *Indexer) indexNWR(cwrID *cid.Cid, tx map[string]interface{}) error {
 		return err
 	}
 
-	if err := i.indexRegisteredWork(cwrID, obj); err != nil {
+	if err := i.indexRegisteredWork(tx, cwrID, obj); err != nil {
 		return err
 	}
 
-	for _, spuCid := range tx["DetailRecords"].(map[string]interface{})["SPU"].([]interface{}) {
+	for _, spuCid := range txs["DetailRecords"].(map[string]interface{})["SPU"].([]interface{}) {
 		obj, err := i.store.Get(spuCid.(*cid.Cid))
 		if err != nil {
 			return err
 		}
-		if err := i.indexPublisherControlledBySubmiter(cwrID, nwrCid, obj); err != nil {
+		if err := i.indexPublisherControlledBySubmiter(tx, cwrID, nwrCid, obj); err != nil {
 			return err
 		}
 	}
-	for _, swrCid := range tx["DetailRecords"].(map[string]interface{})["SWR"].([]interface{}) {
+	for _, swrCid := range txs["DetailRecords"].(map[string]interface{})["SWR"].([]interface{}) {
 		obj, err := i.store.Get(swrCid.(*cid.Cid))
 		if err != nil {
 			return err
 		}
-		if err := i.indexWriterControlledbySubmitter(cwrID, nwrCid, obj); err != nil {
+		if err := i.indexWriterControlledbySubmitter(tx, cwrID, nwrCid, obj); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (i *Indexer) indexISW(cwrID *cid.Cid, tx map[string]interface{}) error {
+func (i *Indexer) indexISW(tx *sql.Tx, cwrID *cid.Cid, txs map[string]interface{}) error {
 	// TODO: index ISW
 	return nil
 }
 
-func (i *Indexer) indexACK(cwrID *cid.Cid, tx map[string]interface{}) error {
+func (i *Indexer) indexACK(tx *sql.Tx, cwrID *cid.Cid, txs map[string]interface{}) error {
 	// TODO: index ACK
 	return nil
 }
 
-func (i *Indexer) indexEXC(cwrID *cid.Cid, tx map[string]interface{}) error {
+func (i *Indexer) indexEXC(tx *sql.Tx, cwrID *cid.Cid, txs map[string]interface{}) error {
 	// TODO: index EXC
 	return nil
 }
 
-func (i *Indexer) indexAGR(cwrID *cid.Cid, tx map[string]interface{}) error {
+func (i *Indexer) indexAGR(tx *sql.Tx, cwrID *cid.Cid, txs map[string]interface{}) error {
 	// TODO: index AGR
 	return nil
 }

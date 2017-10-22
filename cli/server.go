@@ -20,7 +20,6 @@
 package cli
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -42,7 +41,7 @@ type Server struct {
 	store  *meta.Store
 }
 
-func NewServer(store *meta.Store, indexes map[string]*sql.DB) (*Server, error) {
+func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, error) {
 	srv := &Server{
 		router: httprouter.New(),
 		store:  store,
@@ -55,8 +54,8 @@ func NewServer(store *meta.Store, indexes map[string]*sql.DB) (*Server, error) {
 	srv.router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
 	srv.router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
 
-	if db, ok := indexes["musicbrainz"]; ok {
-		musicbrainzApi, err := musicbrainz.NewAPI(db, store)
+	if index, ok := indexes["musicbrainz"]; ok {
+		musicbrainzApi, err := musicbrainz.NewAPI(index.DB, store)
 		if err != nil {
 			return nil, err
 		}
@@ -64,8 +63,8 @@ func NewServer(store *meta.Store, indexes map[string]*sql.DB) (*Server, error) {
 		srv.router.Handler("POST", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
 	}
 
-	if db, ok := indexes["cwr"]; ok {
-		cwrApi, err := cwr.NewAPI(db, store)
+	if index, ok := indexes["cwr"]; ok {
+		cwrApi, err := cwr.NewAPI(index.DB, store)
 		if err != nil {
 			return nil, err
 		}
@@ -73,16 +72,16 @@ func NewServer(store *meta.Store, indexes map[string]*sql.DB) (*Server, error) {
 		srv.router.Handler("POST", "/cwr/*path", http.StripPrefix("/cwr", cwrApi))
 	}
 
-	if db, ok := indexes["ern"]; ok {
-		ernApi, err := ern.NewAPI(db, store)
+	if index, ok := indexes["ern"]; ok {
+		ernApi, err := ern.NewAPI(index.DB, store)
 		if err != nil {
 			return nil, err
 		}
 		srv.router.Handler("GET", "/ern/*path", http.StripPrefix("/ern", ernApi))
 		srv.router.Handler("POST", "/ern/*path", http.StripPrefix("/ern", ernApi))
 	}
-	if db, ok := indexes["eidr"]; ok {
-		eidrApi, err := eidr.NewAPI(db, store)
+	if index, ok := indexes["eidr"]; ok {
+		eidrApi, err := eidr.NewAPI(index.DB, store)
 		if err != nil {
 			return nil, err
 		}
