@@ -21,6 +21,7 @@
 # ISWC - International Standard Musical Work Code
 # GRid - Global Release Identifier
 # UPC  - Universal Product Code
+# EAN  - International Article Number
 #
 # Other entity properties (like performer name or recording title) are linked
 # to these identifiers by various sources in the META network.
@@ -102,7 +103,8 @@ type MusicRelease {
 }
 
 type MusicProduct {
-  upc: ID
+  upc: StringValue
+  ean: StringValue
 
   releases:   [MusicReleaseLink]
   recordings: [MusicRecordingLink]
