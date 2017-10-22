@@ -52,12 +52,12 @@ usage: meta convert [--source=<source>] xml <file> [<context>...]
        meta convert [--source=<source>] ern <files>...
        meta convert [--source=<source>] eidr <files>...
        meta convert [--source=<source>] musicbrainz <type> <postgres-uri>
-       meta index cwr <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
-       meta index ern <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
-       meta index eidr <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
-       meta index musicbrainz <type> <sqlite3-filename> [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
+       meta index cwr <ens-name>
+       meta index ern <ens-name>
+       meta index eidr <ens-name>
+       meta index musicbrainz <type> <ens-name>
        meta dump [--format=<format>] <path>
-       meta server [--port=<port>] [--cors-domain=<domain>...] [--index=<index>...] [--bzzapi=<bzzuri>] [--bzzdir=<bzzdirhash>]
+       meta server [--port=<port>] [--cors-domain=<domain>...] [--index=<index>...]
 
 options:
   --source=<source>           The value to set as @source on all created META objects
@@ -70,17 +70,16 @@ options:
   --cors-domain=<domain>...   The allowed CORS domains.
 
   --index=<index>...          One or more SQLite3 indexes for the HTTP server where <index>
-                              has the format <name>:<path>, with <name> being one of
-                              'musicbrainz', 'ern', 'cwr' or 'eidr' and <path> being the
-                              path to the index. For example:
-                              '--index ern:path/to/ern.db --index cwr:path/to/cwr.db'
+                              has the format <type>:<name>, with <type> being one of
+                              'musicbrainz', 'ern', 'cwr' or 'eidr' and <name> being the
+                              ENS name of the index. For example:
+                              '--index ern:ern.index.meta --index cwr:cwr.index.meta'
 `[1:]
 
 type CLI struct {
 	store  *meta.Store
 	stdin  io.Reader
 	stdout io.Writer
-	bzz    *SwarmBackend
 }
 
 func New(store *meta.Store, stdin io.Reader, stdout io.Writer) *CLI {
@@ -94,14 +93,6 @@ func New(store *meta.Store, stdin io.Reader, stdout io.Writer) *CLI {
 func (cli *CLI) Run(ctx context.Context, cmdArgs ...string) error {
 	v, _ := docopt.Parse(usage, cmdArgs, true, "0.0.1", false)
 	args := Args(v)
-
-	if v, ok := args["--bzzapi"]; ok && v != nil {
-		cli.bzz = &SwarmBackend{}
-		if err := cli.bzz.OpenIndex(args.String("--bzzapi"), args.String("--bzzdir")); err != nil {
-			return err
-		}
-		defer cli.bzz.CloseIndex()
-	}
 
 	switch {
 	case args.Bool("convert"):
@@ -144,44 +135,26 @@ func (cli *CLI) RunConvert(ctx context.Context, args Args) error {
 }
 
 func (cli *CLI) RunIndex(ctx context.Context, args Args) (err error) {
-	filename := args.String("<sqlite3-filename>")
-	filepath := filename
-	if cli.bzz != nil {
-		filepath, err = cli.bzz.GetIndexFile(filename, false)
-		if err != nil {
-			return err
-		}
-	}
-	db, err := sql.Open("sqlite3", filepath)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
+	var indexFn func(context.Context, *meta.Index, Args) error
 	switch {
 	case args.Bool("cwr"):
-		err = cli.RunCwrIndex(ctx, db, args)
+		indexFn = cli.RunCwrIndex
 	case args.Bool("ern"):
-		err = cli.RunERNIndex(ctx, db, args)
+		indexFn = cli.RunERNIndex
 	case args.Bool("eidr"):
-		err = cli.RunEIDRIndex(ctx, db, args)
+		indexFn = cli.RunEIDRIndex
 	case args.Bool("musicbrainz"):
-		err = cli.RunMusicBrainzIndex(ctx, db, args)
+		indexFn = cli.RunMusicBrainzIndex
 	default:
-		err = errors.New("unknown index")
+		return errors.New("unknown index")
 	}
+
+	index, err := cli.store.OpenIndex(args.String("<ens-name>"))
 	if err != nil {
 		return err
 	}
-
-	if cli.bzz != nil {
-		hash, err := cli.bzz.PutIndexFile(filename)
-		if err != nil {
-			return err
-		}
-		cli.stdout.Write([]byte(hash))
-	}
-	return
+	defer index.Close()
+	return indexFn(ctx, index, args)
 }
 
 func (cli *CLI) RunConvertXML(ctx context.Context, args Args) error {
@@ -268,39 +241,29 @@ func (cli *CLI) RunDump(ctx context.Context, args Args) error {
 }
 
 func (cli *CLI) RunServer(ctx context.Context, args Args) error {
-	// parse the --index args which have the format <name>:<path>
-	// where <name> is one of musicbrainz, ern, eidr or cwr and
-	// <path> is the path to the relevant index.
-	err := cli.bzz.OpenIndex(args.String("--bzzapi"), args.String("--bzzdir"))
-	if err != nil {
-		return err
-	}
-	defer cli.bzz.CloseIndex()
-
-	indexes := make(map[string]*sql.DB)
+	// parse the --index args which have the format <type>:<name>
+	// where <type> is one of musicbrainz, ern, eidr or cwr and
+	// <name> is the ENS name of the relevant index.
+	indexes := make(map[string]*meta.Index)
 	for _, index := range args.List("--index") {
-		namePath := strings.SplitN(index, ":", 2)
-		if len(namePath) != 2 {
+		typeName := strings.SplitN(index, ":", 2)
+		if len(typeName) != 2 {
 			return fmt.Errorf("invalid --index: %q", index)
 		}
-		name := namePath[0]
-		path := namePath[1]
+		typ := typeName[0]
+		name := typeName[1]
 
-		switch name {
+		switch typ {
 		case "musicbrainz", "ern", "eidr", "cwr":
 		default:
-			return fmt.Errorf("invalid --index name %q", name)
+			return fmt.Errorf("invalid --index type %q", typ)
 		}
-		filename, err := cli.bzz.GetIndexFile(path, true)
-		if err != nil {
-			return err
-		}
-		db, err := sql.Open("sqlite3", filename)
+		db, err := cli.store.OpenIndex(name)
 		if err != nil {
 			return err
 		}
 		defer db.Close()
-		indexes[namePath[0]] = db
+		indexes[typ] = db
 	}
 
 	srv, err := NewServer(cli.store, indexes)
@@ -371,8 +334,8 @@ func (cli *CLI) RunMusicBrainzConvert(ctx context.Context, args Args) error {
 	return <-errC
 }
 
-func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, db *sql.DB, args Args) error {
-	indexer, err := musicbrainz.NewIndexer(db, cli.store)
+func (cli *CLI) RunMusicBrainzIndex(ctx context.Context, index *meta.Index, args Args) error {
+	indexer, err := musicbrainz.NewIndexer(index, cli.store)
 	if err != nil {
 		return err
 	}
@@ -422,8 +385,8 @@ func (cli *CLI) RunCwrConvert(ctx context.Context, args Args) error {
 	return nil
 }
 
-func (cli *CLI) RunCwrIndex(ctx context.Context, db *sql.DB, args Args) error {
-	indexer, err := cwr.NewIndexer(db, cli.store)
+func (cli *CLI) RunCwrIndex(ctx context.Context, index *meta.Index, args Args) error {
+	indexer, err := cwr.NewIndexer(index, cli.store)
 	if err != nil {
 		return err
 	}
@@ -463,8 +426,8 @@ func (cli *CLI) RunERNConvert(ctx context.Context, args Args) error {
 	return nil
 }
 
-func (cli *CLI) RunERNIndex(ctx context.Context, db *sql.DB, args Args) error {
-	indexer, err := ern.NewIndexer(db, cli.store)
+func (cli *CLI) RunERNIndex(ctx context.Context, index *meta.Index, args Args) error {
+	indexer, err := ern.NewIndexer(index, cli.store)
 	if err != nil {
 		return err
 	}
@@ -513,8 +476,8 @@ func (cli *CLI) RunEIDRConvert(ctx context.Context, args Args) error {
 	return nil
 }
 
-func (cli *CLI) RunEIDRIndex(ctx context.Context, db *sql.DB, args Args) error {
-	indexer, err := eidr.NewIndexer(db, cli.store)
+func (cli *CLI) RunEIDRIndex(ctx context.Context, index *meta.Index, args Args) error {
+	indexer, err := eidr.NewIndexer(index, cli.store)
 	if err != nil {
 		return err
 	}

@@ -23,32 +23,25 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"fmt"
 	"io"
-	"io/ioutil"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
 
-	bzzclient "github.com/ethereum/go-ethereum/swarm/api/client"
-	"github.com/ethereum/go-ethereum/swarm/testutil"
 	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/testutil"
 )
 
 // TestCWRCommands tests running the 'meta convert cwr' and
 // 'meta index cwr' commands.
 func TestCWRCommands(t *testing.T) {
-	c, err := newTestCLI(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(c.bzz.indexDir)
-	defer c.srv.Close()
+	store, cleanup := testutil.NewTestStore(t)
+	defer cleanup()
+	c := &testCLI{t, store}
+
 	// check 'meta convert cwr' prints a CID
 	stdout := c.run("convert", "cwr",
 		"--source", "test",
@@ -71,19 +64,17 @@ func TestCWRCommands(t *testing.T) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
-	db := filepath.Join(c.bzz.indexDir, "1_index.db")
-
 	// run 'meta index cwr' with the CIDs as stdin
+	indexName := "cwr.test"
 	stream := strings.NewReader(stdout)
-	c.bzz.indexDirHash = c.runWithStdin(stream, "index", "cwr", filepath.Base(db), fmt.Sprintf("--bzzapi=%s", c.srv.Server.URL), fmt.Sprintf("--bzzdir=%s", c.bzz.indexDirHash))
-	if c.bzz.indexDirHash == "" {
-		t.Fatal("No hash returned")
-	}
-	t.Logf("got hash", c.bzz.indexDirHash)
+	c.runWithStdin(stream, "index", "cwr", indexName)
 
 	// check the index was populated
-	c.bzz.GetIndexFile(filepath.Base(db), true)
-	cmd := exec.Command("sqlite3", db, "SELECT cwr_id FROM transmission_header ORDER BY cwr_id")
+	index, err := store.OpenIndex(indexName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("sqlite3", index.Path(), "SELECT cwr_id FROM transmission_header ORDER BY cwr_id")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error checking index: %s: %s", err, out)
@@ -98,12 +89,9 @@ func TestCWRCommands(t *testing.T) {
 // TestERNCommands tests running the 'meta convert ern' and
 // 'meta index ern' commands.
 func TestERNCommands(t *testing.T) {
-	c, err := newTestCLI(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(c.bzz.indexDir)
-	defer c.srv.Close()
+	store, cleanup := testutil.NewTestStore(t)
+	defer cleanup()
+	c := &testCLI{t, store}
 
 	// check 'meta convert ern' prints multiple CIDs
 	stdout := c.run("convert", "ern",
@@ -134,17 +122,17 @@ func TestERNCommands(t *testing.T) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
-	db := filepath.Join(c.bzz.indexDir, "2_index.db")
 	// run 'meta index ern' with the CIDs as stdin
+	indexName := "ern.test"
 	stream := strings.NewReader(stdout)
-	c.bzz.indexDirHash = c.runWithStdin(stream, "index", "ern", filepath.Base(db), fmt.Sprintf("--bzzapi=%s", c.srv.Server.URL), fmt.Sprintf("--bzzdir=%s", c.bzz.indexDirHash))
-	if c.bzz.indexDirHash == "" {
-		t.Fatal("No hash returned")
-	}
+	c.runWithStdin(stream, "index", "ern", indexName)
 
 	// check the index was populated
-	c.bzz.GetIndexFile(filepath.Base(db), true)
-	cmd := exec.Command("sqlite3", db, "SELECT cid FROM ern ORDER BY cid")
+	index, err := store.OpenIndex(indexName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("sqlite3", index.Path(), "SELECT cid FROM ern ORDER BY cid")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error checking index: %s: %s", err, out)
@@ -159,10 +147,9 @@ func TestERNCommands(t *testing.T) {
 // TestERNCommands tests running the 'meta convert eidr' and
 // 'meta index eidr' commands.
 func TestEIDRCommands(t *testing.T) {
-	c, err := newTestCLI(t)
-	if err != nil {
-		t.Fatal(err)
-	}
+	store, cleanup := testutil.NewTestStore(t)
+	defer cleanup()
+	c := &testCLI{t, store}
 
 	// check 'meta convert eidr' outputs expected rows
 	stdout := c.run("convert", "eidr",
@@ -187,18 +174,17 @@ func TestEIDRCommands(t *testing.T) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
 	}
 
-	db := filepath.Join(c.bzz.indexDir, "3_index.db")
-
 	// run 'meta index eidr' with the CIDs as stdin
+	indexName := "eidr.test"
 	stream := strings.NewReader(stdout)
-	c.bzz.indexDirHash = c.runWithStdin(stream, "index", "eidr", filepath.Base(db), fmt.Sprintf("--bzzapi=%s", c.srv.Server.URL), fmt.Sprintf("--bzzdir=%s", c.bzz.indexDirHash))
-	if c.bzz.indexDirHash == "" {
-		t.Fatal("No hash returned")
-	}
+	c.runWithStdin(stream, "index", "eidr", indexName)
 
 	// check the index was populated
-	c.bzz.GetIndexFile(filepath.Base(db), true)
-	cmd := exec.Command("sqlite3", db, "select count(*) from xobject_baseobject_link x inner join baseobject p, xobject_episode e on p.doi_id = x.parent_doi_id where e.id = x.xobject_id")
+	index, err := store.OpenIndex(indexName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("sqlite3", index.Path(), "select count(*) from xobject_baseobject_link x inner join baseobject p, xobject_episode e on p.doi_id = x.parent_doi_id where e.id = x.xobject_id")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error checking index: %s: %s", err, out)
@@ -208,7 +194,7 @@ func TestEIDRCommands(t *testing.T) {
 	}
 
 	// check if associatedorgs are inserted and linked
-	cmd = exec.Command("sqlite3", db, "select count(*) from org o inner join baseobject b on o.base_doi_id = b.doi_id")
+	cmd = exec.Command("sqlite3", index.Path(), "select count(*) from org o inner join baseobject b on o.base_doi_id = b.doi_id")
 	out, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error checking index: %s: %s", err, out)
@@ -218,7 +204,7 @@ func TestEIDRCommands(t *testing.T) {
 	}
 
 	// check if alternateids are inserted and linked
-	cmd = exec.Command("sqlite3", db, "select count(*) from alternateid a inner join baseobject b on a.base_doi_id = b.doi_id")
+	cmd = exec.Command("sqlite3", index.Path(), "select count(*) from alternateid a inner join baseobject b on a.base_doi_id = b.doi_id")
 	out, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error checking index: %s: %s", err, out)
@@ -231,42 +217,6 @@ func TestEIDRCommands(t *testing.T) {
 type testCLI struct {
 	t     *testing.T
 	store *meta.Store
-	bzz   *SwarmBackend
-	srv   *testutil.TestSwarmServer
-}
-
-func newTestCLI(t *testing.T) (*testCLI, error) {
-	// create a path to store the index and to store the meta objects.
-	tmpDir, err := ioutil.TempDir("", "meta-main-test")
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err != nil {
-			os.RemoveAll(tmpDir)
-		}
-	}()
-	srv := testutil.NewTestSwarmServer(t)
-
-	bzzbackend := &SwarmBackend{
-		api:      bzzclient.NewClient(srv.Server.URL),
-		indexDir: tmpDir,
-	}
-	hash, err := bzzbackend.api.UploadDirectory(tmpDir, "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = bzzbackend.OpenIndex(srv.Server.URL, hash)
-	if err != nil {
-		t.Fatal(err)
-	}
-	store := meta.NewSwarmDatastore(srv.URL)
-	return &testCLI{
-		t:     t,
-		store: store,
-		bzz:   bzzbackend,
-		srv:   srv,
-	}, nil
 }
 
 func (c *testCLI) runWithStdin(stdin io.Reader, args ...string) string {

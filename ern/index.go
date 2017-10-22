@@ -34,69 +34,54 @@ import (
 // representing DDEX ERNs into a SQLite3 database, getting the
 // associated META objects from a META store.
 type Indexer struct {
-	db    *sql.DB
-	tx    *sql.Tx
+	index *meta.Index
 	store *meta.Store
 }
 
 // NewIndexer returns an Indexer which updates the indexes in the given SQLite3
 // database connection, getting META objects from the given META store.
-func NewIndexer(db *sql.DB, store *meta.Store) (*Indexer, error) {
+func NewIndexer(index *meta.Index, store *meta.Store) (*Indexer, error) {
 	// migrate the db to ensure it has an up-to-date schema
-	if err := migrations.Run(db); err != nil {
+	if err := migrations.Run(index.DB); err != nil {
 		return nil, err
 	}
 
 	return &Indexer{
-		db:    db,
+		index: index,
 		store: store,
 	}, nil
 }
 
 // Index indexes a stream of META object links which are expected to
 // point at DDEX ERNs.
-func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) (err error) {
-	// wrap the indexing in a single transaction
-	tx, err := i.db.Begin()
-	if err != nil {
-		return err
-	}
-	i.tx = tx
-	defer func() {
-		// commit the transaction if there was no error, otherwise
-		// roll it back.
-		if err == nil {
-			err = tx.Commit()
-		} else {
-			tx.Rollback()
+func (i *Indexer) Index(ctx context.Context, stream chan *cid.Cid) error {
+	return i.index.Update(func(tx *sql.Tx) error {
+		for {
+			select {
+			case cid, ok := <-stream:
+				if !ok {
+					return nil
+				}
+				obj, err := i.store.Get(cid)
+				if err != nil {
+					return err
+				}
+				if err := i.indexERN(tx, obj); err != nil {
+					return err
+				}
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
-	}()
-
-	for {
-		select {
-		case cid, ok := <-stream:
-			if !ok {
-				return nil
-			}
-			obj, err := i.store.Get(cid)
-			if err != nil {
-				return err
-			}
-			if err := i.index(obj); err != nil {
-				return err
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
+	})
 }
 
-// index indexes a DDEX ERN based on its MessageHeader, WorkList, ResourceList
-// and ReleaseList.
-func (i *Indexer) index(ern *meta.Object) error {
+// indexERN indexes a DDEX ERN based on its MessageHeader, WorkList,
+// ResourceList and ReleaseList.
+func (i *Indexer) indexERN(tx *sql.Tx, ern *meta.Object) error {
 	graph := meta.NewGraph(i.store, ern)
 
-	for field, indexFn := range map[string]func(*cid.Cid, *meta.Object) error{
+	for field, indexFn := range map[string]func(*sql.Tx, *cid.Cid, *meta.Object) error{
 		"MessageHeader": i.indexMessageHeader,
 		"WorkList":      i.indexWorkList,
 		"ResourceList":  i.indexResourceList,
@@ -112,7 +97,7 @@ func (i *Indexer) index(ern *meta.Object) error {
 		if !ok {
 			return fmt.Errorf("unexpected field type for %q, expected *cid.Cid, got %T", field, v)
 		}
-		if err := i.indexProperty(ern.Cid(), id, indexFn); err != nil {
+		if err := i.indexProperty(tx, ern.Cid(), id, indexFn); err != nil {
 			return err
 		}
 	}
@@ -122,12 +107,12 @@ func (i *Indexer) index(ern *meta.Object) error {
 
 // indexProperty indexes a particular ERN property using the provided index
 // function.
-func (i *Indexer) indexProperty(ernID, cid *cid.Cid, indexFn func(*cid.Cid, *meta.Object) error) error {
+func (i *Indexer) indexProperty(tx *sql.Tx, ernID, cid *cid.Cid, indexFn func(*sql.Tx, *cid.Cid, *meta.Object) error) error {
 	obj, err := i.store.Get(cid)
 	if err != nil {
 		return err
 	}
-	return indexFn(ernID, obj)
+	return indexFn(tx, ernID, obj)
 }
 
 // isUniqueErr determines whether an error is a SQLite3 uniqueness error.
@@ -167,7 +152,7 @@ func DecodeObj(metaStore *meta.Store, metaObj *meta.Object, v interface{}, path 
 
 // insertParty inserts the PartyName and PartyId fields of a Party object into
 // the party index.
-func (i *Indexer) insertParty(obj *meta.Object) error {
+func (i *Indexer) insertParty(tx *sql.Tx, obj *meta.Object) error {
 	var partyID struct {
 		Value string `json:"@value"`
 	}
@@ -181,7 +166,7 @@ func (i *Indexer) insertParty(obj *meta.Object) error {
 	if err := DecodeObj(i.store, obj, &partyName, "PartyName", "FullName"); err != nil {
 		return err
 	}
-	_, err := i.tx.Exec(
+	_, err := tx.Exec(
 		"INSERT INTO party (cid, id, name) VALUES ($1, $2, $3)",
 		obj.Cid().String(), partyID.Value, partyName.Value,
 	)
@@ -193,7 +178,7 @@ func (i *Indexer) insertParty(obj *meta.Object) error {
 
 // insertParties loads parties from the given field and inserts them into the
 // party index.
-func (i *Indexer) insertParties(obj *meta.Object, field string) ([]*cid.Cid, error) {
+func (i *Indexer) insertParties(tx *sql.Tx, obj *meta.Object, field string) ([]*cid.Cid, error) {
 	var ids []*cid.Cid
 	v, err := obj.Get(field)
 	if err != nil {
@@ -216,7 +201,7 @@ func (i *Indexer) insertParties(obj *meta.Object, field string) ([]*cid.Cid, err
 		if err != nil {
 			return nil, err
 		}
-		if err := i.insertParty(party); err != nil {
+		if err := i.insertParty(tx, party); err != nil {
 			return nil, err
 		}
 	}
@@ -225,8 +210,8 @@ func (i *Indexer) insertParties(obj *meta.Object, field string) ([]*cid.Cid, err
 
 // indexMessageHeader indexes an ERN MessageHeader based on its MessageId,
 // MessageThreadId, MessageSender, MessageRecipient and MessageCreatedDateTime.
-func (i *Indexer) indexMessageHeader(ernID *cid.Cid, obj *meta.Object) error {
-	senders, err := i.insertParties(obj, "MessageSender")
+func (i *Indexer) indexMessageHeader(tx *sql.Tx, ernID *cid.Cid, obj *meta.Object) error {
+	senders, err := i.insertParties(tx, obj, "MessageSender")
 	if err != nil {
 		return err
 	}
@@ -235,7 +220,7 @@ func (i *Indexer) indexMessageHeader(ernID *cid.Cid, obj *meta.Object) error {
 	}
 	sender := senders[0]
 
-	recipients, err := i.insertParties(obj, "MessageRecipient")
+	recipients, err := i.insertParties(tx, obj, "MessageRecipient")
 	if err != nil {
 		return err
 	}
@@ -266,20 +251,20 @@ func (i *Indexer) indexMessageHeader(ernID *cid.Cid, obj *meta.Object) error {
 	}
 
 	// update the ERN index
-	_, err = i.tx.Exec(
+	_, err = tx.Exec(
 		"INSERT INTO ern (cid, message_id, thread_id, sender_id, recipient_id, created) VALUES ($1, $2, $3, $4, $5, $6)",
 		ernID.String(), messageID.Value, threadID.Value, sender.String(), recipient.String(), created.Value,
 	)
 	return err
 }
 
-func (i *Indexer) indexWorkList(ernID *cid.Cid, obj *meta.Object) error {
+func (i *Indexer) indexWorkList(tx *sql.Tx, ernID *cid.Cid, obj *meta.Object) error {
 	// TODO: index MusicalWorks
 	return nil
 }
 
 // indexResourceList indexes an ERN ResourceList based on SoundRecordings.
-func (i *Indexer) indexResourceList(ernID *cid.Cid, obj *meta.Object) error {
+func (i *Indexer) indexResourceList(tx *sql.Tx, ernID *cid.Cid, obj *meta.Object) error {
 	// the SoundRecording property can either be a link if there is only
 	// one SoundRecording in the list, or an array of links if there are
 	// multiple SoundRecordings in the list, so we need to handle both
@@ -308,7 +293,7 @@ func (i *Indexer) indexResourceList(ernID *cid.Cid, obj *meta.Object) error {
 		if err != nil {
 			return err
 		}
-		if err := i.indexSoundRecording(ernID, obj); err != nil {
+		if err := i.indexSoundRecording(tx, ernID, obj); err != nil {
 			return err
 		}
 	}
@@ -318,7 +303,7 @@ func (i *Indexer) indexResourceList(ernID *cid.Cid, obj *meta.Object) error {
 
 // indexSoundRecording indexes an ERN SoundRecording based on its ID (either an
 // ISRC, CatalogNumber or ProprietaryId) and its ReferenceTitle.
-func (i *Indexer) indexSoundRecording(ernID *cid.Cid, obj *meta.Object) error {
+func (i *Indexer) indexSoundRecording(tx *sql.Tx, ernID *cid.Cid, obj *meta.Object) error {
 	graph := meta.NewGraph(i.store, obj)
 
 	// Only *attempt* to load the ISRC, other IDs can be retrieved via GraphQL
@@ -352,7 +337,7 @@ func (i *Indexer) indexSoundRecording(ernID *cid.Cid, obj *meta.Object) error {
 		if err != nil {
 			return err
 		}
-		_, err = i.insertParties(obj, "DisplayArtist")
+		_, err = i.insertParties(tx, obj, "DisplayArtist")
 		if err != nil {
 			return err
 		}
@@ -373,14 +358,14 @@ func (i *Indexer) indexSoundRecording(ernID *cid.Cid, obj *meta.Object) error {
 	}
 
 	// update the sound_recording and resource_list indexes
-	if _, err := i.tx.Exec(
+	if _, err := tx.Exec(
 		"INSERT INTO sound_recording (cid, id, title) VALUES ($1, $2, $3)",
 		obj.Cid().String(), isrc, title,
 	); err != nil {
 		return err
 	}
 
-	if _, err := i.tx.Exec(
+	if _, err := tx.Exec(
 		"INSERT INTO resource_list (ern_id, resource_id) VALUES ($1, $2)",
 		ernID.String(), obj.Cid().String(),
 	); err != nil {
@@ -391,7 +376,7 @@ func (i *Indexer) indexSoundRecording(ernID *cid.Cid, obj *meta.Object) error {
 }
 
 // indexReleaseList indexes the ReleaseList for each Release composite
-func (i *Indexer) indexReleaseList(ernID *cid.Cid, metaObj *meta.Object) error {
+func (i *Indexer) indexReleaseList(tx *sql.Tx, ernID *cid.Cid, metaObj *meta.Object) error {
 	// Much like the resource list, the release propoerty can be
 	// a single release, or an array of links.
 	rls, err := metaObj.Get("Release")
@@ -418,7 +403,7 @@ func (i *Indexer) indexReleaseList(ernID *cid.Cid, metaObj *meta.Object) error {
 		if err != nil {
 			return err
 		}
-		if err := i.indexRelease(ernID, rObj); err != nil {
+		if err := i.indexRelease(tx, ernID, rObj); err != nil {
 			return err
 		}
 	}
@@ -426,7 +411,7 @@ func (i *Indexer) indexReleaseList(ernID *cid.Cid, metaObj *meta.Object) error {
 }
 
 // indexRelease index each Release composite in the ReelaseList
-func (i *Indexer) indexRelease(ernID *cid.Cid, metaObj *meta.Object) error {
+func (i *Indexer) indexRelease(tx *sql.Tx, ernID *cid.Cid, metaObj *meta.Object) error {
 
 	graph := meta.NewGraph(i.store, metaObj)
 
@@ -452,7 +437,7 @@ func (i *Indexer) indexRelease(ernID *cid.Cid, metaObj *meta.Object) error {
 	}
 
 	// update the release and release_list indexes
-	_, err = i.tx.Exec(
+	_, err = tx.Exec(
 		"INSERT INTO release (cid, id, title) VALUES ($1, $2, $3)",
 		metaObj.Cid().String(), grId, title,
 	)
@@ -460,7 +445,7 @@ func (i *Indexer) indexRelease(ernID *cid.Cid, metaObj *meta.Object) error {
 		return err
 	}
 
-	_, err = i.tx.Exec(
+	_, err = tx.Exec(
 		"INSERT INTO release_list (ern_id, release_id) VALUES ($1, $2)",
 		ernID.String(), metaObj.Cid().String(),
 	)

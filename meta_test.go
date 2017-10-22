@@ -23,12 +23,14 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/swarm/testutil"
 	"github.com/ipfs/go-cid"
 )
 
@@ -99,27 +101,25 @@ func TestEncodeDecode(t *testing.T) {
 	}
 }
 
-type testMeta struct {
-	store *Store
-	srv   *testutil.TestSwarmServer
-}
-
-func (tm *testMeta) openSwarmStore(t *testing.T) *Store {
-	tm.srv = testutil.NewTestSwarmServer(t)
-	return NewSwarmDatastore(tm.srv.URL)
-}
-
-func TestSwarmDatastore(t *testing.T) {
+func TestStore(t *testing.T) {
 	type Person struct {
 		Name     string     `json:"name"`
 		Children []*cid.Cid `json:"children,omitempty"`
 	}
 
-	x := &testMeta{}
-
-	store := x.openSwarmStore(t)
-
-	defer x.srv.Close()
+	tmpDir, err := ioutil.TempDir("", "meta-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	ensDir := filepath.Join(tmpDir, "ens")
+	if err := os.Mkdir(ensDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewStore(tmpDir, LocalENS(ensDir))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	storeObj := store.MustPut(&Person{
 		Name: "parent",

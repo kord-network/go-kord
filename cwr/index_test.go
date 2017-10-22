@@ -21,9 +21,7 @@ package cwr
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,26 +29,25 @@ import (
 
 	cid "github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/testutil"
 )
 
 type testIndex struct {
-	db     *sql.DB
+	index  *meta.Index
 	store  *meta.Store
 	cwrCid *cid.Cid
-	tmpDir string
 }
 
 func (t *testIndex) cleanup() {
-	if t.db != nil {
-		t.db.Close()
-	}
-	if t.tmpDir != "" {
-		os.RemoveAll(t.tmpDir)
+	if t.index != nil {
+		t.index.Close()
 	}
 }
 
 func TestIndex(t *testing.T) {
-	x, err := newTestIndex()
+	store, cleanup := testutil.NewTestStore(t)
+	defer cleanup()
+	x, err := newTestIndex(t, store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +55,7 @@ func TestIndex(t *testing.T) {
 
 	// check the HDR record was indexed into the transmission_header table
 	senderName := "JAAK EXAMPLE SENDER NAME"
-	rows, err := x.db.Query(`SELECT object_id FROM transmission_header WHERE sender_name = ?`, senderName)
+	rows, err := x.index.Query(`SELECT object_id FROM transmission_header WHERE sender_name = ?`, senderName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +130,7 @@ func TestIndex(t *testing.T) {
 		writerFirstName    string
 	)
 
-	rows, err = x.db.Query(`SELECT object_id,title,iswc FROM registered_work WHERE cwr_id = ?`, x.cwrCid.String())
+	rows, err = x.index.Query(`SELECT object_id,title,iswc FROM registered_work WHERE cwr_id = ?`, x.cwrCid.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +153,7 @@ func TestIndex(t *testing.T) {
 			t.Fatal(err)
 		}
 		//get all publisher control records (SPU) which link to the above tx .
-		spuRows, err := x.db.Query(`SELECT object_id,publisher_sequence_n FROM publisher_control WHERE tx_id = ?`, txID.String())
+		spuRows, err := x.index.Query(`SELECT object_id,publisher_sequence_n FROM publisher_control WHERE tx_id = ?`, txID.String())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -173,7 +170,7 @@ func TestIndex(t *testing.T) {
 			}
 		}
 		//get all writer control records (SWR or OWR) which link to the above tx .
-		swrRows, err := x.db.Query(`SELECT object_id,writer_first_name FROM writer_control WHERE tx_id = ?`, txID.String())
+		swrRows, err := x.index.Query(`SELECT object_id,writer_first_name FROM writer_control WHERE tx_id = ?`, txID.String())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -195,26 +192,18 @@ func TestIndex(t *testing.T) {
 	}
 }
 
-func newTestIndex() (x *testIndex, err error) {
+func newTestIndex(t *testing.T, store *meta.Store) (x *testIndex, err error) {
 	// convert the test cwr to META object
-	x = &testIndex{}
+	x = &testIndex{store: store}
 	defer func() {
 		if err != nil {
 			x.cleanup()
 		}
 	}()
 
-	x.tmpDir, err = ioutil.TempDir("", "cwr-index-test")
-	if err != nil {
-		return nil, err
-	}
-
-	x.store = meta.NewMapDatastore()
-
 	converter := NewConverter(x.store)
 
 	f, err := os.Open(filepath.Join("testdata", "example_nwr.cwr"))
-
 	if err != nil {
 		return nil, err
 	}
@@ -232,13 +221,12 @@ func newTestIndex() (x *testIndex, err error) {
 		stream <- x.cwrCid
 	}()
 
-	// create a test SQLite3 db
-	x.db, err = sql.Open("sqlite3", filepath.Join(x.tmpDir, "index.db"))
+	// index the stream of CWR txs
+	x.index, err = store.OpenIndex("cwr.index.meta")
 	if err != nil {
 		return nil, err
 	}
-	// index the stream of CWR txs
-	indexer, err := NewIndexer(x.db, x.store)
+	indexer, err := NewIndexer(x.index, x.store)
 	if err != nil {
 		return nil, err
 	}

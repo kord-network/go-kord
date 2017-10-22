@@ -26,6 +26,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/testutil"
 )
 
 func TestConvertXML(t *testing.T) {
@@ -35,7 +36,8 @@ func TestConvertXML(t *testing.T) {
 	}
 
 	// convert the XML with the context, storing objects in memory
-	store := meta.NewMapDatastore()
+	store, cleanup := testutil.NewTestStore(t)
+	defer cleanup()
 	converter := NewConverter(store)
 	source := "test"
 	xml, err := converter.ConvertXML(bytes.NewReader(testXML), context, source)
@@ -162,7 +164,8 @@ func TestConvertXMLSchema(t *testing.T) {
 	}
 	defer f.Close()
 
-	store := meta.NewMapDatastore()
+	store, cleanup := testutil.NewTestStore(t)
+	defer cleanup()
 	converter := NewConverter(store)
 	obj, err := converter.ConvertXMLSchema(f, "ds", "http://www.w3.org/2000/09/xmldsig#", "test")
 	if err != nil {

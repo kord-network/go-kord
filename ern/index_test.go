@@ -20,8 +20,7 @@
 package ern
 
 import (
-	"database/sql"
-	"io/ioutil"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,7 +28,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
-	"golang.org/x/net/context"
+	"github.com/meta-network/go-meta/testutil"
 )
 
 func TestIndex(t *testing.T) {
@@ -41,7 +40,8 @@ func TestIndex(t *testing.T) {
 		"Profile_AudioSingle_WithCompoundArtistsAndTerritorialOverride.xml",
 		"Profile_AudioBook.xml",
 	}
-	store := meta.NewMapDatastore()
+	store, cleanup := testutil.NewTestStore(t)
+	defer cleanup()
 	converter := NewConverter(store)
 	cids := make(map[string]*cid.Cid, len(erns))
 	for _, path := range erns {
@@ -66,20 +66,12 @@ func TestIndex(t *testing.T) {
 		}
 	}()
 
-	// create a test SQLite3 db
-	tmpDir, err := ioutil.TempDir("", "musicbrainz-index-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-	db, err := sql.Open("sqlite3", filepath.Join(tmpDir, "index.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
 	// index the stream of ERNs
-	indexer, err := NewIndexer(db, store)
+	index, err := store.OpenIndex("ern.index.meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexer, err := NewIndexer(index, store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +84,7 @@ func TestIndex(t *testing.T) {
 	// check the MessageSender, MessageRecipient and DisplayArtist were indexed into the
 	// party table
 	for _, partyName := range []string{"NAME_OF_THE_SENDER", "NAME_OF_THE_RECIPIENT", "Monkey Claw"} {
-		rows, err := db.Query(`SELECT cid FROM party WHERE name = ?`, partyName)
+		rows, err := index.Query(`SELECT cid FROM party WHERE name = ?`, partyName)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -151,7 +143,7 @@ func TestIndex(t *testing.T) {
 			messageID string
 			threadID  string
 		)
-		row := db.QueryRow(`SELECT message_id, thread_id FROM ern WHERE cid = ?`, cid.String())
+		row := index.QueryRow(`SELECT message_id, thread_id FROM ern WHERE cid = ?`, cid.String())
 		if err := row.Scan(&messageID, &threadID); err != nil {
 			t.Fatal(err)
 		}
@@ -183,12 +175,12 @@ func TestIndex(t *testing.T) {
 		"CASE00000006": "Yes... I can feel the Monkey Claw!",
 	} {
 		var id string
-		row := db.QueryRow("SELECT cid FROM sound_recording WHERE id = ? AND title = ?", isrc, title)
+		row := index.QueryRow("SELECT cid FROM sound_recording WHERE id = ? AND title = ?", isrc, title)
 		if err := row.Scan(&id); err != nil {
 			t.Fatal(err)
 		}
 		var ernID string
-		row = db.QueryRow("SELECT ern_id FROM resource_list WHERE resource_id = ?", id)
+		row = index.QueryRow("SELECT ern_id FROM resource_list WHERE resource_id = ?", id)
 		if err := row.Scan(&ernID); err != nil {
 			t.Fatal(err)
 		}
@@ -205,12 +197,12 @@ func TestIndex(t *testing.T) {
 		"A1UCASE0000000006X": "Yes... I can feel the Monkey Claw!",
 	} {
 		var id string
-		row := db.QueryRow("SELECT cid FROM release WHERE id = ? AND title = ?", grId, title)
+		row := index.QueryRow("SELECT cid FROM release WHERE id = ? AND title = ?", grId, title)
 		if err := row.Scan(&id); err != nil {
 			t.Fatal(err)
 		}
 		var ernID string
-		row = db.QueryRow("SELECT ern_id FROM release_list WHERE release_id = ?", id)
+		row = index.QueryRow("SELECT ern_id FROM release_list WHERE release_id = ?", id)
 		if err := row.Scan(&ernID); err != nil {
 			t.Fatal(err)
 		}
