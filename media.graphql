@@ -1,0 +1,187 @@
+# This GraphQL schema defines the META Media types and queries.
+#
+# It consists of the following main entities:
+#
+# MusicPerformer
+# MusicComposer
+# RecordLabel
+# MusicPublisher
+# MusicRecording
+# MusicWork
+# MusicRelease
+# MusicProduct
+#
+# Each entity has a set of widely used identifiers which are used to uniquely
+# identify them:
+#
+# ISNI - International Standard Name Identifier
+# IPI  - Interested Parties Information
+# DPID - DDEX Party Identifier
+# ISRC - International Standard Recording Code
+# ISWC - International Standard Musical Work Code
+# GRid - Global Release Identifier
+# UPC  - Universal Product Code
+# EAN  - International Article Number
+#
+# Other entity properties (like performer name or recording title) are linked
+# to these identifiers by various sources in the META network.
+
+#
+# --- Main Entities ---
+#
+type MusicPerformer {
+  identifiers: [PartyIdentifier]
+
+  name: StringValue
+
+  products:   [MusicProductLink]
+  releases:   [MusicReleaseLink]
+  recordings: [MusicRecordingLink]
+  labels:     [RecordLabelLink]
+}
+
+type MusicComposer {
+  identifiers: [PartyIdentifier]
+
+  name: StringValue
+
+  works:      [MusicWorkLink]
+  publishers: [MusicPublisherLink]
+}
+
+type RecordLabel {
+  identifiers: [PartyIdentifier]
+
+  name: StringValue
+
+  products:   [MusicProductLink]
+  releases:   [MusicReleaseLink]
+  recordings: [MusicRecordingLink]
+  performers: [MusicPerformerLink]
+}
+
+type MusicPublisher {
+  identifiers: [PartyIdentifier]
+
+  name: StringValue
+
+  composers: [MusicComposerLink]
+  works:     [MusicWorkLink]
+}
+
+type MusicRecording {
+  isrc: StringValue
+
+  title: StringValue
+
+  products:   [MusicProductLink]
+  releases:   [MusicReleaseLink]
+  performers: [MusicPerformerLink]
+  labels:     [RecordLabelLink]
+  works:      [MusicWorkLink]
+}
+
+type MusicWork {
+  iswc: StringValue
+
+  title: StringValue
+
+  composers:  [MusicComposerLink]
+  recordings: [MusicRecordingLink]
+  publishers: [MusicPublisherLink]
+}
+
+type MusicRelease {
+  grid: StringValue
+
+  title: StringValue
+
+  products:   [MusicProductLink]
+  recordings: [MusicRecordingLink]
+  performers: [MusicPerformerLink]
+  labels:     [RecordLabelLink]
+}
+
+type MusicProduct {
+  upc: StringValue
+  ean: StringValue
+
+  releases:   [MusicReleaseLink]
+  recordings: [MusicRecordingLink]
+  performers: [MusicPerformerLink]
+  labels:     [RecordLabelLink]
+}
+
+#
+# --- Link Types ---
+#
+type MusicPerformerLink {
+  source:    Source!
+  performer: MusicPerformer!
+  role:      String
+}
+
+type MusicComposerLink {
+  source:   Source!
+  composer: MusicComposer!
+}
+
+type RecordLabelLink {
+  source: Source!
+  label:  RecordLabel!
+}
+
+type MusicPublisherLink {
+  source:    Source!
+  publisher: MusicPublisher!
+}
+
+type MusicRecordingLink {
+  source:    Source!
+  recording: MusicRecording!
+}
+
+type MusicWorkLink {
+  source: Source!
+  work:   MusicWork!
+}
+
+type MusicReleaseLink {
+  source:  Source!
+  release: MusicRelease!
+}
+
+type MusicProductLink {
+  source:  Source!
+  product: MusicProduct!
+}
+
+#
+# --- Value Types ---
+#
+enum PartyIdentifierType {
+  ISNI
+  IPI
+  DPID
+}
+
+type PartyIdentifier {
+  type:   PartyIdentifierType!
+  value:  String!
+  source: Source!
+}
+
+type StringValue {
+  value:   String!
+  sources: [StringSource]
+}
+
+type StringSource {
+  value:  String!
+  source: Source!
+  score:  Int!
+}
+
+type Source {
+  name: String!
+}

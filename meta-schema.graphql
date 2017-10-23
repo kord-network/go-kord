@@ -1,0 +1,94 @@
+# Base types
+type Identifiers {
+	id:ID!
+	idType:String! # IPI || ISWC || GRid
+}
+
+type Party {
+	identifiers:[Identifiers]!
+	type:String! # Person || Organisation
+	displayName:String!
+	formalName:String
+	firstName: String
+	lastName: String
+}
+
+# Music Types
+type TerritoryAgreement {
+	isoTerritoryCode:String!
+	condition:String! # inclusion/exclusion indicator
+}
+
+type interestedPartyAgreement {
+	agreementRoleCode:String!
+	interestedPartyNumber:Int!
+	party:Party
+	prSociety:String
+	prShare:Int
+	mrSociety:String
+	mrShare:Int
+}
+
+type MusicWork {
+	identifiers:[Identifiers]!
+	workTitle:String!
+	territories:[TerritoryAgreement]
+	interestedParties:[interestedPartyAgreement]
+	publishers:[Party]
+	composers:[Composer]
+	recordings:[MusicRecording]
+}
+
+type MusicRecording {
+	identifiers:[Identifiers]!
+	displayTitle:String!
+	displayArtist:[Performer!]!
+	contributors:[Party]
+	label:[Party]
+	genre:String
+	work:MusicWork
+	products:[MusicProduct]
+}
+
+type TerritoryProduct {
+	territories:[TerritoryAgreement]
+	releaseDate:String!
+	displayTitle:String!
+	displayArtist:String
+	label:[Party]
+	genre:String
+}
+
+type MusicProduct {
+	identifiers:[Identifiers]!
+	productType:String!
+	displayTitle:String!
+	genre:String
+	recordings:[MusicRecording]
+	territoryProducts:[TerritoryProduct]!
+}
+
+type Performer {
+	party:Party!
+	role:String
+	recordings:[MusicRecording]
+	products:[MusicProduct]
+}
+
+type Composer {
+	party:Party
+	works:[MusicWork]
+}
+
+type RecordLabel {
+	party:Party
+	performers:[Performer]
+	recordings:[MusicRecording]
+	products:[MusicProduct]
+}
+
+type MusicPublisher {
+	party:Party
+	composers:[Composer]
+	works:[MusicWork]
+}
