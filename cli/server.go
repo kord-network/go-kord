@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"strings"
 
+	swarmhttp "github.com/ethereum/go-ethereum/swarm/api/http"
 	"github.com/ipfs/go-cid"
 	"github.com/julienschmidt/httprouter"
 	"github.com/meta-network/go-meta"
@@ -38,35 +39,34 @@ import (
 )
 
 type Server struct {
-	router *httprouter.Router
-	store  *meta.Store
+	handler http.Handler
+	store   *meta.Store
 }
 
 func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, error) {
-	srv := &Server{
-		router: httprouter.New(),
-		store:  store,
-	}
-	srv.router.GET("/object/:cid", srv.HandleGetObject)
-	srv.router.POST("/convert/xml", srv.HandleConvertXML)
+	srv := &Server{store: store}
+
+	router := httprouter.New()
+	router.GET("/object/:cid", srv.HandleGetObject)
+	router.POST("/convert/xml", srv.HandleConvertXML)
 
 	// add the identity API at /meta-id
 	identityAPI := identity.NewAPI(identity.NewMemoryStore())
-	srv.router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
-	srv.router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
+	router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
+	router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
 
 	// add the stream API at /stream
 	streamAPI := stream.NewAPI(store)
-	srv.router.Handler("GET", "/stream/*path", http.StripPrefix("/stream", streamAPI))
-	srv.router.Handler("POST", "/stream/*path", http.StripPrefix("/stream", streamAPI))
+	router.Handler("GET", "/stream/*path", http.StripPrefix("/stream", streamAPI))
+	router.Handler("POST", "/stream/*path", http.StripPrefix("/stream", streamAPI))
 
 	if index, ok := indexes["musicbrainz"]; ok {
 		musicbrainzApi, err := musicbrainz.NewAPI(index.DB, store)
 		if err != nil {
 			return nil, err
 		}
-		srv.router.Handler("GET", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
-		srv.router.Handler("POST", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
+		router.Handler("GET", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
+		router.Handler("POST", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", musicbrainzApi))
 	}
 
 	if index, ok := indexes["cwr"]; ok {
@@ -74,8 +74,8 @@ func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, erro
 		if err != nil {
 			return nil, err
 		}
-		srv.router.Handler("GET", "/cwr/*path", http.StripPrefix("/cwr", cwrApi))
-		srv.router.Handler("POST", "/cwr/*path", http.StripPrefix("/cwr", cwrApi))
+		router.Handler("GET", "/cwr/*path", http.StripPrefix("/cwr", cwrApi))
+		router.Handler("POST", "/cwr/*path", http.StripPrefix("/cwr", cwrApi))
 	}
 
 	if index, ok := indexes["ern"]; ok {
@@ -83,22 +83,32 @@ func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, erro
 		if err != nil {
 			return nil, err
 		}
-		srv.router.Handler("GET", "/ern/*path", http.StripPrefix("/ern", ernApi))
-		srv.router.Handler("POST", "/ern/*path", http.StripPrefix("/ern", ernApi))
+		router.Handler("GET", "/ern/*path", http.StripPrefix("/ern", ernApi))
+		router.Handler("POST", "/ern/*path", http.StripPrefix("/ern", ernApi))
 	}
 	if index, ok := indexes["eidr"]; ok {
 		eidrApi, err := eidr.NewAPI(index.DB, store)
 		if err != nil {
 			return nil, err
 		}
-		srv.router.Handler("GET", "/eidr/*path", http.StripPrefix("/eidr", eidrApi))
-		srv.router.Handler("POST", "/eidr/*path", http.StripPrefix("/eidr", eidrApi))
+		router.Handler("GET", "/eidr/*path", http.StripPrefix("/eidr", eidrApi))
+		router.Handler("POST", "/eidr/*path", http.StripPrefix("/eidr", eidrApi))
 	}
+
+	// add the Swarm API at /bzz: and /bzzr:
+	swarmSrv := swarmhttp.NewServer(store.SwarmAPI())
+	mux := http.NewServeMux()
+	mux.Handle("/bzz:/", swarmSrv)
+	mux.Handle("/bzzr:/", swarmSrv)
+	mux.Handle("/", router)
+
+	srv.handler = mux
+
 	return srv, nil
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	s.router.ServeHTTP(w, req)
+	s.handler.ServeHTTP(w, req)
 }
 
 func (s *Server) HandleConvertXML(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
