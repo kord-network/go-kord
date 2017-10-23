@@ -309,6 +309,12 @@ func (s *Store) MustPut(v interface{}) *Object {
 	return obj
 }
 
+// SwarmAPI returns the underlying Swarm Api instance to use when starting a
+// HTTP server.
+func (s *Store) SwarmAPI() *swarmapi.Api {
+	return s.api
+}
+
 // StreamWriter returns a StreamWriter which writes CIDs to a local file.
 func (s *Store) StreamWriter(name string) (*StreamWriter, error) {
 	return NewStreamWriter(s.streamPath(name))
