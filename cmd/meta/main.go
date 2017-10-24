@@ -38,6 +38,7 @@ func main() {
 	if err != nil {
 		log.Crit("error opening meta store", "err", err)
 	}
+	defer store.Close()
 
 	// shutdown gracefully on SIGINT or SIGTERM
 	ctx, cancel := context.WithCancel(context.Background())
@@ -60,7 +61,7 @@ func openStore() (*meta.Store, error) {
 		return nil, err
 	}
 	ensDir := filepath.Join(metaDir, "ens")
-	if err := os.Mkdir(ensDir, 0755); err != nil {
+	if err := os.MkdirAll(ensDir, 0755); err != nil {
 		return nil, err
 	}
 	return meta.NewStore(metaDir, meta.LocalENS(ensDir))
