@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package cwr
+package cwr_test
 
 import (
 	"bytes"
@@ -31,7 +31,9 @@ import (
 
 	cid "github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/cwr"
 	"github.com/meta-network/go-meta/testutil"
+	"github.com/meta-network/go-meta/testutil/index"
 	"github.com/neelance/graphql-go"
 )
 
@@ -40,21 +42,23 @@ func TestRegisteredWorkAPI(t *testing.T) {
 	// create a test index of registeredWorks
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	x, err := newTestIndex(t, store)
-	if err != nil {
-		t.Fatal(err)
+	index, cwrCid := testindex.GenerateCWRIndex(t, ".", store)
+	defer index.Close()
+	x := &testIndex{
+		index:  index,
+		store:  store,
+		cwrCid: cwrCid,
 	}
-	defer x.cleanup()
 
 	// start the API server
-	s, err := newTestAPI(x.index.DB, x.store)
+	s, err := newTestAPI(index.DB, store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Close()
 
 	// define a function to execute and assert an registerWork GraphQL query
-	assertQueryNWR := func(record *Record, query string, args ...interface{}) error {
+	assertQueryNWR := func(record *cwr.Record, query string, args ...interface{}) error {
 		data, _ := json.Marshal(map[string]string{"query": fmt.Sprintf(query, args...)})
 		req, err := http.NewRequest("POST", s.URL+"/graphql", bytes.NewReader(data))
 		if err != nil {
@@ -79,7 +83,7 @@ func TestRegisteredWorkAPI(t *testing.T) {
 		}
 
 		var rw struct {
-			RegisteredWorks []*RegisteredWork `json:"registered_work"`
+			RegisteredWorks []*cwr.RegisteredWork `json:"registered_work"`
 		}
 		if err := json.Unmarshal(r.Data, &rw); err != nil {
 			return err
@@ -125,7 +129,7 @@ func TestRegisteredWorkAPI(t *testing.T) {
 		return nil
 	}
 	// define a function to execute and assert an record GraphQL query
-	assertQuerySPU := func(record *Record, query string, args ...interface{}) error {
+	assertQuerySPU := func(record *cwr.Record, query string, args ...interface{}) error {
 		data, _ := json.Marshal(map[string]string{"query": fmt.Sprintf(query, args...)})
 		req, err := http.NewRequest("POST", s.URL+"/graphql", bytes.NewReader(data))
 		if err != nil {
@@ -148,7 +152,7 @@ func TestRegisteredWorkAPI(t *testing.T) {
 			return fmt.Errorf("unexpected errors in API response: %v", r.Errors)
 		}
 		var rw struct {
-			PublisherControlledBySubmitters []*PublisherControllBySubmitter `json:"publisher_control"`
+			PublisherControlledBySubmitters []*cwr.PublisherControllBySubmitter `json:"publisher_control"`
 		}
 		if err := json.Unmarshal(r.Data, &rw); err != nil {
 			return err
@@ -166,7 +170,7 @@ func TestRegisteredWorkAPI(t *testing.T) {
 		return nil
 	}
 	// define a function to execute and assert an record GraphQL query
-	assertQuerySWR := func(record *Record, query string, args ...interface{}) error {
+	assertQuerySWR := func(record *cwr.Record, query string, args ...interface{}) error {
 		data, _ := json.Marshal(map[string]string{"query": fmt.Sprintf(query, args...)})
 		req, err := http.NewRequest("POST", s.URL+"/graphql", bytes.NewReader(data))
 		if err != nil {
@@ -189,7 +193,7 @@ func TestRegisteredWorkAPI(t *testing.T) {
 			return fmt.Errorf("unexpected errors in API response: %v", r.Errors)
 		}
 		var rw struct {
-			WriterControlledbySubmitter []*WriterControlledbySubmitter `json:"writer_control"`
+			WriterControlledbySubmitter []*cwr.WriterControlledbySubmitter `json:"writer_control"`
 		}
 		if err := json.Unmarshal(r.Data, &rw); err != nil {
 			return err
@@ -214,9 +218,9 @@ func TestRegisteredWorkAPI(t *testing.T) {
 //testTxRecords get all cwr NWR/REV transactions and assert queries for its
 //records
 func testTxRecords(x *testIndex,
-	assertQueryNWR func(record *Record, query string, args ...interface{}) error,
-	assertQuerySPU func(record *Record, query string, args ...interface{}) error,
-	assertQuerySWR func(record *Record, query string, args ...interface{}) error,
+	assertQueryNWR func(record *cwr.Record, query string, args ...interface{}) error,
+	assertQuerySPU func(record *cwr.Record, query string, args ...interface{}) error,
+	assertQuerySWR func(record *cwr.Record, query string, args ...interface{}) error,
 ) (err error) {
 	cwrObj, err := x.store.Get(x.cwrCid)
 	if err != nil {
@@ -229,7 +233,7 @@ func testTxRecords(x *testIndex,
 		return err
 	}
 	numberOfGroups := len(v.([]interface{}))
-	record := &Record{}
+	record := &cwr.Record{}
 	for k := 0; k < numberOfGroups; k++ {
 		v, err := graph.Get("Groups", strconv.Itoa(k), "Transactions", "NWR")
 		if meta.IsPathNotFound(err) {
@@ -315,9 +319,15 @@ func testTxRecords(x *testIndex,
 }
 
 func newTestAPI(db *sql.DB, store *meta.Store) (*httptest.Server, error) {
-	api, err := NewAPI(db, store)
+	api, err := cwr.NewAPI(db, store)
 	if err != nil {
 		return nil, err
 	}
 	return httptest.NewServer(api), nil
+}
+
+type testIndex struct {
+	index  *meta.Index
+	store  *meta.Store
+	cwrCid *cid.Cid
 }

@@ -33,6 +33,7 @@ func TestIndex(t *testing.T) {
 	defer cleanup()
 
 	index, cids := testindex.GenerateERNIndex(t, ".", store)
+	defer index.Close()
 
 	// check the MessageSender, MessageRecipient and DisplayArtist were indexed into the
 	// party table

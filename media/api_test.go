@@ -22,6 +22,7 @@ package media
 import (
 	"testing"
 
+	"github.com/meta-network/go-meta/cwr"
 	"github.com/meta-network/go-meta/ern"
 	"github.com/meta-network/go-meta/identity"
 	"github.com/meta-network/go-meta/testutil"
@@ -34,10 +35,14 @@ func TestResolver(t *testing.T) {
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
 	ernIndex, _ := testindex.GenerateERNIndex(t, "../ern", store)
+	defer ernIndex.Close()
+	cwrIndex, _ := testindex.GenerateCWRIndex(t, "../cwr", store)
+	defer cwrIndex.Close()
 
 	// create the resolver
 	resolver := &Resolver{
 		Ern:     ern.NewResolver(ernIndex.DB, store),
+		Cwr:     cwr.NewResolver(cwrIndex.DB, store),
 		Store:   store,
 		IDStore: identity.NewMemoryStore(),
 	}
@@ -78,6 +83,18 @@ func TestResolver(t *testing.T) {
 		t.Fatalf("expected performer to have 1 recording, got %d", len(performerRecordings))
 	}
 
+	// query composers
+	composer, err := resolver.Composer(composerArgs{IPI: "123456789ABCD"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstName := composer.FirstName().Value(); firstName != "WRITER_FIRST_NAME" {
+		t.Fatalf("expected first name to be %q, got %q", "WRITER_FIRST_NAME", firstName)
+	}
+	if lastName := composer.LastName().Value(); lastName != "WRITER_LAST_NAME" {
+		t.Fatalf("expected last name to be %q, got %q", "WRITER_LAST_NAME", lastName)
+	}
+
 	// query labels
 	label, err := resolver.Label(labelArgs{DPID: "DPID_OF_THE_SENDER"})
 	if err != nil {
@@ -115,6 +132,15 @@ func TestResolver(t *testing.T) {
 	}
 	if len(recordingReleases) != 10 {
 		t.Fatalf("expected recording to have 10 releases, got %d", len(recordingReleases))
+	}
+
+	// query works
+	work, err := resolver.Work(workArgs{ISWC: "T1234567890"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if title := work.Title().Value(); title != "TOTALY MADE MUSIC UP" {
+		t.Fatalf("expected title to be %q, got %q", "TOTALY MADE MUSIC UP", title)
 	}
 
 	// query releases

@@ -25,6 +25,8 @@ import "github.com/meta-network/go-meta"
 // see http://musicmark.com/documents/cwr11-1494_cwr_user_manual_2011-09-23_e_2011-09-23_en.pdf
 // NWR or REV record
 type RegisteredWork struct {
+	meta.BaseObject
+
 	RecordType              string                          `json:"record_type,omitempty"`
 	TransactionSequenceN    string                          `json:"transactionSequenceN,omitempty"`
 	RecordSequenceN         string                          `json:"recordSequenceN,omitempty"`
@@ -57,6 +59,8 @@ type RegisteredWork struct {
 
 // TransmissionHeader Record - HDR
 type TransmissionHeader struct {
+	meta.BaseObject
+
 	RecordType string `json:"record_type,omitempty"`
 	SenderType string `json:"sender_type,omitempty"`
 	SenderID   string `json:"sender_id,omitempty"`
@@ -83,6 +87,8 @@ type TransmissionTrailer struct {
 
 // PublisherControllBySubmitter Record - SPU
 type PublisherControllBySubmitter struct {
+	meta.BaseObject
+
 	RecordType                     string `json:"record_type,omitempty"`
 	TransactionSequenceN           string `json:"transaction_sequence_n,omitempty"`
 	RecordSequenceN                string `json:"record_sequence_n,omitempty"`
@@ -111,6 +117,8 @@ type PublisherControllBySubmitter struct {
 
 // WriterControlledbySubmitter Writer Controlled by Submitter Record - SWR/OWR
 type WriterControlledbySubmitter struct {
+	meta.BaseObject
+
 	RecordType             string `json:"record_type,omitempty"`
 	TransactionSequenceN   string `json:"transaction_sequence_n,omitempty"`
 	RecordSequenceN        string `json:"record_sequence_n,omitempty"`
