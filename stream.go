@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/hpcloud/tail"
 	"github.com/ipfs/go-cid"
+	"github.com/lmars/tail"
 )
 
 // NewStreamWriter returns a StreamWriter which writes CIDs to a META stream.

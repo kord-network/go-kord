@@ -424,12 +424,6 @@
 			"revisionTime": "2017-10-14T13:00:46Z"
 		},
 		{
-			"checksumSHA1": "P5KyE9QEbAeHLeXzycSF/jS1FIc=",
-			"path": "github.com/hpcloud/tail",
-			"revision": "37f4271387456dd1bf82ab1ad9229f060cc45386",
-			"revisionTime": "2017-08-14T16:06:53Z"
-		},
-		{
 			"checksumSHA1": "qn3/Y771JaGG94CvdKa8pIj5hH0=",
 			"path": "github.com/hpcloud/tail/ratelimiter",
 			"revision": "37f4271387456dd1bf82ab1ad9229f060cc45386",
@@ -575,6 +569,12 @@
 			"path": "github.com/lmars/go-ipld-cbor",
 			"revision": "741c3f5e8a0d9b3a8512a1a2be0b763e9fd6cd2c",
 			"revisionTime": "2017-09-16T11:30:23Z"
+		},
+		{
+			"checksumSHA1": "fomQvsDme/xBm95J4P2LTB161Fw=",
+			"path": "github.com/lmars/tail",
+			"revision": "007cab2aa967e0d37b62922c11617b21c91b1943",
+			"revisionTime": "2017-10-24T21:29:18Z"
 		},
 		{
 			"checksumSHA1": "kdvsDmguft5CZiHCmjaaBwoVT08=",
