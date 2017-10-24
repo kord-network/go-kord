@@ -107,6 +107,20 @@ func TestRegisteredWorkAPI(t *testing.T) {
 					return fmt.Errorf("unexpected contributor first name : expected %q got %q ", "123456789ABCD", contributor.WriterIPIBaseNumber)
 				}
 			}
+			for _, control := range r.Controls {
+				if control.PublisherIPINameNumber != "0000000000000" {
+					return fmt.Errorf("unexpected control first name : expected %q got %q", "0000000000000", control.PublisherIPINameNumber)
+				}
+				if control.PublisherName != "I LIKE YOU LIKE" {
+					return fmt.Errorf("unexpected control first name : expected %q got %q", "I LIKE YOU LIKE", control.PublisherName)
+				}
+				if control.SROwnershipShare != "00000" {
+					return fmt.Errorf("unexpected control first name : expected %q got %q", "00000", control.SROwnershipShare)
+				}
+				if control.MROwnershipShare != "00000" {
+					return fmt.Errorf("unexpected control first name : expected %q got %q ", "00000", control.MROwnershipShare)
+				}
+			}
 		}
 		return nil
 	}
@@ -253,9 +267,11 @@ func testTxRecords(x *testIndex,
 			if err := obj.Decode(record); err != nil {
 				return err
 			}
+
 			if record.ISWC != "" {
 				if err := assertQueryNWR(record,
-					`{ registered_work(iswc:%q) { title contributors { writer_first_name writer_last_name writer_ipi_name writer_ipi_base_number } } }`,
+					`{ registered_work(iswc:%q) { title contributors { writer_first_name writer_last_name writer_ipi_name writer_ipi_base_number }
+					                                    controls { publisher_ipi_name_number publisher_name pr_ownership_share mr_society mr_ownership_share sr_society sr_ownership_share}   } }`,
 					record.ISWC); err != nil {
 					return err
 				}
