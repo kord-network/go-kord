@@ -100,7 +100,8 @@ type MusicPerformer {
 type MusicComposer {
   identifiers: [PartyIdentifier]!
 
-  name: StringValue
+  firstName: StringValue
+  lastName:  StringValue
 
   works: [MusicWorkLink]!
 }
@@ -353,18 +354,70 @@ type composerArgs struct {
 }
 
 func (r *Resolver) Composer(args composerArgs) (*composerResolver, error) {
-	return nil, nil
+	ipiBaseWriters, err := r.Cwr.WriterControl(cwr.WriterControlArgs{WriterIPIBaseNumber: &args.IPI})
+	if err != nil {
+		return nil, err
+	}
+	ipiNameWriters, err := r.Cwr.WriterControl(cwr.WriterControlArgs{WriterIPIName: &args.IPI})
+	if err != nil {
+		return nil, err
+	}
+	return &composerResolver{
+		resolver: r,
+		writers:  append(ipiBaseWriters, ipiNameWriters...),
+	}, nil
 }
 
 type composerResolver struct {
+	resolver *Resolver
+	writers  []*cwr.WriterControlResolver
 }
 
 func (c *composerResolver) Identifiers() []*partyIdentifierResolver {
-	return nil
+	var identifiers []*partyIdentifierResolver
+	for _, writer := range c.writers {
+		if ipi := writer.WriterIPIBaseNumber(); ipi != "" {
+			identifiers = append(identifiers, &partyIdentifierResolver{
+				typ:    partyIdentifierTypeIPI,
+				value:  ipi,
+				source: &sourceResolver{name: writer.Source()},
+			})
+		}
+		if ipi := writer.WriterIPIName(); ipi != "" {
+			identifiers = append(identifiers, &partyIdentifierResolver{
+				typ:    partyIdentifierTypeIPI,
+				value:  ipi,
+				source: &sourceResolver{name: writer.Source()},
+			})
+		}
+	}
+	return identifiers
 }
 
-func (c *composerResolver) Name() *stringValueResolver {
-	return nil
+func (c *composerResolver) FirstName() *stringValueResolver {
+	name := &stringValueResolver{}
+	for _, writer := range c.writers {
+		name.value = writer.WriterFirstName()
+		name.sources = append(name.sources, &stringSourceResolver{
+			value:  writer.WriterFirstName(),
+			source: &sourceResolver{name: writer.Source()},
+			score:  "1",
+		})
+	}
+	return name
+}
+
+func (c *composerResolver) LastName() *stringValueResolver {
+	name := &stringValueResolver{}
+	for _, writer := range c.writers {
+		name.value = writer.WriterLastName()
+		name.sources = append(name.sources, &stringSourceResolver{
+			value:  writer.WriterLastName(),
+			source: &sourceResolver{name: writer.Source()},
+			score:  "1",
+		})
+	}
+	return name
 }
 
 func (c *composerResolver) Works() ([]*workLinkResolver, error) {
@@ -454,14 +507,42 @@ func (r *Resolver) Publisher(args publisherArgs) (*publisherResolver, error) {
 }
 
 type publisherResolver struct {
+	resolver   *Resolver
+	publishers []*cwr.PublisherControlResolver
 }
 
 func (p *publisherResolver) Identifiers() []*partyIdentifierResolver {
-	return nil
+	var identifiers []*partyIdentifierResolver
+	for _, publisher := range p.publishers {
+		if ipi := publisher.PublisherIPIBaseNumber(); ipi != "" {
+			identifiers = append(identifiers, &partyIdentifierResolver{
+				typ:    partyIdentifierTypeIPI,
+				value:  ipi,
+				source: &sourceResolver{name: publisher.Source()},
+			})
+		}
+		if ipi := publisher.PublisherIPINameNumber(); ipi != "" {
+			identifiers = append(identifiers, &partyIdentifierResolver{
+				typ:    partyIdentifierTypeIPI,
+				value:  ipi,
+				source: &sourceResolver{name: publisher.Source()},
+			})
+		}
+	}
+	return identifiers
 }
 
 func (p *publisherResolver) Name() *stringValueResolver {
-	return nil
+	name := &stringValueResolver{}
+	for _, publisher := range p.publishers {
+		name.value = publisher.PublisherName()
+		name.sources = append(name.sources, &stringSourceResolver{
+			value:  publisher.PublisherName(),
+			source: &sourceResolver{name: publisher.Source()},
+			score:  "1",
+		})
+	}
+	return name
 }
 
 func (p *publisherResolver) Works() ([]*workLinkResolver, error) {
@@ -556,26 +637,73 @@ type workArgs struct {
 }
 
 func (r *Resolver) Work(args workArgs) (*workResolver, error) {
-	return nil, nil
+	cwrWorks, err := r.Cwr.RegisteredWork(cwr.RegisteredWorkArgs{ISWC: &args.ISWC})
+	if err != nil {
+		return nil, err
+	}
+	return &workResolver{
+		resolver: r,
+		cwrWorks: cwrWorks,
+	}, nil
 }
 
 type workResolver struct {
+	resolver *Resolver
+	cwrWorks []*cwr.RegisteredWorkResolver
 }
 
-func (r *workResolver) ISWC() *stringValueResolver {
-	return nil
+func (w *workResolver) ISWC() *stringValueResolver {
+	iswc := &stringValueResolver{}
+	for _, cwrWork := range w.cwrWorks {
+		iswc.value = cwrWork.ISWC()
+		iswc.sources = append(iswc.sources, &stringSourceResolver{
+			value:  cwrWork.ISWC(),
+			source: &sourceResolver{name: cwrWork.Source()},
+			score:  "1",
+		})
+	}
+	return iswc
 }
 
-func (r *workResolver) Title() *stringValueResolver {
-	return nil
+func (w *workResolver) Title() *stringValueResolver {
+	title := &stringValueResolver{}
+	for _, work := range w.cwrWorks {
+		title.value = work.Title()
+		title.sources = append(title.sources, &stringSourceResolver{
+			value:  work.Title(),
+			source: &sourceResolver{name: work.Source()},
+			score:  "1",
+		})
+	}
+	return title
 }
 
-func (r *workResolver) Composers() ([]*composerLinkResolver, error) {
-	return nil, nil
+func (w *workResolver) Composers() ([]*composerLinkResolver, error) {
+	var composers []*composerLinkResolver
+	for _, cwrWork := range w.cwrWorks {
+		for _, writer := range cwrWork.Contributors() {
+			composers = append(composers, &composerLinkResolver{
+				resolver: w.resolver,
+				source:   &sourceResolver{name: writer.Source()},
+				writers:  []*cwr.WriterControlResolver{writer},
+			})
+		}
+	}
+	return composers, nil
 }
 
-func (r *workResolver) Publishers() ([]*publisherLinkResolver, error) {
-	return nil, nil
+func (w *workResolver) Publishers() ([]*publisherLinkResolver, error) {
+	var publishers []*publisherLinkResolver
+	for _, cwrWork := range w.cwrWorks {
+		for _, publisher := range cwrWork.Controls() {
+			publishers = append(publishers, &publisherLinkResolver{
+				resolver:   w.resolver,
+				source:     &sourceResolver{name: publisher.Source()},
+				publishers: []*cwr.PublisherControlResolver{publisher},
+			})
+		}
+	}
+	return publishers, nil
 }
 
 type releaseArgs struct {
@@ -838,29 +966,35 @@ func (p *workLinkResolver) Work() (*workResolver, error) {
 type composerLinkResolver struct {
 	resolver *Resolver
 	source   *sourceResolver
-	parties  []*ern.PartyResolver
+	writers  []*cwr.WriterControlResolver
 }
 
 func (c *composerLinkResolver) Source() *sourceResolver {
 	return c.source
 }
 
-func (c *composerLinkResolver) Composer() (*composerResolver, error) {
-	return nil, nil
+func (c *composerLinkResolver) Composer() *composerResolver {
+	return &composerResolver{
+		resolver: c.resolver,
+		writers:  c.writers,
+	}
 }
 
 type publisherLinkResolver struct {
-	resolver *Resolver
-	source   *sourceResolver
-	parties  []*ern.PartyResolver
+	resolver   *Resolver
+	source     *sourceResolver
+	publishers []*cwr.PublisherControlResolver
 }
 
-func (c *publisherLinkResolver) Source() *sourceResolver {
-	return c.source
+func (p *publisherLinkResolver) Source() *sourceResolver {
+	return p.source
 }
 
-func (c *publisherLinkResolver) Publisher() (*publisherResolver, error) {
-	return nil, nil
+func (p *publisherLinkResolver) Publisher() *publisherResolver {
+	return &publisherResolver{
+		resolver:   p.resolver,
+		publishers: p.publishers,
+	}
 }
 
 type partyIdentifierType int

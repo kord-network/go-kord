@@ -17,45 +17,26 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package cwr
+package cwr_test
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
-	"time"
 
 	cid "github.com/ipfs/go-cid"
-	"github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/testutil"
+	"github.com/meta-network/go-meta/testutil/index"
 )
-
-type testIndex struct {
-	index  *meta.Index
-	store  *meta.Store
-	cwrCid *cid.Cid
-}
-
-func (t *testIndex) cleanup() {
-	if t.index != nil {
-		t.index.Close()
-	}
-}
 
 func TestIndex(t *testing.T) {
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	x, err := newTestIndex(t, store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer x.cleanup()
+	index, cwrCid := testindex.GenerateCWRIndex(t, ".", store)
+	defer index.Close()
 
 	// check the HDR record was indexed into the transmission_header table
 	senderName := "JAAK EXAMPLE SENDER NAME"
-	rows, err := x.index.Query(`SELECT object_id FROM transmission_header WHERE sender_name = ?`, senderName)
+	rows, err := index.Query(`SELECT object_id FROM transmission_header WHERE sender_name = ?`, senderName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +56,7 @@ func TestIndex(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		obj, err := x.store.Get(cid)
+		obj, err := store.Get(cid)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -106,7 +87,7 @@ func TestIndex(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		obj, err := x.store.Get(txID)
+		obj, err := store.Get(txID)
 		if err != nil {
 			return err
 		}
@@ -130,7 +111,7 @@ func TestIndex(t *testing.T) {
 		writerFirstName    string
 	)
 
-	rows, err = x.index.Query(`SELECT object_id,title,iswc FROM registered_work WHERE cwr_id = ?`, x.cwrCid.String())
+	rows, err = index.Query(`SELECT object_id,title,iswc FROM registered_work WHERE cwr_id = ?`, cwrCid.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +134,7 @@ func TestIndex(t *testing.T) {
 			t.Fatal(err)
 		}
 		//get all publisher control records (SPU) which link to the above tx .
-		spuRows, err := x.index.Query(`SELECT object_id,publisher_sequence_n FROM publisher_control WHERE tx_id = ?`, txID.String())
+		spuRows, err := index.Query(`SELECT object_id,publisher_sequence_n FROM publisher_control WHERE tx_id = ?`, txID.String())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -170,7 +151,7 @@ func TestIndex(t *testing.T) {
 			}
 		}
 		//get all writer control records (SWR or OWR) which link to the above tx .
-		swrRows, err := x.index.Query(`SELECT object_id,writer_first_name FROM writer_control WHERE tx_id = ?`, txID.String())
+		swrRows, err := index.Query(`SELECT object_id,writer_first_name FROM writer_control WHERE tx_id = ?`, txID.String())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -190,59 +171,4 @@ func TestIndex(t *testing.T) {
 	if rowsCount == 0 {
 		t.Fatal("no registered_work found")
 	}
-}
-
-func newTestIndex(t *testing.T, store *meta.Store) (x *testIndex, err error) {
-	// convert the test cwr to META object
-	x = &testIndex{store: store}
-	defer func() {
-		if err != nil {
-			x.cleanup()
-		}
-	}()
-
-	converter := NewConverter(x.store)
-
-	f, err := os.Open(filepath.Join("testdata", "example_nwr.cwr"))
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	x.cwrCid, err = converter.ConvertCWR(f, "test")
-	if err != nil {
-		return nil, err
-	}
-
-	// create a stream of CWR
-	writer, err := x.store.StreamWriter("cwr.meta")
-	if err != nil {
-		return nil, err
-	}
-	defer writer.Close()
-	if err := writer.Write(x.cwrCid); err != nil {
-		return nil, err
-	}
-
-	// index the stream of CWR txs
-	x.index, err = store.OpenIndex("cwr.index.meta")
-	if err != nil {
-		return nil, err
-	}
-	indexer, err := NewIndexer(x.index, x.store)
-	if err != nil {
-		return nil, err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	reader, err := x.store.StreamReader("cwr.meta", meta.StreamLimit(1))
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-	if err := indexer.Index(ctx, reader); err != nil {
-		return nil, err
-	}
-	return x, nil
 }

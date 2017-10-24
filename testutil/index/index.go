@@ -28,6 +28,7 @@ import (
 
 	cid "github.com/ipfs/go-cid"
 	meta "github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/cwr"
 	"github.com/meta-network/go-meta/ern"
 )
 
@@ -84,4 +85,50 @@ func GenerateERNIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index,
 		t.Fatal(err)
 	}
 	return index, cids
+}
+
+func GenerateCWRIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index, *cid.Cid) {
+	f, err := os.Open(filepath.Join(dir, "testdata", "example_nwr.cwr"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	converter := cwr.NewConverter(store)
+	cwrCid, err := converter.ConvertCWR(f, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// create a stream of CWRs
+	writer, err := store.StreamWriter("cwr.meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	if err := writer.Write(cwrCid); err != nil {
+		t.Fatal(err)
+	}
+
+	// index the stream of CWRs
+	index, err := store.OpenIndex("cwr.index.meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexer, err := cwr.NewIndexer(index, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	reader, err := store.StreamReader("cwr.meta", meta.StreamLimit(1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	if err := indexer.Index(ctx, reader); err != nil {
+		t.Fatal(err)
+	}
+	return index, cwrCid
 }
