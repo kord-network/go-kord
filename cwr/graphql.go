@@ -23,7 +23,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/ipfs/go-cid"
+	cid "github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
 )
 
@@ -170,6 +170,7 @@ type RegisteredWork {
  catalogue_number:         String!
  priority_flag:            String!
  contributors:             [WriterControl]
+ controls:                  [PublisherControl]
 }
 `
 
@@ -303,9 +304,29 @@ func (g *Resolver) RegisteredWork(args registeredWorkArgs) ([]*registeredWorkRes
 			if err := obj.Decode(&writerControlledbySubmitter); err != nil {
 				return nil, err
 			}
+
 			registeredWork.Contributors = append(registeredWork.Contributors, &writerControlledbySubmitter)
 		}
-
+		spuRows, err := g.db.Query("SELECT object_id FROM publisher_control WHERE tx_id = ?", objectID)
+		for spuRows.Next() {
+			var objectID string
+			if err := spuRows.Scan(&objectID); err != nil {
+				return nil, err
+			}
+			objCid, err := cid.Parse(objectID)
+			if err != nil {
+				return nil, err
+			}
+			obj, err := g.store.Get(objCid)
+			if err != nil {
+				return nil, err
+			}
+			var publisherControllBySubmitter PublisherControllBySubmitter
+			if err := obj.Decode(&publisherControllBySubmitter); err != nil {
+				return nil, err
+			}
+			registeredWork.Controls = append(registeredWork.Controls, &publisherControllBySubmitter)
+		}
 		resolvers = append(resolvers, &registeredWorkResolver{objectID, &registeredWork})
 	}
 	if err := rows.Err(); err != nil {
@@ -662,6 +683,14 @@ func (r *registeredWorkResolver) Contributors() *[]*writerControlResolver {
 		writerControlResolvers = append(writerControlResolvers, &writerControlResolver{writerControl: c})
 	}
 	return &writerControlResolvers
+}
+
+func (r *registeredWorkResolver) Controls() *[]*publisherControlResolver {
+	var publisherControlResolvers []*publisherControlResolver
+	for _, c := range r.registeredWork.Controls {
+		publisherControlResolvers = append(publisherControlResolvers, &publisherControlResolver{publisherControl: c})
+	}
+	return &publisherControlResolvers
 }
 
 func (r *registeredWorkResolver) Cid() string {
