@@ -63,14 +63,18 @@ type DPA struct {
 }
 
 // for testing locally
-func NewLocalDPA(datadir string, hashalgorithm string) (*DPA, error) {
+func NewLocalDPA(datadir string, hashalgorithm string, swarmdbcapacity uint64) (*DPA, error) {
 
 	if hashalgorithm == "" {
 		hashalgorithm = "SHA3"
 	}
 	hash := MakeHashFunc(hashalgorithm)
 
-	dbStore, err := NewDbStore(datadir, hash, singletonSwarmDbCapacity, 0)
+	if swarmdbcapacity == 0 {
+		swarmdbcapacity = singletonSwarmDbCapacity
+	}
+
+	dbStore, err := NewDbStore(datadir, hash, swarmdbcapacity, 0)
 	if err != nil {
 		return nil, err
 	}
