@@ -239,7 +239,7 @@ func NewStore(dir string, ens ENS) (*Store, error) {
 	if err := os.MkdirAll(streamDir, 0755); err != nil {
 		return nil, err
 	}
-	dpa, err := storage.NewLocalDPA(dir, "")
+	dpa, err := storage.NewLocalDPA(dir, "", 20000000)
 	if err != nil {
 		return nil, err
 	}
