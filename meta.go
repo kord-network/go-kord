@@ -239,10 +239,16 @@ func NewStore(dir string, ens ENS) (*Store, error) {
 	if err := os.MkdirAll(streamDir, 0755); err != nil {
 		return nil, err
 	}
-	dpa, err := storage.NewLocalDPA(dir, "", 20000000)
+	localStore, err := storage.NewLocalStore(storage.MakeHashFunc("SHA3"), &storage.StoreParams{
+		DbCapacity:    20000000,
+		Radius:        0,
+		ChunkDbPath:   dir,
+		CacheCapacity: 500})
+
 	if err != nil {
 		return nil, err
 	}
+	dpa := storage.NewDPA(localStore, storage.NewChunkerParams())
 	dpa.Start()
 	return &Store{
 		api:       swarmapi.NewApi(dpa, ens),
