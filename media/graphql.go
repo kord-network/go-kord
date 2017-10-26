@@ -102,6 +102,7 @@ type MusicComposer {
 
   firstName: StringValue
   lastName:  StringValue
+  shares:    MusicShare!
 
   works: [MusicWorkLink]!
 }
@@ -118,7 +119,7 @@ type MusicPublisher {
   identifiers: [PartyIdentifier]!
 
   name: StringValue
-
+  shares: MusicShare!
   works: [MusicWorkLink]!
 }
 
@@ -157,6 +158,13 @@ type MusicProduct {
   releases: [MusicReleaseLink]!
   labels:   [RecordLabelLink]!
 }
+
+type MusicShare {
+	performance : StringValue
+	mechanical  : StringValue
+	synch       : StringValue
+}
+
 
 #
 # --- Link Types ---
@@ -420,6 +428,18 @@ func (c *composerResolver) LastName() *stringValueResolver {
 	return name
 }
 
+func (c *composerResolver) Shares() (*sharesResolver, error) {
+	var shares []*musicShares
+	for _, writer := range c.writers {
+		shares = append(shares, &musicShares{
+			performance: writer.PROwnershipShare(),
+			mechanical:  writer.MROwnershipShare(),
+			synch:       writer.SROwnershipShare(),
+			source:      writer.Source()})
+	}
+	return &sharesResolver{resolver: c.resolver, shares: shares}, nil
+}
+
 func (c *composerResolver) Works() ([]*workLinkResolver, error) {
 	return nil, nil
 }
@@ -543,6 +563,18 @@ func (p *publisherResolver) Name() *stringValueResolver {
 		})
 	}
 	return name
+}
+
+func (p *publisherResolver) Shares() (*sharesResolver, error) {
+	var shares []*musicShares
+	for _, publisher := range p.publishers {
+		shares = append(shares, &musicShares{
+			performance: publisher.PROwnershipShare(),
+			mechanical:  publisher.MROwnershipShare(),
+			synch:       publisher.SROwnershipShare(),
+			source:      publisher.Source()})
+	}
+	return &sharesResolver{resolver: p.resolver, shares: shares}, nil
 }
 
 func (p *publisherResolver) Works() ([]*workLinkResolver, error) {
@@ -995,6 +1027,57 @@ func (p *publisherLinkResolver) Publisher() *publisherResolver {
 		resolver:   p.resolver,
 		publishers: p.publishers,
 	}
+}
+
+type musicShares struct {
+	performance string
+	mechanical  string
+	synch       string
+	source      string
+}
+
+type sharesResolver struct {
+	resolver *Resolver
+	shares   []*musicShares
+}
+
+func (s *sharesResolver) Performance() *stringValueResolver {
+	performance := &stringValueResolver{}
+	for _, publisher := range s.shares {
+		performance.value = publisher.performance
+		performance.sources = append(performance.sources, &stringSourceResolver{
+			value:  publisher.performance,
+			source: &sourceResolver{name: publisher.source},
+			score:  "1",
+		})
+	}
+	return performance
+}
+
+func (s *sharesResolver) Mechanical() *stringValueResolver {
+	mechanical := &stringValueResolver{}
+	for _, publisher := range s.shares {
+		mechanical.value = publisher.mechanical
+		mechanical.sources = append(mechanical.sources, &stringSourceResolver{
+			value:  publisher.mechanical,
+			source: &sourceResolver{name: publisher.source},
+			score:  "1",
+		})
+	}
+	return mechanical
+}
+
+func (s *sharesResolver) Synch() *stringValueResolver {
+	synch := &stringValueResolver{}
+	for _, publisher := range s.shares {
+		synch.value = publisher.synch
+		synch.sources = append(synch.sources, &stringSourceResolver{
+			value:  publisher.synch,
+			source: &sourceResolver{name: publisher.source},
+			score:  "1",
+		})
+	}
+	return synch
 }
 
 type partyIdentifierType int

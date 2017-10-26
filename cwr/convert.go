@@ -272,6 +272,9 @@ func newRecord(line string) (*Record, error) {
 		record.WriterIPIName = substring(line, 115, 126)
 		record.WriterIPIBaseNumber = substring(line, 154, 167)
 		record.PersonalNumber = substring(line, 167, 179)
+		record.PROwnershipShare = substring(line, 129, 134)
+		record.MROwnershipShare = substring(line, 137, 142)
+		record.SROwnershipShare = substring(line, 145, 150)
 	default:
 		return nil, nil
 	}
