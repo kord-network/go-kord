@@ -144,6 +144,9 @@ type WriterControl {
   writer_ipi_base_number:   String!
   personal_number:          String!
   record_type:              String!
+  pr_ownership_share:       String!
+  mr_ownership_share:       String!
+  sr_ownership_share:       String!
 }
 
 type RegisteredWork {
@@ -687,6 +690,18 @@ func (p *WriterControlResolver) PersonalNumber() string {
 
 func (p *WriterControlResolver) RecordType() string {
 	return p.writerControl.RecordType
+}
+
+func (p *WriterControlResolver) PROwnershipShare() string {
+	return p.writerControl.PROwnershipShare
+}
+
+func (p *WriterControlResolver) MROwnershipShare() string {
+	return p.writerControl.MROwnershipShare
+}
+
+func (p *WriterControlResolver) SROwnershipShare() string {
+	return p.writerControl.SROwnershipShare
 }
 
 // RegisteredWorkResolver defines GraphQL resolver functions for registeredWork fields.

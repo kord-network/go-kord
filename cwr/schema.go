@@ -94,7 +94,10 @@ CREATE TABLE writer_control (
 	writer_ipi_name          text NOT NULL,
 	writer_ipi_base_number   text NOT NULL,
 	personal_number          text NOT NULL,
-	record_type              text NOT NULL
+	record_type              text NOT NULL,
+	pr_ownership_share       text NOT NULL,
+	mr_ownership_share       text NOT NULL,
+	sr_ownership_share       text NOT NULL
 );
 
 CREATE INDEX writer_control_object_id_idx              ON writer_control (object_id);

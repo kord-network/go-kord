@@ -322,8 +322,11 @@ func (i *Indexer) indexWriterControlledbySubmitter(tx *sql.Tx, cwrID *cid.Cid, t
 			writer_first_name,
 			writer_ipi_name,
 			writer_ipi_base_number,
-			personal_number)
-	   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+			personal_number,
+			pr_ownership_share,
+			mr_ownership_share,
+			sr_ownership_share)
+	   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,$13, $14, $15)`,
 		cwrID.String(),
 		txCid.String(),
 		obj.Cid().String(),
@@ -336,6 +339,9 @@ func (i *Indexer) indexWriterControlledbySubmitter(tx *sql.Tx, cwrID *cid.Cid, t
 		writerControlledbySubmitter.WriterIPIName,
 		writerControlledbySubmitter.WriterIPIBaseNumber,
 		writerControlledbySubmitter.PersonalNumber,
+		writerControlledbySubmitter.PROwnershipShare,
+		writerControlledbySubmitter.MROwnershipShare,
+		writerControlledbySubmitter.SROwnershipShare,
 	)
 	return err
 }

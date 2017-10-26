@@ -47,8 +47,8 @@ func TestCWRCommands(t *testing.T) {
 		"../cwr/testdata/example_nwr.cwr")
 	ids := c.readStream("cwr.meta", 2)
 	expected := []string{
-		"zdqaWBuxwxhZQj9PBzRsHSp2WEq9pF3tF9rP9KYb7TxgqfXQJ",
-		"zdqaWGLaDAkMomHFaooZ7GaxxvTmFCJ1DFCVLaQSvb8v2ewoN",
+		"zdqaWQEia42M6R7Rr6CcxnTk6hUyvipPnhSDFshDdhQPHKech",
+		"zdqaWRJgjMLsscjuo2RQK4cLw2JFG4UhD16fbP62dYdoeX9Sr",
 	}
 	if !reflect.DeepEqual(ids, expected) {
 		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)

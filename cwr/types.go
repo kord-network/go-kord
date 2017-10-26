@@ -131,6 +131,11 @@ type WriterControlledbySubmitter struct {
 	WriterIPIName          string `json:"writer_ipi_name,omitempty"`
 	WriterIPIBaseNumber    string `json:"writer_ipi_base_number,omitempty"`
 	PersonalNumber         string `json:"personal_number,omitempty"`
+	PROwnershipShare       string `json:"pr_ownership_share,omitempty"`
+	MRSociety              string `json:"mr_society,omitempty"`
+	MROwnershipShare       string `json:"mr_ownership_share,omitempty"`
+	SRSociety              string `json:"sr_society,omitempty"`
+	SROwnershipShare       string `json:"sr_ownership_share,omitempty"`
 }
 
 // Record - include all CWR records fields
