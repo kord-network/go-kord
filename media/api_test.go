@@ -49,7 +49,10 @@ func TestResolver(t *testing.T) {
 
 	// create an identity
 	id := identity.NewIdentity("testid")
-	id.Aux = map[string]string{"DPID": "DPID_OF_THE_ARTIST_1"}
+	id.Aux = map[string]string{
+		"DPID": "DPID_OF_THE_ARTIST_1",
+		"IPI":  "123456789ABCD",
+	}
 	if err := resolver.IDStore.Save(id); err != nil {
 		t.Fatal(err)
 	}
@@ -59,12 +62,25 @@ func TestResolver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	accountPerformers := account.Performers()
+	accountPerformers, err := account.Performers()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(accountPerformers) != 1 {
 		t.Fatalf("expected account to have 1 performer, got %d", len(accountPerformers))
 	}
 	if dpid := accountPerformers[0].Identifiers()[0].Value(); dpid != "DPID_OF_THE_ARTIST_1" {
 		t.Fatalf("expected dpid to be %q, got %q", "DPID_OF_THE_ARTIST_1", dpid)
+	}
+	accountComposers, err := account.Composers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(accountComposers) != 1 {
+		t.Fatalf("expected account to have 1 composer, got %d", len(accountComposers))
+	}
+	if ipi := accountComposers[0].Identifiers()[0].Value(); ipi != "123456789ABCD" {
+		t.Fatalf("expected ipi to be %q, got %q", "123456789ABCD", ipi)
 	}
 
 	// query performers

@@ -87,6 +87,7 @@ type Query {
 type Account {
     performers: [MusicPerformer]!
     labels:     [RecordLabel]!
+    composers:  [MusicComposer]!
 }
 
 type MusicPerformer {
@@ -262,28 +263,56 @@ func (r *Resolver) Account(args accountArgs) (*accountResolver, error) {
 	if err != nil {
 		return nil, err
 	}
-	account := &accountResolver{resolver: r}
-	if dpid, ok := id.Aux["DPID"]; ok {
-		parties, err := r.Ern.Party(ern.PartyArgs{ID: &dpid})
-		if err != nil {
-			return nil, err
-		}
-		account.parties = parties
-	}
-	return account, nil
+	return &accountResolver{
+		resolver: r,
+		identity: id,
+	}, nil
 }
 
 type accountResolver struct {
 	resolver *Resolver
-	parties  []*ern.PartyResolver
+	identity *identity.Identity
 }
 
-func (a *accountResolver) Performers() []*performerResolver {
-	return []*performerResolver{a.resolver.performerResolver(a.parties)}
+func (a *accountResolver) Performers() ([]*performerResolver, error) {
+	var performers []*performerResolver
+	if dpid, ok := a.identity.Aux["DPID"]; ok {
+		parties, err := a.resolver.Ern.Party(ern.PartyArgs{ID: &dpid})
+		if err != nil {
+			return nil, err
+		}
+		performers = append(performers, a.resolver.performerResolver(parties))
+	}
+	return performers, nil
 }
 
-func (a *accountResolver) Labels() []*labelResolver {
-	return []*labelResolver{a.resolver.labelResolver(a.parties)}
+func (a *accountResolver) Labels() ([]*labelResolver, error) {
+	var labels []*labelResolver
+	if dpid, ok := a.identity.Aux["DPID"]; ok {
+		parties, err := a.resolver.Ern.Party(ern.PartyArgs{ID: &dpid})
+		if err != nil {
+			return nil, err
+		}
+		labels = append(labels, a.resolver.labelResolver(parties))
+	}
+	return labels, nil
+}
+
+func (a *accountResolver) Composers() ([]*composerResolver, error) {
+	var composers []*composerResolver
+	if ipi, ok := a.identity.Aux["IPI"]; ok {
+		ipiBaseWriters, err := a.resolver.Cwr.WriterControl(cwr.WriterControlArgs{WriterIPIBaseNumber: &ipi})
+		if err != nil {
+			return nil, err
+		}
+		ipiNameWriters, err := a.resolver.Cwr.WriterControl(cwr.WriterControlArgs{WriterIPIName: &ipi})
+		if err != nil {
+			return nil, err
+		}
+		writers := append(ipiBaseWriters, ipiNameWriters...)
+		composers = append(composers, a.resolver.composerResolver(writers))
+	}
+	return composers, nil
 }
 
 type performerArgs struct {
@@ -371,10 +400,14 @@ func (r *Resolver) Composer(args composerArgs) (*composerResolver, error) {
 	if err != nil {
 		return nil, err
 	}
+	return r.composerResolver(append(ipiBaseWriters, ipiNameWriters...)), nil
+}
+
+func (r *Resolver) composerResolver(writers []*cwr.WriterControlResolver) *composerResolver {
 	return &composerResolver{
 		resolver: r,
-		writers:  append(ipiBaseWriters, ipiNameWriters...),
-	}, nil
+		writers:  writers,
+	}
 }
 
 type composerResolver struct {
@@ -436,7 +469,8 @@ func (c *composerResolver) Shares() (*sharesResolver, error) {
 			performance: writer.PROwnershipShare(),
 			mechanical:  writer.MROwnershipShare(),
 			synch:       writer.SROwnershipShare(),
-			source:      writer.Source()})
+			source:      writer.Source(),
+		})
 	}
 	return &sharesResolver{resolver: c.resolver, shares: shares}, nil
 }
