@@ -21,6 +21,8 @@ package testindex
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,6 +32,7 @@ import (
 	meta "github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/cwr"
 	"github.com/meta-network/go-meta/ern"
+	"github.com/meta-network/go-meta/musicbrainz"
 )
 
 func GenerateERNIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index, []*cid.Cid) {
@@ -131,4 +134,112 @@ func GenerateCWRIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index,
 		t.Fatal(err)
 	}
 	return index, cwrCid
+}
+
+func GenerateMusicBrainzIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index, []*musicbrainz.Artist, []*musicbrainz.RecordingWorkLink) {
+	// load the test data
+	f, err := os.Open(filepath.Join(dir, "testdata/artists.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	var artists []*musicbrainz.Artist
+	dec := json.NewDecoder(f)
+	for {
+		var artist *musicbrainz.Artist
+		err := dec.Decode(&artist)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		artists = append(artists, artist)
+	}
+	f, err = os.Open(filepath.Join(dir, "testdata/recording-work-links.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	var links []*musicbrainz.RecordingWorkLink
+	dec = json.NewDecoder(f)
+	for {
+		var link musicbrainz.RecordingWorkLink
+		err := dec.Decode(&link)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		links = append(links, &link)
+	}
+
+	// store the artists and links in a test store
+	artistCids := make([]*cid.Cid, len(artists))
+	for i, artist := range artists {
+		obj, err := store.Put(artist)
+		if err != nil {
+			t.Fatal(err)
+		}
+		artistCids[i] = obj.Cid()
+	}
+	linkCids := make([]*cid.Cid, len(links))
+	for i, link := range links {
+		obj, err := store.Put(link)
+		if err != nil {
+			t.Fatal(err)
+		}
+		linkCids[i] = obj.Cid()
+	}
+
+	// create streams
+	streams := func(name string, count int) (*meta.StreamReader, *meta.StreamWriter, error) {
+		reader, err := store.StreamReader(name, meta.StreamLimit(count))
+		if err != nil {
+			return nil, nil, err
+		}
+		writer, err := store.StreamWriter(name)
+		if err != nil {
+			reader.Close()
+			return nil, nil, err
+		}
+		return reader, writer, nil
+	}
+	artistStreamR, artistStreamW, err := streams("artists.musicbrainz.meta", len(artistCids))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer artistStreamR.Close()
+	defer artistStreamW.Close()
+	if err := artistStreamW.Write(artistCids...); err != nil {
+		t.Fatal(err)
+	}
+	linkStreamR, linkStreamW, err := streams("links.musicbrainz.meta", len(linkCids))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer linkStreamR.Close()
+	defer linkStreamW.Close()
+	if err := linkStreamW.Write(linkCids...); err != nil {
+		t.Fatal(err)
+	}
+
+	// index the artists and links
+	index, err := store.OpenIndex("musicbrainz.index.meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexer, err := musicbrainz.NewIndexer(index, store)
+	if err != nil {
+		index.Close()
+		t.Fatal(err)
+	}
+	if err := indexer.IndexArtists(context.Background(), artistStreamR); err != nil {
+		index.Close()
+		t.Fatal(err)
+	}
+	if err := indexer.IndexRecordingWorkLinks(context.Background(), linkStreamR); err != nil {
+		index.Close()
+		t.Fatal(err)
+	}
+	return index, artists, links
 }

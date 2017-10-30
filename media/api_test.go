@@ -25,26 +25,46 @@ import (
 	"github.com/meta-network/go-meta/cwr"
 	"github.com/meta-network/go-meta/ern"
 	"github.com/meta-network/go-meta/identity"
+	"github.com/meta-network/go-meta/musicbrainz"
 	"github.com/meta-network/go-meta/testutil"
 	"github.com/meta-network/go-meta/testutil/index"
 )
 
 // TestResolver tests resolving META Media API queries.
 func TestResolver(t *testing.T) {
-	// create test ERN index
+	// create test indexes
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
 	ernIndex, _ := testindex.GenerateERNIndex(t, "../ern", store)
 	defer ernIndex.Close()
 	cwrIndex, _ := testindex.GenerateCWRIndex(t, "../cwr", store)
 	defer cwrIndex.Close()
+	musicBrainzIndex, _, _ := testindex.GenerateMusicBrainzIndex(t, "../musicbrainz", store)
+	defer musicBrainzIndex.Close()
+
+	// create an ISWC -> ISRC mapping in the MusicBrainz index
+	link := &musicbrainz.RecordingWorkLink{
+		ISRC: "CASE00000001",
+		ISWC: "T1234567890",
+	}
+	linkObj, err := store.Put(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := musicBrainzIndex.Exec(
+		`INSERT INTO recording_work (object_id, isrc, iswc) VALUES ($1, $2, $3)`,
+		linkObj.Cid().String(), link.ISRC, link.ISWC,
+	); err != nil {
+		t.Fatal(err)
+	}
 
 	// create the resolver
 	resolver := &Resolver{
-		Ern:     ern.NewResolver(ernIndex.DB, store),
-		Cwr:     cwr.NewResolver(cwrIndex.DB, store),
-		Store:   store,
-		IDStore: identity.NewMemoryStore(),
+		Ern:         ern.NewResolver(ernIndex.DB, store),
+		Cwr:         cwr.NewResolver(cwrIndex.DB, store),
+		MusicBrainz: musicbrainz.NewResolver(musicBrainzIndex.DB, store),
+		Store:       store,
+		IDStore:     identity.NewMemoryStore(),
 	}
 
 	// create an identity
@@ -149,6 +169,13 @@ func TestResolver(t *testing.T) {
 	if len(recordingReleases) != 10 {
 		t.Fatalf("expected recording to have 10 releases, got %d", len(recordingReleases))
 	}
+	recordingWorks, err := recording.Works()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recordingWorks) != 5 {
+		t.Fatalf("expected recording to have 5 works, got %d", len(recordingWorks))
+	}
 
 	// query works
 	work, err := resolver.Work(workArgs{ISWC: "T1234567890"})
@@ -157,6 +184,13 @@ func TestResolver(t *testing.T) {
 	}
 	if title := work.Title().Value(); title != "TOTALY MADE MUSIC UP" {
 		t.Fatalf("expected title to be %q, got %q", "TOTALY MADE MUSIC UP", title)
+	}
+	workRecordings, err := work.Recordings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(workRecordings) != 1 {
+		t.Fatalf("expected work to have 1 recording, got %d", len(workRecordings))
 	}
 
 	// query releases

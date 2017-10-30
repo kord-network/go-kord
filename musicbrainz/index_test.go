@@ -17,19 +17,15 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package musicbrainz
+package musicbrainz_test
 
 import (
-	"context"
-	"encoding/json"
-	"io"
-	"os"
 	"reflect"
 	"testing"
 
 	"github.com/ipfs/go-cid"
-	"github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/testutil"
+	"github.com/meta-network/go-meta/testutil/index"
 )
 
 // TestIndex tests indexing a stream of MusicBrainz artists and recording work
@@ -37,16 +33,13 @@ import (
 func TestIndex(t *testing.T) {
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	x, err := newTestIndex(store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer x.cleanup()
+	index, artists, links := testindex.GenerateMusicBrainzIndex(t, ".", store)
+	defer index.Close()
 
 	// check all the artists were indexed
-	for _, artist := range x.artists {
+	for _, artist := range artists {
 		// check the name, type and mbid indexes
-		rows, err := x.index.Query(
+		rows, err := index.Query(
 			`SELECT object_id FROM artist WHERE name = ? AND type = ? AND mbid = ?`,
 			artist.Name, artist.Type, artist.MBID,
 		)
@@ -69,7 +62,7 @@ func TestIndex(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			obj, err := x.store.Get(cid)
+			obj, err := store.Get(cid)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -100,7 +93,7 @@ func TestIndex(t *testing.T) {
 		// check the IPI index
 		if len(artist.IPI) > 0 {
 			var ipis []string
-			rows, err = x.index.Query(
+			rows, err = index.Query(
 				`SELECT ipi FROM artist_ipi WHERE object_id = ?`,
 				objectID,
 			)
@@ -126,7 +119,7 @@ func TestIndex(t *testing.T) {
 		// check the ISNI index
 		if len(artist.ISNI) > 0 {
 			var isnis []string
-			rows, err = x.index.Query(
+			rows, err = index.Query(
 				`SELECT isni FROM artist_isni WHERE object_id = ?`,
 				objectID,
 			)
@@ -151,9 +144,9 @@ func TestIndex(t *testing.T) {
 	}
 
 	// check all the links were indexed
-	for _, link := range x.links {
+	for _, link := range links {
 		var count int
-		row := x.index.QueryRow("SELECT COUNT(*) FROM recording_work WHERE isrc = ? AND iswc = ?", link.ISRC, link.ISWC)
+		row := index.QueryRow("SELECT COUNT(*) FROM recording_work WHERE isrc = ? AND iswc = ?", link.ISRC, link.ISWC)
 		if err := row.Scan(&count); err != nil {
 			t.Fatal(err)
 		}
@@ -161,131 +154,4 @@ func TestIndex(t *testing.T) {
 			t.Fatalf("expected count to be 1, got %d", count)
 		}
 	}
-}
-
-type testIndex struct {
-	index   *meta.Index
-	store   *meta.Store
-	artists []*Artist
-	links   []*RecordingWorkLink
-	tmpDir  string
-}
-
-func (t *testIndex) cleanup() {
-	if t.index != nil {
-		t.index.Close()
-	}
-	if t.tmpDir != "" {
-		os.RemoveAll(t.tmpDir)
-	}
-}
-
-func newTestIndex(store *meta.Store) (x *testIndex, err error) {
-	x = &testIndex{store: store}
-	defer func() {
-		if err != nil {
-			x.cleanup()
-		}
-	}()
-
-	// load the test data
-	f, err := os.Open("testdata/artists.json")
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	dec := json.NewDecoder(f)
-	for {
-		var artist *Artist
-		err := dec.Decode(&artist)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		x.artists = append(x.artists, artist)
-	}
-	f, err = os.Open("testdata/recording-work-links.json")
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	dec = json.NewDecoder(f)
-	for {
-		var link RecordingWorkLink
-		err := dec.Decode(&link)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		x.links = append(x.links, &link)
-	}
-
-	// store the artists and links in a test store
-	artistCids := make([]*cid.Cid, len(x.artists))
-	for i, artist := range x.artists {
-		obj, err := x.store.Put(artist)
-		if err != nil {
-			return nil, err
-		}
-		artistCids[i] = obj.Cid()
-	}
-	linkCids := make([]*cid.Cid, len(x.links))
-	for i, link := range x.links {
-		obj, err := x.store.Put(link)
-		if err != nil {
-			return nil, err
-		}
-		linkCids[i] = obj.Cid()
-	}
-
-	// create streams
-	streams := func(name string, count int) (*meta.StreamReader, *meta.StreamWriter, error) {
-		reader, err := x.store.StreamReader(name, meta.StreamLimit(count))
-		if err != nil {
-			return nil, nil, err
-		}
-		writer, err := x.store.StreamWriter(name)
-		if err != nil {
-			reader.Close()
-			return nil, nil, err
-		}
-		return reader, writer, nil
-	}
-	artistStreamR, artistStreamW, err := streams("artists.musicbrainz.meta", len(artistCids))
-	if err != nil {
-		return nil, err
-	}
-	defer artistStreamR.Close()
-	defer artistStreamW.Close()
-	if err := artistStreamW.Write(artistCids...); err != nil {
-		return nil, err
-	}
-	linkStreamR, linkStreamW, err := streams("links.musicbrainz.meta", len(linkCids))
-	if err != nil {
-		return nil, err
-	}
-	defer linkStreamR.Close()
-	defer linkStreamW.Close()
-	if err := linkStreamW.Write(linkCids...); err != nil {
-		return nil, err
-	}
-
-	// index the artists and links
-	x.index, err = store.OpenIndex("musicbrainz.index.meta")
-	if err != nil {
-		return nil, err
-	}
-	indexer, err := NewIndexer(x.index, x.store)
-	if err != nil {
-		return nil, err
-	}
-	if err := indexer.IndexArtists(context.Background(), artistStreamR); err != nil {
-		return nil, err
-	}
-	if err := indexer.IndexRecordingWorkLinks(context.Background(), linkStreamR); err != nil {
-		return nil, err
-	}
-	return x, nil
 }

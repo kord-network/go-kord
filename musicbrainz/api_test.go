@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package musicbrainz
+package musicbrainz_test
 
 import (
 	"bytes"
@@ -29,7 +29,9 @@ import (
 	"testing"
 
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/musicbrainz"
 	"github.com/meta-network/go-meta/testutil"
+	"github.com/meta-network/go-meta/testutil/index"
 	"github.com/neelance/graphql-go"
 )
 
@@ -38,14 +40,11 @@ func TestAPI(t *testing.T) {
 	// create a test index
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	x, err := newTestIndex(store)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer x.cleanup()
+	index, artists, links := testindex.GenerateMusicBrainzIndex(t, ".", store)
+	defer index.Close()
 
 	// start the API server
-	s, err := newTestAPI(x.index.DB, x.store)
+	s, err := newTestAPI(index.DB, store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,9 +78,9 @@ func TestAPI(t *testing.T) {
 	}
 
 	// define a function to assert the response of an artist GraphQL query
-	assertArtists := func(res []byte, expected ...*Artist) {
+	assertArtists := func(res []byte, expected ...*musicbrainz.Artist) {
 		var a struct {
-			Artists []*Artist `json:"artist"`
+			Artists []*musicbrainz.Artist `json:"artist"`
 		}
 		if err := json.Unmarshal(res, &a); err != nil {
 			t.Fatal(err)
@@ -96,7 +95,7 @@ func TestAPI(t *testing.T) {
 		}
 	}
 
-	for _, artist := range x.artists {
+	for _, artist := range artists {
 		// check getting the artist by name
 		assertArtists(query(`{ artist(name:%q) { name } }`, artist.Name), artist)
 
@@ -104,9 +103,9 @@ func TestAPI(t *testing.T) {
 		// with the exception of IPI "00435760746" which should
 		// return two artists "Future" and "Lmars"
 		for _, ipi := range artist.IPI {
-			expected := []*Artist{artist}
+			expected := []*musicbrainz.Artist{artist}
 			if ipi == "00435760746" {
-				expected = []*Artist{
+				expected = []*musicbrainz.Artist{
 					{Name: "Future"},
 					{Name: "Lmars"},
 				}
@@ -120,10 +119,10 @@ func TestAPI(t *testing.T) {
 		}
 	}
 
-	linkQuery := func(q string, args ...interface{}) []*RecordingWorkLink {
+	linkQuery := func(q string, args ...interface{}) []*musicbrainz.RecordingWorkLink {
 		res := query(q, args...)
 		var l struct {
-			Links []*RecordingWorkLink `json:"recording_work_link"`
+			Links []*musicbrainz.RecordingWorkLink `json:"recording_work_link"`
 		}
 		if err := json.Unmarshal(res, &l); err != nil {
 			t.Fatal(err)
@@ -132,12 +131,12 @@ func TestAPI(t *testing.T) {
 	}
 
 	// group the links by ISWC -> ISRC
-	links := make(map[string][]string)
-	for _, link := range x.links {
-		links[link.ISWC] = append(links[link.ISWC], link.ISRC)
+	groupedLinks := make(map[string][]string)
+	for _, link := range links {
+		groupedLinks[link.ISWC] = append(groupedLinks[link.ISWC], link.ISRC)
 	}
 
-	for iswc, isrcs := range links {
+	for iswc, isrcs := range groupedLinks {
 		// check getting the link by ISRC
 		for _, isrc := range isrcs {
 			res := linkQuery(`{ recording_work_link(isrc:%q) { iswc } }`, isrc)
@@ -158,7 +157,7 @@ func TestAPI(t *testing.T) {
 }
 
 func newTestAPI(db *sql.DB, store *meta.Store) (*httptest.Server, error) {
-	api, err := NewAPI(db, store)
+	api, err := musicbrainz.NewAPI(db, store)
 	if err != nil {
 		return nil, err
 	}
