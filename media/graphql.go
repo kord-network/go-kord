@@ -155,8 +155,9 @@ type MusicProduct {
 
   title: StringValue
 
-  releases: [MusicReleaseLink]!
-  labels:   [RecordLabelLink]!
+  releases:   [MusicReleaseLink]!
+  performers: [MusicPerformerLink]!
+  labels:     [RecordLabelLink]!
 }
 
 type MusicShare {
@@ -631,7 +632,7 @@ func (r *recordingResolver) Title() *stringValueResolver {
 func (r *recordingResolver) Performers() ([]*performerLinkResolver, error) {
 	var performers []*performerLinkResolver
 	for _, soundRecording := range r.soundRecordings {
-		parties, err := soundRecording.Parties()
+		parties, err := soundRecording.Contributors()
 		if err != nil {
 			return nil, err
 		}
@@ -883,7 +884,7 @@ func (p *productResolver) Releases() []*releaseLinkResolver {
 func (p *productResolver) Labels() ([]*labelLinkResolver, error) {
 	var labels []*labelLinkResolver
 	for _, ernRelease := range p.ernReleases {
-		parties, err := ernRelease.Parties()
+		parties, err := ernRelease.MessageSenders()
 		if err != nil {
 			return nil, err
 		}
@@ -894,6 +895,22 @@ func (p *productResolver) Labels() ([]*labelLinkResolver, error) {
 		})
 	}
 	return labels, nil
+}
+
+func (p *productResolver) Performers() ([]*performerLinkResolver, error) {
+	var performers []*performerLinkResolver
+	for _, ernRelease := range p.ernReleases {
+		parties, err := ernRelease.Contributors()
+		if err != nil {
+			return nil, err
+		}
+		performers = append(performers, &performerLinkResolver{
+			resolver: p.resolver,
+			source:   &sourceResolver{name: ernRelease.Source()},
+			parties:  parties,
+		})
+	}
+	return performers, nil
 }
 
 type performerLinkResolver struct {

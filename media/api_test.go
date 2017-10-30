@@ -189,4 +189,11 @@ func TestResolver(t *testing.T) {
 	if len(productLabels) != 1 {
 		t.Fatalf("expected product to have 1 label, got %d", len(productLabels))
 	}
+	productPerformers, err := product.Performers()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(productPerformers) != 1 {
+		t.Fatalf("expected product to have 1 performer, got %d", len(productPerformers))
+	}
 }

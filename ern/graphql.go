@@ -354,7 +354,7 @@ func (sr *SoundRecordingResolver) DetailsByTerritory() []*SoundRecordingDetailsR
 	return sr.detailsByTerritory
 }
 
-func (sr *SoundRecordingResolver) Parties() ([]*PartyResolver, error) {
+func (sr *SoundRecordingResolver) Contributors() ([]*PartyResolver, error) {
 	rows, err := sr.resolver.db.Query(
 		"SELECT party_id FROM sound_recording_contributor WHERE sound_recording_id = ?",
 		sr.cid,
@@ -701,9 +701,36 @@ func (r *ReleaseResolver) DetailsByTerritory() []*ReleaseDetailsResolver {
 	return r.detailsByTerritory
 }
 
-func (r *ReleaseResolver) Parties() ([]*PartyResolver, error) {
+func (r *ReleaseResolver) MessageSenders() ([]*PartyResolver, error) {
 	rows, err := r.resolver.db.Query(
 		"SELECT sender_id FROM ern INNER JOIN release_list ON release_list.ern_id = ern.cid WHERE release_list.release_id = ?",
+		r.cid,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var parties []*PartyResolver
+	for rows.Next() {
+		var objectID string
+		if err := rows.Scan(&objectID); err != nil {
+			return nil, err
+		}
+		party, err := r.resolver.partyResolver(objectID)
+		if err != nil {
+			return nil, err
+		}
+		parties = append(parties, party)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return parties, nil
+}
+
+func (r *ReleaseResolver) Contributors() ([]*PartyResolver, error) {
+	rows, err := r.resolver.db.Query(
+		"SELECT party_id FROM sound_recording_contributor INNER JOIN sound_recording_release ON sound_recording_release.sound_recording_id = sound_recording_contributor.sound_recording_id WHERE sound_recording_release.release_id = ?",
 		r.cid,
 	)
 	if err != nil {
