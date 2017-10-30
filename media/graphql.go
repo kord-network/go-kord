@@ -131,6 +131,7 @@ type MusicRecording {
 
   performers: [MusicPerformerLink]!
   releases:   [MusicReleaseLink]!
+  works:      [MusicWorkLink]!
 }
 
 type MusicWork {
@@ -140,6 +141,7 @@ type MusicWork {
 
   composers:  [MusicComposerLink]!
   publishers: [MusicPublisherLink]!
+  recordings: [MusicRecordingLink]!
 }
 
 type MusicRelease {
@@ -699,6 +701,26 @@ func (r *recordingResolver) Releases() ([]*releaseLinkResolver, error) {
 	return releases, nil
 }
 
+func (r *recordingResolver) Works() ([]*workLinkResolver, error) {
+	var works []*workLinkResolver
+	for _, soundRecording := range r.soundRecordings {
+		isrc := soundRecording.SoundRecordingId()
+		args := musicbrainz.RecordingWorkLinkArgs{ISRC: &isrc}
+		links, err := r.resolver.MusicBrainz.RecordingWorkLink(args)
+		if err != nil {
+			return nil, err
+		}
+		for _, link := range links {
+			works = append(works, &workLinkResolver{
+				resolver: r.resolver,
+				source:   &sourceResolver{name: link.Source()},
+				iswc:     link.ISWC(),
+			})
+		}
+	}
+	return works, nil
+}
+
 type workArgs struct {
 	ISWC string
 }
@@ -771,6 +793,26 @@ func (w *workResolver) Publishers() ([]*publisherLinkResolver, error) {
 		}
 	}
 	return publishers, nil
+}
+
+func (w *workResolver) Recordings() ([]*recordingLinkResolver, error) {
+	var recordings []*recordingLinkResolver
+	for _, cwrWork := range w.cwrWorks {
+		iswc := cwrWork.ISWC()
+		args := musicbrainz.RecordingWorkLinkArgs{ISWC: &iswc}
+		links, err := w.resolver.MusicBrainz.RecordingWorkLink(args)
+		if err != nil {
+			return nil, err
+		}
+		for _, link := range links {
+			recordings = append(recordings, &recordingLinkResolver{
+				resolver: w.resolver,
+				source:   &sourceResolver{name: link.Source()},
+				isrc:     link.ISRC(),
+			})
+		}
+	}
+	return recordings, nil
 }
 
 type releaseArgs struct {

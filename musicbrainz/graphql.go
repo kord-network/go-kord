@@ -212,14 +212,14 @@ func (a *artistResolver) Annotation() *[]string {
 }
 
 // recordingWorkLinkArgs are the arguments for a GraphQL recording_work_link query.
-type recordingWorkLinkArgs struct {
+type RecordingWorkLinkArgs struct {
 	ISRC *string
 	ISWC *string
 }
 
 // RecordingWorkLink is a GraphQL resolver function which retrieves ISRC and
 // ISWC values from the recording_work index.
-func (g *Resolver) RecordingWorkLink(args recordingWorkLinkArgs) ([]*recordingWorkLinkResolver, error) {
+func (g *Resolver) RecordingWorkLink(args RecordingWorkLinkArgs) ([]*RecordingWorkLinkResolver, error) {
 	var rows *sql.Rows
 	var err error
 	switch {
@@ -234,14 +234,14 @@ func (g *Resolver) RecordingWorkLink(args recordingWorkLinkArgs) ([]*recordingWo
 		return nil, err
 	}
 	defer rows.Close()
-	var resolvers []*recordingWorkLinkResolver
+	var resolvers []*RecordingWorkLinkResolver
 	for rows.Next() {
 		var cid string
 		var link RecordingWorkLink
 		if err := rows.Scan(&cid, &link.ISRC, &link.ISWC); err != nil {
 			return nil, err
 		}
-		resolvers = append(resolvers, &recordingWorkLinkResolver{
+		resolvers = append(resolvers, &RecordingWorkLinkResolver{
 			cid:  cid,
 			link: link,
 		})
@@ -252,19 +252,23 @@ func (g *Resolver) RecordingWorkLink(args recordingWorkLinkArgs) ([]*recordingWo
 	return resolvers, nil
 }
 
-type recordingWorkLinkResolver struct {
+type RecordingWorkLinkResolver struct {
 	cid  string
 	link RecordingWorkLink
 }
 
-func (r *recordingWorkLinkResolver) Cid() string {
+func (r *RecordingWorkLinkResolver) Cid() string {
 	return r.cid
 }
 
-func (r *recordingWorkLinkResolver) ISRC() string {
+func (r *RecordingWorkLinkResolver) Source() string {
+	return r.link.Source
+}
+
+func (r *RecordingWorkLinkResolver) ISRC() string {
 	return r.link.ISRC
 }
 
-func (r *recordingWorkLinkResolver) ISWC() string {
+func (r *RecordingWorkLinkResolver) ISWC() string {
 	return r.link.ISWC
 }
