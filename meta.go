@@ -298,6 +298,9 @@ func (s *Store) Put(v interface{}) (*Object, error) {
 		int64(len(data)),
 		&sync.WaitGroup{},
 	)
+	if err != nil {
+		return nil, err
+	}
 	mhash, err := multihash.Encode(hash, multihashSwarmCode)
 	if err != nil {
 		return nil, err
