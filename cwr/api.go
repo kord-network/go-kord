@@ -37,6 +37,7 @@ type API struct {
 	resolver *Resolver
 }
 
+// NewAPI returns API for a given db and store
 func NewAPI(db *sql.DB, store *meta.Store) (*API, error) {
 	resolver := NewResolver(db, store)
 	schema, err := graphql.ParseSchema(GraphQLSchema, resolver)
@@ -49,20 +50,22 @@ func NewAPI(db *sql.DB, store *meta.Store) (*API, error) {
 		router:   httprouter.New(),
 		resolver: resolver,
 	}
-	api.router.GET("/", api.HandleIndex)
+	api.router.GET("/", api.handleIndex)
 	api.router.Handler("POST", "/graphql", &relay.Handler{Schema: schema})
 	return api, nil
 }
 
+// Resolver is a getter for the API's resolver
 func (a *API) Resolver() *Resolver {
 	return a.resolver
 }
 
+// ServeHTTP calls a.router.ServeHTTP(w, req)
 func (a *API) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	a.router.ServeHTTP(w, req)
 }
 
-func (a *API) HandleIndex(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+func (a *API) handleIndex(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
 	w.Header().Set("Content-Type", "text/html")
 	w.Write(indexHTML)
 }
