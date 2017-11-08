@@ -195,7 +195,7 @@ func NewResolver(db *sql.DB, store *meta.Store) *Resolver {
 	return &Resolver{db, store}
 }
 
-// registeredWorkArgs are the arguments for a GraphQL registeredWork query.
+// RegisteredWorkArgs are the arguments for a GraphQL registeredWork query.
 type RegisteredWorkArgs struct {
 	RecordType    *string
 	Title         *string
@@ -294,8 +294,10 @@ func (g *Resolver) RegisteredWork(args RegisteredWorkArgs) ([]*RegisteredWorkRes
 			return nil, err
 		}
 		swrRows, err := g.db.Query("SELECT object_id FROM writer_control WHERE tx_id = ?", objectID)
+		if err != nil {
+			return nil, err
+		}
 		for swrRows.Next() {
-			var objectID string
 			if err := swrRows.Scan(&objectID); err != nil {
 				return nil, err
 			}
@@ -315,8 +317,10 @@ func (g *Resolver) RegisteredWork(args RegisteredWorkArgs) ([]*RegisteredWorkRes
 			registeredWork.Contributors = append(registeredWork.Contributors, &writerControlledbySubmitter)
 		}
 		spuRows, err := g.db.Query("SELECT object_id FROM publisher_control WHERE tx_id = ?", objectID)
+		if err != nil {
+			return nil, err
+		}
 		for spuRows.Next() {
-			var objectID string
 			if err := spuRows.Scan(&objectID); err != nil {
 				return nil, err
 			}
@@ -496,26 +500,32 @@ type TransmissionHeaderResolver struct {
 	transmissionHeader *TransmissionHeader
 }
 
+// Cid resolver
 func (t *TransmissionHeaderResolver) Cid() string {
 	return t.cid
 }
 
+// Source resolver
 func (t *TransmissionHeaderResolver) Source() string {
 	return t.transmissionHeader.Source
 }
 
+// RecordType resolver
 func (t *TransmissionHeaderResolver) RecordType() string {
 	return t.transmissionHeader.RecordType
 }
 
+// SenderID resolver
 func (t *TransmissionHeaderResolver) SenderID() string {
 	return t.transmissionHeader.SenderID
 }
 
+// SenderType resolver
 func (t *TransmissionHeaderResolver) SenderType() string {
 	return t.transmissionHeader.SenderType
 }
 
+// SenderName resolver
 func (t *TransmissionHeaderResolver) SenderName() string {
 	return t.transmissionHeader.SenderName
 }
@@ -526,106 +536,132 @@ type PublisherControlResolver struct {
 	publisherControl *PublisherControllBySubmitter
 }
 
+// Cid resolver
 func (p *PublisherControlResolver) Cid() string {
 	return p.cid
 }
 
+// Source resolver
 func (p *PublisherControlResolver) Source() string {
 	return p.publisherControl.Source
 }
 
+// RecordType resolver
 func (p *PublisherControlResolver) RecordType() string {
 	return p.publisherControl.RecordType
 }
 
+// PublisherSequenceN resolver
 func (p *PublisherControlResolver) PublisherSequenceN() string {
 	return p.publisherControl.PublisherSequenceNumber
 }
 
+// TransactionSequenceN resolver
 func (p *PublisherControlResolver) TransactionSequenceN() string {
 	return p.publisherControl.TransactionSequenceN
 }
 
+// RecordSequenceN resolver
 func (p *PublisherControlResolver) RecordSequenceN() string {
 	return p.publisherControl.RecordSequenceN
 }
 
+// InterestedPartyNumber resolver
 func (p *PublisherControlResolver) InterestedPartyNumber() string {
 	return p.publisherControl.InterestedPartyNumber
 }
 
+// MROwnershipShare resolver
 func (p *PublisherControlResolver) MROwnershipShare() string {
 	return p.publisherControl.MROwnershipShare
 }
 
+// AgreementType resolver
 func (p *PublisherControlResolver) AgreementType() string {
 	return p.publisherControl.AgreementType
 }
 
+// FirstRecordingRefusalInd resolver
 func (p *PublisherControlResolver) FirstRecordingRefusalInd() string {
 	return p.publisherControl.FirstRecordingRefusalInd
 }
 
+// InterStandardAgreementCode resolver
 func (p *PublisherControlResolver) InterStandardAgreementCode() string {
 	return p.publisherControl.InterStandardAgreementCode
 }
 
+// PublisherIPIBaseNumber resolver
 func (p *PublisherControlResolver) PublisherIPIBaseNumber() string {
 	return p.publisherControl.PublisherIPIBaseNumber
 }
 
+// PRAffiliationSocietyNumber resolver
 func (p *PublisherControlResolver) PRAffiliationSocietyNumber() string {
 	return p.publisherControl.PRAffiliationSocietyNumber
 }
 
+// PROwnershipShare resolver
 func (p *PublisherControlResolver) PROwnershipShare() string {
 	return p.publisherControl.PROwnershipShare
 }
 
+// PublisherIPINameNumber resolver
 func (p *PublisherControlResolver) PublisherIPINameNumber() string {
 	return p.publisherControl.PublisherIPINameNumber
 }
 
+// PublisherName resolver
 func (p *PublisherControlResolver) PublisherName() string {
 	return p.publisherControl.PublisherName
 }
 
+// PublisherUnknownIndicator resolver
 func (p *PublisherControlResolver) PublisherUnknownIndicator() string {
 	return p.publisherControl.PublisherUnknownIndicator
 }
 
+// SROwnershipShare resolver
 func (p *PublisherControlResolver) SROwnershipShare() string {
 	return p.publisherControl.SROwnershipShare
 }
 
+// SRSociety resolver
 func (p *PublisherControlResolver) SRSociety() string {
 	return p.publisherControl.SRSociety
 }
 
+// SocietyAssignedAgreementNumber resolver
 func (p *PublisherControlResolver) SocietyAssignedAgreementNumber() string {
 	return p.publisherControl.SocietyAssignedAgreementNumber
 }
 
+// TaxIDNumber resolver
 func (p *PublisherControlResolver) TaxIDNumber() string {
 	return p.publisherControl.TaxIDNumber
 }
 
+// PublisherType resolver
 func (p *PublisherControlResolver) PublisherType() string {
 	return p.publisherControl.PublisherType
 }
 
+// SubmitterAgreementNumber resolver
 func (p *PublisherControlResolver) SubmitterAgreementNumber() string {
 	return p.publisherControl.SubmitterAgreementNumber
 }
 
+// SpecialAgreementsIndicator resolver
 func (p *PublisherControlResolver) SpecialAgreementsIndicator() string {
 	return p.publisherControl.SpecialAgreementsIndicator
 }
 
+// MRSociety resolver
 func (p *PublisherControlResolver) MRSociety() string {
 	return p.publisherControl.MRSociety
 }
 
+// USALicenseInd resolver
 func (p *PublisherControlResolver) USALicenseInd() string {
 	return p.publisherControl.USALicenseInd
 }
@@ -636,70 +672,87 @@ type WriterControlResolver struct {
 	writerControl *WriterControlledbySubmitter
 }
 
+// Cid resolver
 func (p *WriterControlResolver) Cid() string {
 	return p.cid
 }
 
+// Source resolver
 func (p *WriterControlResolver) Source() string {
 	return p.writerControl.Source
 }
 
+// WriterUnknownIndicator resolver
 func (p *WriterControlResolver) WriterUnknownIndicator() string {
 	return p.writerControl.WriterUnknownIndicator
 }
 
+// TransactionSequenceN resolver
 func (p *WriterControlResolver) TransactionSequenceN() string {
 	return p.writerControl.TransactionSequenceN
 }
 
+// WriterDesignationCode resolver
 func (p *WriterControlResolver) WriterDesignationCode() string {
 	return p.writerControl.WriterDesignationCode
 }
 
+// WriterFirstName resolver
 func (p *WriterControlResolver) WriterFirstName() string {
 	return p.writerControl.WriterFirstName
 }
 
+// WriterLastName resolver
 func (p *WriterControlResolver) WriterLastName() string {
 	return p.writerControl.WriterLastName
 }
 
+// WriterIPIBaseNumber resolver
 func (p *WriterControlResolver) WriterIPIBaseNumber() string {
 	return p.writerControl.WriterIPIBaseNumber
 }
 
+// WriterIPIName resolver
 func (p *WriterControlResolver) WriterIPIName() string {
 	return p.writerControl.WriterIPIName
 }
 
+// RecordSequenceN resolver
 func (p *WriterControlResolver) RecordSequenceN() string {
 	return p.writerControl.RecordSequenceN
 }
 
+// InterestedPartyNumber resolver
 func (p *WriterControlResolver) InterestedPartyNumber() string {
 	return p.writerControl.InterestedPartyNumber
 }
 
+// TaxIDNumber resolver
 func (p *WriterControlResolver) TaxIDNumber() string {
 	return p.writerControl.TaxIDNumber
 }
 
+// PersonalNumber resolver
 func (p *WriterControlResolver) PersonalNumber() string {
 	return p.writerControl.PersonalNumber
 }
 
+// RecordType resolver
 func (p *WriterControlResolver) RecordType() string {
 	return p.writerControl.RecordType
 }
 
+// PROwnershipShare resolver
 func (p *WriterControlResolver) PROwnershipShare() string {
 	return p.writerControl.PROwnershipShare
 }
 
+// MROwnershipShare resolver
 func (p *WriterControlResolver) MROwnershipShare() string {
 	return p.writerControl.MROwnershipShare
 }
 
+// SROwnershipShare resolver
 func (p *WriterControlResolver) SROwnershipShare() string {
 	return p.writerControl.SROwnershipShare
 }
@@ -710,6 +763,7 @@ type RegisteredWorkResolver struct {
 	registeredWork *RegisteredWork
 }
 
+// Contributors resolver
 func (r *RegisteredWorkResolver) Contributors() []*WriterControlResolver {
 	var writerControlResolvers []*WriterControlResolver
 	for _, c := range r.registeredWork.Contributors {
@@ -718,6 +772,7 @@ func (r *RegisteredWorkResolver) Contributors() []*WriterControlResolver {
 	return writerControlResolvers
 }
 
+// Controls resolver
 func (r *RegisteredWorkResolver) Controls() []*PublisherControlResolver {
 	var publisherControlResolvers []*PublisherControlResolver
 	for _, c := range r.registeredWork.Controls {
@@ -726,102 +781,132 @@ func (r *RegisteredWorkResolver) Controls() []*PublisherControlResolver {
 	return publisherControlResolvers
 }
 
+// Cid resolver
 func (r *RegisteredWorkResolver) Cid() string {
 	return r.cid
 }
 
+// Source resolver
 func (r *RegisteredWorkResolver) Source() string {
 	return r.registeredWork.Source
 }
 
+// Title resolver
 func (r *RegisteredWorkResolver) Title() string {
 	return r.registeredWork.Title
 }
 
+// RecordType resolver
 func (r *RegisteredWorkResolver) RecordType() string {
 	return r.registeredWork.RecordType
 }
 
+// ISWC resolver
 func (r *RegisteredWorkResolver) ISWC() string {
 	return r.registeredWork.ISWC
 }
 
+// CatalogueNumber resolver
 func (r *RegisteredWorkResolver) CatalogueNumber() string {
 	return r.registeredWork.CatalogueNumber
 }
 
+// CompositeComponentCount resolver
 func (r *RegisteredWorkResolver) CompositeComponentCount() string {
 	return r.registeredWork.CompositeComponentCount
 }
 
+// CompositeType resolver
 func (r *RegisteredWorkResolver) CompositeType() string {
 	return r.registeredWork.CompositeType
 }
 
+// ContactID resolver
 func (r *RegisteredWorkResolver) ContactID() string {
 	return r.registeredWork.ContactID
 }
 
+// ContactName resolver
 func (r *RegisteredWorkResolver) ContactName() string {
 	return r.registeredWork.ContactName
 }
 
+// CopyRightDate resolver
 func (r *RegisteredWorkResolver) CopyRightDate() string {
 	return r.registeredWork.CopyRightDate
 }
 
+// DateOfPublication resolver
 func (r *RegisteredWorkResolver) DateOfPublication() string {
 	return r.registeredWork.DateOfPublication
 }
 
+// DistributionCategory resolver
 func (r *RegisteredWorkResolver) DistributionCategory() string {
 	return r.registeredWork.DistributionCategory
 }
 
+// Duration resolver
 func (r *RegisteredWorkResolver) Duration() string {
 	return r.registeredWork.Duration
 }
 
+// ExceptionalClause resolver
 func (r *RegisteredWorkResolver) ExceptionalClause() string {
 	return r.registeredWork.ExceptionalClause
 }
 
+// GrandRightsIndicator resolver
 func (r *RegisteredWorkResolver) GrandRightsIndicator() string {
 	return r.registeredWork.GrandRightsIndicator
 }
+
+// LanguageCode resolver
 func (r *RegisteredWorkResolver) LanguageCode() string {
 	return r.registeredWork.LanguageCode
 }
 
+// LyricAdaptation resolver
 func (r *RegisteredWorkResolver) LyricAdaptation() string {
 	return r.registeredWork.LyricAdaptation
 }
 
+// MusicArrangement resolver
 func (r *RegisteredWorkResolver) MusicArrangement() string {
 	return r.registeredWork.MusicArrangement
 }
+
+// OpusNumber resolver
 func (r *RegisteredWorkResolver) OpusNumber() string {
 	return r.registeredWork.OpusNumber
 }
 
+// PriorityFlag resolver
 func (r *RegisteredWorkResolver) PriorityFlag() string {
 	return r.registeredWork.PriorityFlag
 }
 
+// RecordedIndicator resolver
 func (r *RegisteredWorkResolver) RecordedIndicator() string {
 	return r.registeredWork.RecordedIndicator
 }
+
+// SubmitteWorkNumber resolver
 func (r *RegisteredWorkResolver) SubmitteWorkNumber() string {
 	return r.registeredWork.SubmitteWorkNumber
 }
 
+// TextMusicRelationship resolver
 func (r *RegisteredWorkResolver) TextMusicRelationship() string {
 	return r.registeredWork.TextMusicRelationship
 }
 
+// VersionType resolver
 func (r *RegisteredWorkResolver) VersionType() string {
 	return r.registeredWork.VersionType
 }
+
+// WorkType resolver
 func (r *RegisteredWorkResolver) WorkType() string {
 	return r.registeredWork.WorkType
 }
