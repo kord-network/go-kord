@@ -20,39 +20,25 @@
 package identity
 
 import (
-	"fmt"
-	"sync"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type Store interface {
-	Load(name string) (*Identity, error)
-	Save(*Identity) error
+// Claim structure
+type Claim struct {
+	Issuer    string `json:"issuer"`
+	Holder    string `json:"holder"`
+	Claim     string `json:"claim"`
+	Signature string `json:"signature"`
+	ID        string `json:"id"`
 }
 
-type MemoryStore struct {
-	mtx        sync.RWMutex
-	identities map[string]*Identity
-}
-
-func NewMemoryStore() *MemoryStore {
-	return &MemoryStore{
-		identities: make(map[string]*Identity),
+// NewClaim create and returns new Claim.
+func NewClaim(issuer string, holder string, claim string, signature string) *Claim {
+	return &Claim{
+		Issuer:    issuer,
+		Holder:    holder,
+		Claim:     claim,
+		Signature: signature,
+		ID:        crypto.Keccak256Hash([]byte(issuer), []byte(holder), []byte(claim), []byte(signature)).String(),
 	}
-}
-
-func (m *MemoryStore) Load(name string) (*Identity, error) {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-	i, ok := m.identities[name]
-	if !ok {
-		return nil, fmt.Errorf("identity not found: %s", name)
-	}
-	return i, nil
-}
-
-func (m *MemoryStore) Save(identity *Identity) error {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
-	m.identities[identity.Name] = identity
-	return nil
 }

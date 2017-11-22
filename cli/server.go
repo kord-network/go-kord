@@ -51,20 +51,33 @@ func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, erro
 	router.GET("/object/:cid", srv.HandleGetObject)
 	router.POST("/convert/xml", srv.HandleConvertXML)
 
-	// add the identity API at /meta-id
-	identityStore := identity.NewMemoryStore()
-	identityAPI := identity.NewAPI(identityStore)
-	router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
-	router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
-
 	// add the stream API at /stream
 	streamAPI := stream.NewAPI(store)
 	router.Handler("GET", "/stream/*path", http.StripPrefix("/stream", streamAPI))
 	router.Handler("POST", "/stream/*path", http.StripPrefix("/stream", streamAPI))
 
 	mediaResolver := &media.Resolver{
-		Store:   store,
-		IDStore: identityStore,
+		Store: store,
+	}
+
+	if index, ok := indexes["identity"]; ok {
+		api, err := identity.NewAPI(index.DB, store)
+		if err != nil {
+			return nil, err
+		}
+		mediaResolver.Identity = api.Resolver()
+		router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", api))
+		router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", api))
+	}
+
+	if index, ok := indexes["claim"]; ok {
+		api, err := identity.NewAPI(index.DB, store)
+		if err != nil {
+			return nil, err
+		}
+		mediaResolver.Identity = api.Resolver()
+		router.Handler("GET", "/claim/*path", http.StripPrefix("/claim", api))
+		router.Handler("POST", "/claim/*path", http.StripPrefix("/claim", api))
 	}
 
 	if index, ok := indexes["musicbrainz"]; ok {

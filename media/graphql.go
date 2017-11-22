@@ -252,8 +252,8 @@ type Resolver struct {
 	MusicBrainz *musicbrainz.Resolver
 	Ern         *ern.Resolver
 	Cwr         *cwr.Resolver
+	Identity    *identity.Resolver
 	Store       *meta.Store
-	IDStore     identity.Store
 }
 
 type accountArgs struct {
@@ -261,24 +261,29 @@ type accountArgs struct {
 }
 
 func (r *Resolver) Account(args accountArgs) (*accountResolver, error) {
-	id, err := r.IDStore.Load(args.MetaID)
+	claimsResolver, err := r.Identity.Claim(identity.ClaimArgs{Holder: &args.MetaID})
 	if err != nil {
 		return nil, err
 	}
+	aux := make(map[string]string)
+	for _, claimsResolver := range claimsResolver {
+		aux[claimsResolver.Claim()] = claimsResolver.Signature()
+	}
+
 	return &accountResolver{
 		resolver: r,
-		identity: id,
+		aux:      aux,
 	}, nil
 }
 
 type accountResolver struct {
 	resolver *Resolver
-	identity *identity.Identity
+	aux      map[string]string
 }
 
 func (a *accountResolver) Performers() ([]*performerResolver, error) {
 	var performers []*performerResolver
-	if dpid, ok := a.identity.Aux["DPID"]; ok {
+	if dpid, ok := a.aux["DPID"]; ok {
 		parties, err := a.resolver.Ern.Party(ern.PartyArgs{ID: &dpid})
 		if err != nil {
 			return nil, err
@@ -290,7 +295,7 @@ func (a *accountResolver) Performers() ([]*performerResolver, error) {
 
 func (a *accountResolver) Labels() ([]*labelResolver, error) {
 	var labels []*labelResolver
-	if dpid, ok := a.identity.Aux["DPID"]; ok {
+	if dpid, ok := a.aux["DPID"]; ok {
 		parties, err := a.resolver.Ern.Party(ern.PartyArgs{ID: &dpid})
 		if err != nil {
 			return nil, err
@@ -302,7 +307,7 @@ func (a *accountResolver) Labels() ([]*labelResolver, error) {
 
 func (a *accountResolver) Composers() ([]*composerResolver, error) {
 	var composers []*composerResolver
-	if ipi, ok := a.identity.Aux["IPI"]; ok {
+	if ipi, ok := a.aux["IPI"]; ok {
 		ipiBaseWriters, err := a.resolver.Cwr.WriterControl(cwr.WriterControlArgs{WriterIPIBaseNumber: &ipi})
 		if err != nil {
 			return nil, err

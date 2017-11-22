@@ -20,86 +20,89 @@
 package identity
 
 import (
-	"encoding/json"
-	"fmt"
+	"database/sql"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/meta-network/go-meta"
+	"github.com/neelance/graphql-go"
+	"github.com/neelance/graphql-go/relay"
 )
 
-// API is a HTTP API to create and update META identities.
+// API is a http.Handler which serves GraphQL query responses using a Resolver.
 type API struct {
-	store  Store
-	router *httprouter.Router
+	db       *sql.DB
+	store    *meta.Store
+	router   *httprouter.Router
+	resolver *Resolver
 }
 
-// NewAPI returns a new API which uses the given store to load and save
-// identities.
-func NewAPI(store Store) *API {
-	api := &API{
-		store:  store,
-		router: httprouter.New(),
+// NewAPI returns API for a given db and store
+func NewAPI(db *sql.DB, store *meta.Store) (*API, error) {
+	resolver := NewResolver(db, store)
+	schema, err := graphql.ParseSchema(GraphQLSchema, resolver)
+	if err != nil {
+		return nil, err
 	}
-	api.router.POST("/", api.handleCreateIdentity)
-	api.router.GET("/:name", api.handleGetIdentity)
-	api.router.POST("/:name", api.handleUpdateIdentity)
-	return api
+	api := &API{
+		db:       db,
+		store:    store,
+		router:   httprouter.New(),
+		resolver: resolver,
+	}
+	api.router.GET("/", api.handleIndex)
+	api.router.Handler("POST", "/graphql", &relay.Handler{Schema: schema})
+	return api, nil
 }
 
-// ServeHTTP implements the http.Handler interface so that the API can be used
-// to serve HTTP requests.
+// Resolver is a getter for the API's resolver
+func (a *API) Resolver() *Resolver {
+	return a.resolver
+}
+
+// ServeHTTP calls a.router.ServeHTTP(w, req)
 func (a *API) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	a.router.ServeHTTP(w, req)
 }
 
-func (a *API) handleCreateIdentity(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	name := req.FormValue("name")
-	if name == "" {
-		http.Error(w, "missing name parameter", http.StatusBadRequest)
-		return
-	}
-	identity := NewIdentity(name)
-	if err := a.store.Save(identity); err != nil {
-		http.Error(w, fmt.Sprintf("error saving identity: %s", err), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application./json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(identity)
+func (a *API) handleIndex(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+	w.Header().Set("Content-Type", "text/html")
+	w.Write(indexHTML)
 }
 
-func (a *API) handleGetIdentity(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	name := p.ByName("name")
-	identity, err := a.store.Load(name)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("error loading identity: %s", err), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application./json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(identity)
-}
-
-func (a *API) handleUpdateIdentity(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	var aux map[string]string
-	if err := json.NewDecoder(req.Body).Decode(&aux); err != nil {
-		http.Error(w, fmt.Sprintf("error reading aux from request: %s", err), http.StatusBadRequest)
-		return
-	}
-	name := p.ByName("name")
-	identity, err := a.store.Load(name)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("error loading identity: %s", err), http.StatusInternalServerError)
-		return
-	}
-	for key, val := range aux {
-		identity.Aux[key] = val
-	}
-	if err := a.store.Save(identity); err != nil {
-		http.Error(w, fmt.Sprintf("error saving identity: %s", err), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application./json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(identity)
-}
+var indexHTML = []byte(`
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/graphiql/0.10.2/graphiql.css" />
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/fetch/1.1.0/fetch.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.5.4/react.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.5.4/react-dom.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/graphiql/0.10.2/graphiql.js"></script>
+	</head>
+	<body style="width: 100%; height: 100%; margin: 0; overflow: hidden;">
+		<div id="graphiql" style="height: 100vh;">Loading...</div>
+		<script>
+			function graphQLFetcher(graphQLParams) {
+				return fetch("graphql", {
+					method: "post",
+					body: JSON.stringify(graphQLParams),
+					credentials: "include",
+				}).then(function (response) {
+					return response.text();
+				}).then(function (responseBody) {
+					try {
+						return JSON.parse(responseBody);
+					} catch (error) {
+						return responseBody;
+					}
+				});
+			}
+			ReactDOM.render(
+				React.createElement(GraphiQL, {fetcher: graphQLFetcher}),
+				document.getElementById("graphiql")
+			);
+		</script>
+	</body>
+</html>
+`)
