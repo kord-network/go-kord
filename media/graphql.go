@@ -283,7 +283,12 @@ func (a *accountResolver) Performers() ([]*performerResolver, error) {
 		if err != nil {
 			return nil, err
 		}
-		performers = append(performers, a.resolver.performerResolver(parties))
+		if len(parties) > 0 {
+			performer := a.resolver.performerResolver(parties)
+			if len(performer.parties) > 0 {
+				performers = append(performers, performer)
+			}
+		}
 	}
 	return performers, nil
 }
@@ -295,7 +300,9 @@ func (a *accountResolver) Labels() ([]*labelResolver, error) {
 		if err != nil {
 			return nil, err
 		}
-		labels = append(labels, a.resolver.labelResolver(parties))
+		if len(parties) > 0 {
+			labels = append(labels, a.resolver.labelResolver(parties))
+		}
 	}
 	return labels, nil
 }
@@ -311,8 +318,11 @@ func (a *accountResolver) Composers() ([]*composerResolver, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		writers := append(ipiBaseWriters, ipiNameWriters...)
-		composers = append(composers, a.resolver.composerResolver(writers))
+		if len(writers) > 0 {
+			composers = append(composers, a.resolver.composerResolver(writers))
+		}
 	}
 	return composers, nil
 }
@@ -711,11 +721,18 @@ func (r *recordingResolver) Works() ([]*workLinkResolver, error) {
 			return nil, err
 		}
 		for _, link := range links {
-			works = append(works, &workLinkResolver{
+			work := &workLinkResolver{
 				resolver: r.resolver,
 				source:   &sourceResolver{name: link.Source()},
 				iswc:     link.ISWC(),
-			})
+			}
+			workResolver, err := work.Work()
+			if err != nil {
+				return nil, err
+			}
+			if len(workResolver.cwrWorks) > 0 {
+				works = append(works, work)
+			}
 		}
 	}
 	return works, nil
