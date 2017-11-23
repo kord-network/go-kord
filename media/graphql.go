@@ -284,7 +284,10 @@ func (a *accountResolver) Performers() ([]*performerResolver, error) {
 			return nil, err
 		}
 		if len(parties) > 0 {
-			performers = append(performers, a.resolver.performerResolver(parties))
+			performer := a.resolver.performerResolver(parties)
+			if len(performer.parties) > 0 {
+				performers = append(performers, performer)
+			}
 		}
 	}
 	return performers, nil
