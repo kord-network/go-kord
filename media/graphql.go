@@ -261,7 +261,7 @@ type accountArgs struct {
 }
 
 func (r *Resolver) Account(args accountArgs) (*accountResolver, error) {
-	claimsResolver, err := r.Identity.Claim(identity.ClaimArgs{Holder: &args.MetaID})
+	claimsResolver, err := r.Identity.Claim(identity.ClaimArgs{Subject: &args.MetaID})
 	if err != nil {
 		return nil, err
 	}

@@ -46,7 +46,7 @@ func TestIdentityAPI(t *testing.T) {
 	// create a test index of identity
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	index, identityCid := testindex.GenerateIdentityIndex(t, ".", store)
+	index, id := testindex.GenerateIdentityIndex(t, ".", store)
 	defer index.Close()
 
 	// start the API server
@@ -99,19 +99,11 @@ func TestIdentityAPI(t *testing.T) {
 		}
 		return nil
 	}
-	obj, err := store.Get(identityCid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	id := &identity.Identity{}
-	if err := obj.Decode(id); err != nil {
-		t.Fatal(err)
-	}
 
-	if id.Owner != "" {
+	if id.Owner.String() != "" {
 		if err := assertIdentity(id,
 			`{ identity (owner:%q) {id owner}}`,
-			id.Owner); err != nil {
+			id.Owner.String()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -248,8 +240,8 @@ func TestCreateClaimAPI(t *testing.T) {
 		if rw.Claim == nil {
 			return fmt.Errorf("expected claim, got nothing")
 		}
-		if rw.Claim.Holder != claim.Holder {
-			return fmt.Errorf("unexpected claim holder: expected %q ", claim.Holder)
+		if rw.Claim.Subject != claim.Subject {
+			return fmt.Errorf("unexpected claim subject: expected %q ", claim.Subject)
 		}
 		if rw.Claim.Issuer != claim.Issuer {
 			return fmt.Errorf("unexpected claim Issuer: expected %q ", claim.Issuer)
@@ -266,21 +258,21 @@ func TestCreateClaimAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	testClaim := identity.NewClaim(testMetaId.Owner, testMetaId.Owner, "name", "testname")
+	testClaim := identity.NewClaim(testMetaId.ID, testMetaId.ID, "name", "testname")
 
 	if err := assertCreateClaim(testClaim,
-		params{Query: `mutation CreateClaim($issuer: String, $holder: String,$claim: String,$signature: String) {
-						createClaim(issuer: $issuer, holder: $holder,claim: $claim,signature: $signature) {
+		params{Query: `mutation CreateClaim($issuer: String, $subject: String,$claim: String,$signature: String) {
+						createClaim(issuer: $issuer, subject: $subject,claim: $claim,signature: $signature) {
 							id
 							issuer
-							holder
+							subject
 							claim
 							signature
 						}
 					}`,
 			Variables: map[string]interface{}{
 				"issuer":    testClaim.Issuer,
-				"holder":    testClaim.Holder,
+				"subject":   testClaim.Subject,
 				"claim":     "name",
 				"signature": "testname"}}); err != nil {
 		t.Fatal(err)
@@ -292,7 +284,7 @@ func TestClaimAPI(t *testing.T) {
 	// create a test index of identity
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	index, claimsCids := testindex.GenerateClaimIndex(t, ".", store)
+	index, claims := testindex.GenerateClaimIndex(t, ".", store)
 	defer index.Close()
 
 	// start the API server
@@ -345,19 +337,11 @@ func TestClaimAPI(t *testing.T) {
 		}
 		return nil
 	}
-	obj, err := store.Get(claimsCids[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	claim := &identity.Claim{}
-	if err := obj.Decode(claim); err != nil {
-		t.Fatal(err)
-	}
 
-	if claim.Signature != "" {
-		if err := assertClaim(claim,
-			`{ claim (holder:%q) {issuer holder claim signature }}`,
-			claim.Holder); err != nil {
+	if claims[0].Signature != "" {
+		if err := assertClaim(claims[0],
+			`{ claim (subject:%q) {issuer subject claim signature }}`,
+			claims[0].Subject); err != nil {
 			t.Fatal(err)
 		}
 	}

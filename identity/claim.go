@@ -26,19 +26,19 @@ import (
 // Claim structure
 type Claim struct {
 	Issuer    string `json:"issuer"`
-	Holder    string `json:"holder"`
+	Subject    string `json:"subject"`
 	Claim     string `json:"claim"`
 	Signature string `json:"signature"`
 	ID        string `json:"id"`
 }
 
 // NewClaim create and returns new Claim.
-func NewClaim(issuer string, holder string, claim string, signature string) *Claim {
+func NewClaim(issuer string, subject string, claim string, signature string) *Claim {
 	return &Claim{
 		Issuer:    issuer,
-		Holder:    holder,
+		Subject:    subject,
 		Claim:     claim,
 		Signature: signature,
-		ID:        crypto.Keccak256Hash([]byte(issuer), []byte(holder), []byte(claim), []byte(signature)).String(),
+		ID:        crypto.Keccak256Hash([]byte(issuer), []byte(subject), []byte(claim), []byte(signature)).String(),
 	}
 }

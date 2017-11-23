@@ -22,7 +22,6 @@ package identity
 import (
 	"encoding/hex"
 	"fmt"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -30,9 +29,9 @@ import (
 
 // Identity structure
 type Identity struct {
-	ID    string `json:"id"`
-	Owner string `json:"owner"`
-	Sig   string `json:"signature"`
+	ID    string         `json:"id"`
+	Owner common.Address `json:"owner"`
+	Sig   string         `json:"signature"`
 }
 
 // NewIdentity create and returns new Identity.
@@ -52,7 +51,7 @@ func NewIdentity(username string, owner common.Address, signature []byte) (ident
 	}
 
 	return &Identity{
-		Owner: strings.ToLower(owner.String()),
+		Owner: owner,
 		ID:    crypto.Keccak256Hash([]byte(username)).String(),
 		Sig:   hex.EncodeToString(signature),
 	}, nil

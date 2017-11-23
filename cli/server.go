@@ -70,16 +70,6 @@ func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, erro
 		router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", api))
 	}
 
-	if index, ok := indexes["claim"]; ok {
-		api, err := identity.NewAPI(index.DB, store)
-		if err != nil {
-			return nil, err
-		}
-		mediaResolver.Identity = api.Resolver()
-		router.Handler("GET", "/claim/*path", http.StripPrefix("/claim", api))
-		router.Handler("POST", "/claim/*path", http.StripPrefix("/claim", api))
-	}
-
 	if index, ok := indexes["musicbrainz"]; ok {
 		api, err := musicbrainz.NewAPI(index.DB, store)
 		if err != nil {

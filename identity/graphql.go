@@ -20,13 +20,10 @@
 package identity
 
 import (
-	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	cid "github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta"
 )
 
@@ -40,13 +37,13 @@ schema {
 type Query {
   identity(id: String,owner: String): [Identity]!
 
-  claim(issuer: String,holder: String,claim:String,signature:String,id:String): [Claim]!
+  claim(issuer: String,subject: String,claim:String,signature:String,id:String): [Claim]!
 }
 
 type Mutation {
 	createIdentity(username: String, owner: String,signature:String): Identity
 
-  createClaim(issuer: String,holder: String,claim: String,signature: String): Claim
+  createClaim(issuer: String,subject: String,claim: String,signature: String): Claim
 }
 
 type Identity {
@@ -57,7 +54,7 @@ type Identity {
 
 type Claim {
   issuer:     String!
-  holder:     String!
+  subject:    String!
   claim:      String!
   signature : String!
   id :        String!
@@ -92,9 +89,9 @@ func (r *Resolver) Identity(args IdentityArgs) ([]*IdentityResolver, error) {
 	var err error
 	switch {
 	case args.Owner != nil:
-		rows, err = r.db.Query("SELECT object_id FROM identity WHERE owner = ?", *args.Owner)
+		rows, err = r.db.Query("SELECT * FROM identity WHERE owner = ?", *args.Owner)
 	case args.ID != nil:
-		rows, err = r.db.Query("SELECT object_id FROM identity WHERE id = ?", *args.ID)
+		rows, err = r.db.Query("SELECT * FROM identity WHERE id = ?", *args.ID)
 	default:
 		return nil, errors.New("missing owner or id argument")
 	}
@@ -104,23 +101,13 @@ func (r *Resolver) Identity(args IdentityArgs) ([]*IdentityResolver, error) {
 	defer rows.Close()
 	var resolvers []*IdentityResolver
 	for rows.Next() {
-		var objectID string
-		if err := rows.Scan(&objectID); err != nil {
+
+		var owner, signature, id string
+		if err := rows.Scan(&owner, &signature, &id); err != nil {
 			return nil, err
 		}
-		objCid, err := cid.Parse(objectID)
-		if err != nil {
-			return nil, err
-		}
-		obj, err := r.store.Get(objCid)
-		if err != nil {
-			return nil, err
-		}
-		var identity Identity
-		if err := obj.Decode(&identity); err != nil {
-			return nil, err
-		}
-		resolvers = append(resolvers, &IdentityResolver{objectID, &identity})
+
+		resolvers = append(resolvers, &IdentityResolver{&Identity{Owner: common.HexToAddress(owner), Sig: signature, ID: id}})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -130,18 +117,12 @@ func (r *Resolver) Identity(args IdentityArgs) ([]*IdentityResolver, error) {
 
 // IdentityResolver defines GraphQL resolver functions for Identity fields.
 type IdentityResolver struct {
-	cid      string
 	identity *Identity
-}
-
-// Cid resolver
-func (i *IdentityResolver) Cid() string {
-	return i.cid
 }
 
 // Owner resolver
 func (i *IdentityResolver) Owner() string {
-	return i.identity.Owner
+	return i.identity.Owner.String()
 }
 
 // ID resolver
@@ -157,31 +138,31 @@ func (i *IdentityResolver) Signature() string {
 // ClaimArgs are the arguments for a GraphQL claim query.
 type ClaimArgs struct {
 	Issuer    *string
-	Holder    *string
+	Subject   *string
 	Claim     *string
 	Signature *string
 	ID        *string
 }
 
 // Claim is a GraphQL resolver function which retrieves object Claims from the
-// SQLite3 index using either Claim ID,Issuer,holder,Claim or Signature and loads the
+// SQLite3 index using either Claim ID,Issuer,subject,Claim or Signature and loads the
 // associated META objects from the META store.
 func (r *Resolver) Claim(args ClaimArgs) ([]*ClaimResolver, error) {
 	var rows *sql.Rows
 	var err error
 	switch {
 	case args.Issuer != nil:
-		rows, err = r.db.Query("SELECT object_id FROM claim WHERE issuer = ?", *args.Issuer)
-	case args.Holder != nil:
-		rows, err = r.db.Query("SELECT object_id FROM claim WHERE holder = ?", *args.Holder)
+		rows, err = r.db.Query("SELECT * FROM claim WHERE issuer = ?", *args.Issuer)
+	case args.Subject != nil:
+		rows, err = r.db.Query("SELECT * FROM claim WHERE subject = ?", *args.Subject)
 	case args.Claim != nil:
-		rows, err = r.db.Query("SELECT object_id FROM claim WHERE holder = ?", *args.Claim)
+		rows, err = r.db.Query("SELECT * FROM claim WHERE subject = ?", *args.Claim)
 	case args.Signature != nil:
-		rows, err = r.db.Query("SELECT object_id FROM claim WHERE signature = ?", *args.Signature)
+		rows, err = r.db.Query("SELECT * FROM claim WHERE signature = ?", *args.Signature)
 	case args.ID != nil:
-		rows, err = r.db.Query("SELECT object_id FROM claim WHERE id = ?", *args.ID)
+		rows, err = r.db.Query("SELECT * FROM claim WHERE id = ?", *args.ID)
 	default:
-		return nil, errors.New("missing issuer,holder,claim,signature or id argument")
+		return nil, errors.New("missing issuer,subject,claim,signature or id argument")
 	}
 	if err != nil {
 		return nil, err
@@ -189,23 +170,11 @@ func (r *Resolver) Claim(args ClaimArgs) ([]*ClaimResolver, error) {
 	defer rows.Close()
 	var resolvers []*ClaimResolver
 	for rows.Next() {
-		var objectID string
-		if err := rows.Scan(&objectID); err != nil {
-			return nil, err
-		}
-		objCid, err := cid.Parse(objectID)
-		if err != nil {
-			return nil, err
-		}
-		obj, err := r.store.Get(objCid)
-		if err != nil {
-			return nil, err
-		}
 		var claim Claim
-		if err := obj.Decode(&claim); err != nil {
+		if err := rows.Scan(&claim.Issuer, &claim.Subject, &claim.Claim, &claim.Signature, &claim.ID); err != nil {
 			return nil, err
 		}
-		resolvers = append(resolvers, &ClaimResolver{objectID, &claim})
+		resolvers = append(resolvers, &ClaimResolver{&claim})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -215,13 +184,7 @@ func (r *Resolver) Claim(args ClaimArgs) ([]*ClaimResolver, error) {
 
 // ClaimResolver defines GraphQL resolver functions for Claim fields.
 type ClaimResolver struct {
-	cid   string
 	claim *Claim
-}
-
-// Cid resolver
-func (c *ClaimResolver) Cid() string {
-	return c.cid
 }
 
 // Issuer resolver
@@ -229,9 +192,9 @@ func (c *ClaimResolver) Issuer() string {
 	return c.claim.Issuer
 }
 
-// Holder resolver
-func (c *ClaimResolver) Holder() string {
-	return c.claim.Holder
+// Subject resolver
+func (c *ClaimResolver) Subject() string {
+	return c.claim.Subject
 }
 
 // Claim resolver
@@ -249,63 +212,42 @@ func (c *ClaimResolver) ID() string {
 	return c.claim.ID
 }
 
-// CreateIDArgs are the arguments for a GraphQL CreateID mutation.
-type CreateIDArgs struct {
+// CreateIdentityArgs are the arguments for a GraphQL CreateIdentity mutation.
+type CreateIdentityArgs struct {
 	Username  *string
 	Owner     *string
 	Signature *string
 }
 
-// CreateID is a GraphQL resolver function which create ID object, store and
+// CreateIdentity is a GraphQL resolver function which create ID object, store and
 // index it on SQLite3 index.
-func (r *Resolver) CreateIdentity(args *CreateIDArgs) (*IdentityResolver, error) {
-
+func (r *Resolver) CreateIdentity(args *CreateIdentityArgs) (*IdentityResolver, error) {
+	if args.Owner == nil || args.Username == nil || args.Signature == nil {
+		return nil, errors.New("CreateIdentity: one or more argument is nil")
+	}
 	metaid, err := NewIdentity(*args.Username, common.HexToAddress(*args.Owner), common.FromHex(*args.Signature))
 	if err != nil {
 		return nil, err
 	}
-	converter := NewConverter(r.store)
-	identityCid, err := converter.ConvertIdentity(metaid)
-	if err != nil {
-		return nil, err
-	}
-	// create a stream of ID
-	writer, err := r.store.StreamWriter("id.meta")
-	if err != nil {
-		return nil, err
-	}
-	defer writer.Close()
-	if err = writer.Write(identityCid); err != nil {
-		return nil, err
-	}
 
-	// index the stream of ID
 	index, err := r.store.OpenIndex("id.index.meta")
 	if err != nil {
 		return nil, err
 	}
-	indexer, err := NewIndexer(index, r.store)
+	indexer, err := NewIndexer(index)
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	reader, err := r.store.StreamReader("id.meta", meta.StreamLimit(1))
-	if err != nil {
+	if err := indexer.IndexIdentity(metaid); err != nil {
 		return nil, err
 	}
-	defer reader.Close()
-	if err := indexer.Index(ctx, reader); err != nil {
-		return nil, err
-	}
-	return &IdentityResolver{cid: identityCid.String(), identity: metaid}, nil
+	return &IdentityResolver{identity: metaid}, nil
 }
 
 // CreateClaimArgs are the arguments for a GraphQL CreateClaim mutation.
 type CreateClaimArgs struct {
 	Issuer    *string
-	Holder    *string
+	Subject   *string
 	Claim     *string
 	Signature *string
 }
@@ -314,40 +256,21 @@ type CreateClaimArgs struct {
 // index it on SQLite3 index.
 func (r *Resolver) CreateClaim(args *CreateClaimArgs) (*ClaimResolver, error) {
 
-	claim := NewClaim(*args.Issuer, *args.Holder, *args.Claim, *args.Signature)
-	converter := NewConverter(r.store)
-	claimCid, err := converter.ConvertClaim(claim)
-	if err != nil {
-		return nil, err
+	if args.Issuer == nil || args.Subject == nil || args.Claim == nil || args.Signature == nil {
+		return nil, errors.New("CreateClaim: one or more argument is nil")
 	}
-	// create a stream of ID
-	writer, err := r.store.StreamWriter("claim.meta")
-	if err != nil {
-		return nil, err
-	}
-	defer writer.Close()
-	if err = writer.Write(claimCid); err != nil {
-		return nil, err
-	}
-	// index the stream of ID
+	claim := NewClaim(*args.Issuer, *args.Subject, *args.Claim, *args.Signature)
 	index, err := r.store.OpenIndex("claim.index.meta")
 	if err != nil {
 		return nil, err
 	}
-	indexer, err := NewIndexer(index, r.store)
+	indexer, err := NewIndexer(index)
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
-	reader, err := r.store.StreamReader("claim.meta", meta.StreamLimit(1))
-	if err != nil {
+	if err := indexer.IndexClaim(claim); err != nil {
 		return nil, err
 	}
-	defer reader.Close()
-	if err := indexer.Index(ctx, reader); err != nil {
-		return nil, err
-	}
-	return &ClaimResolver{cid: claimCid.String(), claim: claim}, nil
+	return &ClaimResolver{claim: claim}, nil
 }

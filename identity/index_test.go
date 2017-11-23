@@ -22,7 +22,6 @@ package identity_test
 import (
 	"testing"
 
-	cid "github.com/ipfs/go-cid"
 	"github.com/meta-network/go-meta/testutil"
 	"github.com/meta-network/go-meta/testutil/index"
 )
@@ -30,11 +29,10 @@ import (
 func TestIndexIdentity(t *testing.T) {
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	index, _ := testindex.GenerateIdentityIndex(t, ".", store)
+	index, testid := testindex.GenerateIdentityIndex(t, ".", store)
 	defer index.Close()
 
-	var owner = "0x970e8128ab834e8eac17ab8e3812f010678cf791"
-	rows, err := index.Query(`SELECT object_id FROM identity WHERE owner = ?`, owner)
+	rows, err := index.Query(`SELECT id FROM identity WHERE owner = ?`, testid.Owner.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,39 +41,19 @@ func TestIndexIdentity(t *testing.T) {
 	for rows.Next() {
 		// if we've already set id then we have a duplicate
 		if id != "" {
-			t.Fatalf("duplicate entries for sender name %q", owner)
+			t.Fatalf("duplicate entries for owner %q", testid.Owner.String())
 		}
 		if err := rows.Scan(&id); err != nil {
 			t.Fatal(err)
 		}
-
-		// check we can get the object from the store
-		cid, err := cid.Parse(id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		obj, err := store.Get(cid)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		v, err := obj.Get("owner")
-		if err != nil {
-			t.Fatal(err)
-		}
-		// check the object has the correct sender_id
-		actual, ok := v.(string)
-		if !ok {
-			t.Fatalf("expected owner value to be string, got %T", v)
-		}
-		if actual != owner {
-			t.Fatalf("expected owner value %q, got %q", owner, actual)
+		if id != testid.ID {
+			t.Fatalf("expected id value %q, got %q", testid.ID, id)
 		}
 	}
 
 	//check we got a result and no db errors
 	if id == "" {
-		t.Fatalf("owner %q not found", owner)
+		t.Fatalf("owner %q not found", testid.Owner.String())
 	} else if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}
@@ -84,52 +62,32 @@ func TestIndexIdentity(t *testing.T) {
 func TestIndexClaim(t *testing.T) {
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	index, _ := testindex.GenerateClaimIndex(t, ".", store)
+	index, claims := testindex.GenerateClaimIndex(t, ".", store)
 	defer index.Close()
 
-	var value = "DPID_OF_THE_ARTIST_1"
-	rows, err := index.Query(`SELECT object_id FROM claim WHERE signature = ? `, value)
+	rows, err := index.Query(`SELECT subject FROM claim WHERE signature = ? `, claims[0].Signature)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer rows.Close()
-	var id string
+	var subject string
 	for rows.Next() {
 		// if we've already set id then we have a duplicate
-		if id != "" {
-			t.Fatalf("duplicate entries for value %q", value)
+		if subject != "" {
+			t.Fatalf("duplicate entries for signature %q", claims[0].Signature)
 		}
-		if err := rows.Scan(&id); err != nil {
+		if err := rows.Scan(&subject); err != nil {
 			t.Fatal(err)
 		}
 
-		// check we can get the object from the store
-		cid, err := cid.Parse(id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		obj, err := store.Get(cid)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		v, err := obj.Get("signature")
-		if err != nil {
-			t.Fatal(err)
-		}
-		// check the object has the correct sender_id
-		actual, ok := v.(string)
-		if !ok {
-			t.Fatalf("expected signature value to be string, got %T", v)
-		}
-		if actual != value {
-			t.Fatalf("expected value %q, got %q", value, actual)
+		if subject != claims[0].Subject {
+			t.Fatalf("expected value %q, got %q", claims[0].Subject, subject)
 		}
 	}
 
 	//check we got a result and no db errors
-	if id == "" {
-		t.Fatalf("value %q not found", value)
+	if subject == "" {
+		t.Fatalf("claim subject %q not found", claims[0].Subject)
 	} else if err := rows.Err(); err != nil {
 		t.Fatal(err)
 	}

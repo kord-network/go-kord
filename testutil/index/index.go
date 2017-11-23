@@ -247,101 +247,54 @@ func GenerateMusicBrainzIndex(t *testing.T, dir string, store *meta.Store) (*met
 	return index, artists, links
 }
 
-func GenerateIdentityIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index, *cid.Cid) {
+func GenerateIdentityIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index, *identity.Identity) {
 
 	metaid, err := GenerateTestMetaId()
 	if err != nil {
 		t.Fatal(err)
 	}
-	converter := identity.NewConverter(store)
-	identityCid, err := converter.ConvertIdentity(metaid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// create a stream of ID
-	writer, err := store.StreamWriter("id.meta")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer writer.Close()
-	if err = writer.Write(identityCid); err != nil {
-		t.Fatal(err)
-	}
-
-	// index the stream of ID
+	// index the ID
 	index, err := store.OpenIndex("id.index.meta")
 	if err != nil {
 		t.Fatal(err)
 	}
-	indexer, err := identity.NewIndexer(index, store)
+	indexer, err := identity.NewIndexer(index)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	reader, err := store.StreamReader("id.meta", meta.StreamLimit(1))
-	if err != nil {
+	if err := indexer.IndexIdentity(metaid); err != nil {
 		t.Fatal(err)
 	}
-	defer reader.Close()
-	if err := indexer.Index(ctx, reader); err != nil {
-		t.Fatal(err)
-	}
-	return index, identityCid
+	return index, metaid
 }
 
-func GenerateClaimIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index, []*cid.Cid) {
+func GenerateClaimIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index, []*identity.Claim) {
 
-	converter := identity.NewConverter(store)
-	cids := make([]*cid.Cid, 2)
+	claims := make([]*identity.Claim, 2)
 	metaId, err := GenerateTestMetaId()
 	if err != nil {
 		t.Fatal(err)
 	}
-	var i int = 0
-	for key, value := range map[string]string{
-		"DPID": "DPID_OF_THE_ARTIST_1",
-		"IPI":  "123456789ABCD",
-	} {
-		claim := identity.NewClaim(metaId.ID, metaId.ID, key, value)
-		cid, err := converter.ConvertClaim(claim)
-		if err != nil {
-			t.Fatal(err)
-		}
-		cids[i] = cid
-		i++
-	}
-
-	// index the stream of claims
-	writer, err := store.StreamWriter("claim.meta")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer writer.Close()
-	if err = writer.Write(cids...); err != nil {
-		t.Fatal(err)
-	}
-
+	var i = 0
 	index, err := store.OpenIndex("claim.index.meta")
 	if err != nil {
 		t.Fatal(err)
 	}
-	indexer, err := identity.NewIndexer(index, store)
+	indexer, err := identity.NewIndexer(index)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	reader, err := store.StreamReader("claim.meta", meta.StreamLimit(len(cids)))
-	if err != nil {
-		t.Fatal(err)
+	for key, value := range map[string]string{
+		"DPID": "DPID_OF_THE_ARTIST_1",
+		"IPI":  "123456789ABCD",
+	} {
+		claims[i] = identity.NewClaim(metaId.ID, metaId.ID, key, value)
+		if err := indexer.IndexClaim(claims[i]); err != nil {
+			t.Fatal(err)
+		}
+		i++
 	}
-	defer reader.Close()
-	if err := indexer.IndexClaim(ctx, reader); err != nil {
-		t.Fatal(err)
-	}
-	return index, cids
+	return index, claims
 }
 
 func GenerateTestMetaId() (*identity.Identity, error) {
