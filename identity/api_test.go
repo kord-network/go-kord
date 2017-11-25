@@ -50,7 +50,7 @@ func TestIdentityAPI(t *testing.T) {
 	defer index.Close()
 
 	// start the API server
-	s, err := newTestAPI(index.DB, store)
+	s, err := newTestAPI(index.DB, index)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestCreateIdentityAPI(t *testing.T) {
 	defer index.Close()
 
 	// start the API server
-	s, err := newTestAPI(index.DB, store)
+	s, err := newTestAPI(index.DB, index)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func TestCreateClaimAPI(t *testing.T) {
 	defer index.Close()
 
 	// start the API server
-	s, err := newTestAPI(index.DB, store)
+	s, err := newTestAPI(index.DB, index)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -288,7 +288,7 @@ func TestClaimAPI(t *testing.T) {
 	defer index.Close()
 
 	// start the API server
-	s, err := newTestAPI(index.DB, store)
+	s, err := newTestAPI(index.DB, index)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,8 +347,8 @@ func TestClaimAPI(t *testing.T) {
 	}
 }
 
-func newTestAPI(db *sql.DB, store *meta.Store) (*httptest.Server, error) {
-	api, err := identity.NewAPI(db, store)
+func newTestAPI(db *sql.DB, index *meta.Index) (*httptest.Server, error) {
+	api, err := identity.NewAPI(db, index)
 	if err != nil {
 		return nil, err
 	}

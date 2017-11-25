@@ -32,21 +32,22 @@ import (
 // API is a http.Handler which serves GraphQL query responses using a Resolver.
 type API struct {
 	db       *sql.DB
-	store    *meta.Store
 	router   *httprouter.Router
 	resolver *Resolver
 }
 
-// NewAPI returns API for a given db and store
-func NewAPI(db *sql.DB, store *meta.Store) (*API, error) {
-	resolver := NewResolver(db, store)
+// NewAPI returns API for a given db and index
+func NewAPI(db *sql.DB, index *meta.Index) (*API, error) {
+	resolver, err := NewResolver(db, index)
+	if err != nil {
+		return nil, err
+	}
 	schema, err := graphql.ParseSchema(GraphQLSchema, resolver)
 	if err != nil {
 		return nil, err
 	}
 	api := &API{
 		db:       db,
-		store:    store,
 		router:   httprouter.New(),
 		resolver: resolver,
 	}

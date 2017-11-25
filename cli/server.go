@@ -59,9 +59,8 @@ func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, erro
 	mediaResolver := &media.Resolver{
 		Store: store,
 	}
-
 	if index, ok := indexes["identity"]; ok {
-		api, err := identity.NewAPI(index.DB, store)
+		api, err := identity.NewAPI(index.DB, index)
 		if err != nil {
 			return nil, err
 		}

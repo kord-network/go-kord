@@ -38,7 +38,6 @@ CREATE TABLE identity (
 
 CREATE INDEX identity_signature_idx ON identity (signature);
 CREATE INDEX identity_owner_idx     ON identity (owner);
-CREATE INDEX identity_id_idx        ON identity (id);
 
 CREATE TABLE claim (
 	issuer    text NOT NULL,
@@ -50,7 +49,6 @@ CREATE TABLE claim (
 
 CREATE INDEX claim_issuer_idx    ON claim (issuer);
 CREATE INDEX claim_subject_idx   ON claim (subject);
-CREATE INDEX claim_id_idx        ON claim (id);
 CREATE INDEX claim_claim_idx     ON claim (claim);
 CREATE INDEX claim_signature_idx ON claim (signature);
 `,

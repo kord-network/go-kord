@@ -62,17 +62,21 @@ type Claim {
 `
 
 // Resolver defines GraphQL resolver functions for the schema contained in
-// the GraphQLSchema constant, retrieving data from a META store and SQLite3
+// the GraphQLSchema constant, retrieving data from a META SQLite3
 // index.
 type Resolver struct {
-	db    *sql.DB
-	store *meta.Store
+	db      *sql.DB
+	indexer *Indexer
 }
 
 // NewResolver returns a Resolver which retrieves data from the given META
-// store and SQLite3 index.
-func NewResolver(db *sql.DB, store *meta.Store) *Resolver {
-	return &Resolver{db, store}
+// SQLite3 index.
+func NewResolver(db *sql.DB, index *meta.Index) (*Resolver, error) {
+	indexer, err := NewIndexer(index)
+	if err != nil {
+		return nil, err
+	}
+	return &Resolver{db, indexer}, nil
 }
 
 // IdentityArgs are the arguments for a GraphQL identity query.
@@ -83,7 +87,7 @@ type IdentityArgs struct {
 
 // Identity is a GraphQL resolver function which retrieves object IDs from the
 // SQLite3 index using either an Identity ID or Owner and loads the
-// associated META objects from the META store.
+// associated META objects from the META index.
 func (r *Resolver) Identity(args IdentityArgs) ([]*IdentityResolver, error) {
 	var rows *sql.Rows
 	var err error
@@ -146,7 +150,7 @@ type ClaimArgs struct {
 
 // Claim is a GraphQL resolver function which retrieves object Claims from the
 // SQLite3 index using either Claim ID,Issuer,subject,Claim or Signature and loads the
-// associated META objects from the META store.
+// associated META objects from the META index.
 func (r *Resolver) Claim(args ClaimArgs) ([]*ClaimResolver, error) {
 	var rows *sql.Rows
 	var err error
@@ -219,7 +223,7 @@ type CreateIdentityArgs struct {
 	Signature *string
 }
 
-// CreateIdentity is a GraphQL resolver function which create ID object, store and
+// CreateIdentity is a GraphQL resolver function which create identity and
 // index it on SQLite3 index.
 func (r *Resolver) CreateIdentity(args *CreateIdentityArgs) (*IdentityResolver, error) {
 	if args.Owner == nil || args.Username == nil || args.Signature == nil {
@@ -229,16 +233,7 @@ func (r *Resolver) CreateIdentity(args *CreateIdentityArgs) (*IdentityResolver, 
 	if err != nil {
 		return nil, err
 	}
-
-	index, err := r.store.OpenIndex("id.index.meta")
-	if err != nil {
-		return nil, err
-	}
-	indexer, err := NewIndexer(index)
-	if err != nil {
-		return nil, err
-	}
-	if err := indexer.IndexIdentity(metaid); err != nil {
+	if err := r.indexer.IndexIdentity(metaid); err != nil {
 		return nil, err
 	}
 	return &IdentityResolver{identity: metaid}, nil
@@ -252,7 +247,7 @@ type CreateClaimArgs struct {
 	Signature *string
 }
 
-// CreateClaim is a GraphQL resolver function which create claim object, store and
+// CreateClaim is a GraphQL resolver function which create claim and
 // index it on SQLite3 index.
 func (r *Resolver) CreateClaim(args *CreateClaimArgs) (*ClaimResolver, error) {
 
@@ -260,16 +255,8 @@ func (r *Resolver) CreateClaim(args *CreateClaimArgs) (*ClaimResolver, error) {
 		return nil, errors.New("CreateClaim: one or more argument is nil")
 	}
 	claim := NewClaim(*args.Issuer, *args.Subject, *args.Claim, *args.Signature)
-	index, err := r.store.OpenIndex("claim.index.meta")
-	if err != nil {
-		return nil, err
-	}
-	indexer, err := NewIndexer(index)
-	if err != nil {
-		return nil, err
-	}
 
-	if err := indexer.IndexClaim(claim); err != nil {
+	if err := r.indexer.IndexClaim(claim); err != nil {
 		return nil, err
 	}
 	return &ClaimResolver{claim: claim}, nil

@@ -60,12 +60,17 @@ func TestResolver(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	identityResolver, err := identity.NewResolver(claimIndex.DB, claimIndex)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// create the resolver
 	resolver := &Resolver{
 		Ern:         ern.NewResolver(ernIndex.DB, store),
 		Cwr:         cwr.NewResolver(cwrIndex.DB, store),
 		MusicBrainz: musicbrainz.NewResolver(musicBrainzIndex.DB, store),
-		Identity:    identity.NewResolver(claimIndex.DB, store),
+		Identity:    identityResolver,
 		Store:       store,
 	}
 
