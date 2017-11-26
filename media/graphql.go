@@ -217,14 +217,9 @@ type MusicProductLink {
 #
 # --- Value Types ---
 #
-enum PartyIdentifierType {
-  ISNI
-  IPI
-  DPID
-}
 
 type PartyIdentifier {
-  type:   PartyIdentifierType!
+  type:   String!
   value:  String!
   source: Source!
 }
@@ -1190,21 +1185,19 @@ func (s *sharesResolver) Synch() *stringValueResolver {
 	return synch
 }
 
-type partyIdentifierType string
-
 const (
-	partyIdentifierTypeISNI partyIdentifierType = "ISNI"
-	partyIdentifierTypeIPI  partyIdentifierType = "IPI"
-	partyIdentifierTypeDPID partyIdentifierType = "DPID"
+	partyIdentifierTypeISNI string = "ISNI"
+	partyIdentifierTypeIPI  string = "IPI"
+	partyIdentifierTypeDPID string = "DPID"
 )
 
 type partyIdentifierResolver struct {
-	typ    partyIdentifierType
+	typ    string
 	value  string
 	source *sourceResolver
 }
 
-func (p *partyIdentifierResolver) Type() partyIdentifierType {
+func (p *partyIdentifierResolver) Type() string {
 	return p.typ
 }
 
