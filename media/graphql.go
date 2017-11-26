@@ -1190,12 +1190,12 @@ func (s *sharesResolver) Synch() *stringValueResolver {
 	return synch
 }
 
-type partyIdentifierType int
+type partyIdentifierType string
 
 const (
-	partyIdentifierTypeISNI partyIdentifierType = 0
-	partyIdentifierTypeIPI  partyIdentifierType = 1
-	partyIdentifierTypeDPID partyIdentifierType = 2
+	partyIdentifierTypeISNI partyIdentifierType = "ISNI"
+	partyIdentifierTypeIPI  partyIdentifierType = "IPI"
+	partyIdentifierTypeDPID partyIdentifierType = "DPID"
 )
 
 type partyIdentifierResolver struct {
