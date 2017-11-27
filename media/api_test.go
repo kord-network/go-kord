@@ -41,6 +41,8 @@ func TestResolver(t *testing.T) {
 	defer cwrIndex.Close()
 	musicBrainzIndex, _, _ := testindex.GenerateMusicBrainzIndex(t, "../musicbrainz", store)
 	defer musicBrainzIndex.Close()
+	claimIndex, _ := testindex.GenerateClaimIndex(t, "../claim", store)
+	defer claimIndex.Close()
 
 	// create an ISWC -> ISRC mapping in the MusicBrainz index
 	link := &musicbrainz.RecordingWorkLink{
@@ -58,27 +60,26 @@ func TestResolver(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	identityResolver, err := identity.NewResolver(claimIndex.DB, claimIndex)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// create the resolver
 	resolver := &Resolver{
 		Ern:         ern.NewResolver(ernIndex.DB, store),
 		Cwr:         cwr.NewResolver(cwrIndex.DB, store),
 		MusicBrainz: musicbrainz.NewResolver(musicBrainzIndex.DB, store),
+		Identity:    identityResolver,
 		Store:       store,
-		IDStore:     identity.NewMemoryStore(),
-	}
-
-	// create an identity
-	id := identity.NewIdentity("testid")
-	id.Aux = map[string]string{
-		"DPID": "DPID_OF_THE_ARTIST_1",
-		"IPI":  "123456789ABCD",
-	}
-	if err := resolver.IDStore.Save(id); err != nil {
-		t.Fatal(err)
 	}
 
 	// query account
-	account, err := resolver.Account(accountArgs{MetaID: "testid"})
+	testMetaID, err := testindex.GenerateTestMetaId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	account, err := resolver.Account(accountArgs{MetaID: testMetaID.ID})
 	if err != nil {
 		t.Fatal(err)
 	}

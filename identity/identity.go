@@ -20,20 +20,39 @@
 package identity
 
 import (
+	"encoding/hex"
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+// Identity structure
 type Identity struct {
-	Name string            `json:"name"`
-	ID   common.Hash       `json:"id"`
-	Aux  map[string]string `json:"aux"`
+	ID    string         `json:"id"`
+	Owner common.Address `json:"owner"`
+	Sig   string         `json:"signature"`
 }
 
-func NewIdentity(name string) *Identity {
-	return &Identity{
-		Name: name,
-		ID:   crypto.Keccak256Hash([]byte(name)),
-		Aux:  make(map[string]string),
+// NewIdentity create and returns new Identity.
+// It validate the ownership of the identity account using Ecrecover with a signature
+// which is beeing sent by the owner.See https://github.com/ethereum/go-ethereum/wiki/Management-APIs#personal_sign
+func NewIdentity(username string, owner common.Address, signature []byte) (identity *Identity, err error) {
+
+	recoveredPub, err := crypto.Ecrecover(crypto.Keccak256([]byte(username)), signature)
+	if err != nil {
+		return nil, err
 	}
+	pubKey := crypto.ToECDSAPub(recoveredPub)
+	recoveredAddr := crypto.PubkeyToAddress(*pubKey)
+
+	if owner != recoveredAddr {
+		return nil, fmt.Errorf("NewIdentity: sender fail to prove its account ownership")
+	}
+
+	return &Identity{
+		Owner: owner,
+		ID:    crypto.Keccak256Hash([]byte(username)).String(),
+		Sig:   hex.EncodeToString(signature),
+	}, nil
 }

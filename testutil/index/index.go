@@ -28,10 +28,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	cid "github.com/ipfs/go-cid"
 	meta "github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/cwr"
 	"github.com/meta-network/go-meta/ern"
+	"github.com/meta-network/go-meta/identity"
 	"github.com/meta-network/go-meta/musicbrainz"
 )
 
@@ -242,4 +245,71 @@ func GenerateMusicBrainzIndex(t *testing.T, dir string, store *meta.Store) (*met
 		t.Fatal(err)
 	}
 	return index, artists, links
+}
+
+func GenerateIdentityIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index, *identity.Identity) {
+
+	metaid, err := GenerateTestMetaId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// index the ID
+	index, err := store.OpenIndex("id.index.meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexer, err := identity.NewIndexer(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := indexer.IndexIdentity(metaid); err != nil {
+		t.Fatal(err)
+	}
+	return index, metaid
+}
+
+func GenerateClaimIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index, []*identity.Claim) {
+
+	claims := make([]*identity.Claim, 2)
+	metaId, err := GenerateTestMetaId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var i = 0
+	index, err := store.OpenIndex("claim.index.meta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	indexer, err := identity.NewIndexer(index)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, value := range map[string]string{
+		"DPID": "DPID_OF_THE_ARTIST_1",
+		"IPI":  "123456789ABCD",
+	} {
+		claims[i] = identity.NewClaim(metaId.ID, metaId.ID, key, value)
+		if err := indexer.IndexClaim(claims[i]); err != nil {
+			t.Fatal(err)
+		}
+		i++
+	}
+	return index, claims
+}
+
+func GenerateTestMetaId() (*identity.Identity, error) {
+
+	var testAddrHex = "970e8128ab834e8eac17ab8e3812f010678cf791"
+	var testPrivHex = "289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032"
+	var username = "testid"
+
+	key, _ := crypto.HexToECDSA(testPrivHex)
+	addr := common.HexToAddress(testAddrHex)
+
+	msg := crypto.Keccak256([]byte(username))
+	sig, err := crypto.Sign(msg, key)
+	if err != nil {
+		return nil, err
+	}
+	return identity.NewIdentity(username, addr, sig)
 }

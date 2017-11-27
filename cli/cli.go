@@ -73,7 +73,7 @@ options:
 
   --index=<index>...          One or more SQLite3 indexes for the HTTP server where <index>
                               has the format <type>:<name>, with <type> being one of
-                              'musicbrainz', 'ern', 'cwr' or 'eidr' and <name> being the
+                              'musicbrainz', 'ern', 'cwr' ,'eidr' or 'identity' and <name> being the
                               ENS name of the index. For example:
                               '--index ern:ern.index.meta --index cwr:cwr.index.meta'
 `[1:]
@@ -256,7 +256,7 @@ func (cli *CLI) RunServer(ctx context.Context, args Args) error {
 		name := typeName[1]
 
 		switch typ {
-		case "musicbrainz", "ern", "eidr", "cwr":
+		case "musicbrainz", "ern", "eidr", "cwr", "identity":
 		default:
 			return fmt.Errorf("invalid --index type %q", typ)
 		}
