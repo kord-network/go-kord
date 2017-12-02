@@ -20,11 +20,7 @@
 package media
 
 import (
-	meta "github.com/meta-network/go-meta"
-	"github.com/meta-network/go-meta/cwr"
-	"github.com/meta-network/go-meta/ern"
 	"github.com/meta-network/go-meta/identity"
-	"github.com/meta-network/go-meta/musicbrainz"
 )
 
 // GraphQLSchema is the GraphQL schema for the META Media index.
@@ -32,14 +28,14 @@ import (
 // It consists of the following main entities:
 //
 // Account
-// MusicPerformer
-// MusicComposer
+// Performer
+// Composer
 // RecordLabel
-// MusicPublisher
-// MusicRecording
-// MusicWork
-// MusicRelease
-// MusicProduct
+// Publisher
+// Recording
+// Work
+// Song
+// Release
 //
 // Each entity has a set of identifiers which are used to uniquely identify
 // them:
@@ -58,170 +54,346 @@ import (
 // to these identifiers by various sources in the META network.
 const GraphQLSchema = `
 schema {
-  query: Query
+  query:    Query
+  mutation: Mutation
 }
 
 type Query {
   account(meta_id: String!): Account!
 
-  performer(dpid: String!): MusicPerformer!
+  performer(identifier: IdentifierInput!): Performer!
 
-  composer(ipi: String!): MusicComposer!
+  composer(identifier: IdentifierInput!): Composer!
 
-  label(dpid: String!): RecordLabel!
+  record_label(identifier: IdentifierInput!): RecordLabel!
 
-  publisher(ipi: String!): MusicPublisher!
+  publisher(identifier: IdentifierInput!): Publisher!
 
-  recording(isrc: String!): MusicRecording!
+  recording(identifier: IdentifierInput!): Recording!
 
-  work(iswc: String!): MusicWork!
+  work(identifier: IdentifierInput!): Work!
 
-  release(grid: String!): MusicRelease!
+  song(identifier: IdentifierInput!): Song!
 
-  product(upc: String!): MusicProduct!
+  release(identifier: IdentifierInput!): Release!
+}
+
+type Mutation {
+  createPerformer(performer: PerformerInput!): Performer!
+
+  createComposer(composer: ComposerInput!): Composer!
+
+  createRecordLabel(record_label: RecordLabelInput!): RecordLabel!
+
+  createPublisher(publisher: PublisherInput!): Publisher!
+
+  createRecording(recording: RecordingInput!): Recording!
+
+  createWork(work: WorkInput!): Work!
+
+  createSong(song: SongInput!): Song!
+
+  createRelease(release: ReleaseInput!): Release!
+
+  createPerformerRecordingLink(link: PerformerRecordingLinkInput!): PerformerRecordingLink!
+
+  createComposerWorkLink(link: ComposerWorkLinkInput!): ComposerWorkLink!
+
+  createRecordLabelSongLink(link: RecordLabelSongLinkInput!): RecordLabelSongLink!
+
+  createRecordLabelReleaseLink(link: RecordLabelReleaseLinkInput!): RecordLabelReleaseLink!
+
+  createPublisherWorkLink(link: PublisherWorkLinkInput!): PublisherWorkLink!
+
+  createSongRecordingLink(link: SongRecordingLinkInput!): SongRecordingLink!
+
+  createReleaseRecordingLink(link: ReleaseRecordingLinkInput!): ReleaseRecordingLink!
+
+  createRecordingWorkLink(link: RecordingWorkLinkInput!): RecordingWorkLink!
+
+  createReleaseSongLink(link: ReleaseSongLinkInput!): ReleaseSongLink!
 }
 
 #
 # --- Main Entities ---
 #
 type Account {
-    performers: [MusicPerformer]!
-    labels:     [RecordLabel]!
-    composers:  [MusicComposer]!
+  performers:    [Performer]!
+  record_labels: [RecordLabel]!
+  composers:     [Composer]!
 }
 
-type MusicPerformer {
-  identifiers: [PartyIdentifier]!
+type Performer {
+  identifiers: [IdentifierValue]!
 
   name: StringValue
 
-  recordings: [MusicRecordingLink]!
+  recordings: [PerformerRecordingLink]!
 }
 
-type MusicComposer {
-  identifiers: [PartyIdentifier]!
+type Composer {
+  identifiers: [IdentifierValue]!
 
   firstName: StringValue
   lastName:  StringValue
-  shares:    MusicShare!
 
-  works: [MusicWorkLink]!
+  works: [ComposerWorkLink]!
 }
 
 type RecordLabel {
-  identifiers: [PartyIdentifier]!
+  identifiers: [IdentifierValue]!
 
   name: StringValue
 
-  products: [MusicProductLink]!
+  songs:    [RecordLabelSongLink]!
+  releases: [RecordLabelReleaseLink]!
 }
 
-type MusicPublisher {
-  identifiers: [PartyIdentifier]!
+type Publisher {
+  identifiers: [IdentifierValue]!
 
   name: StringValue
-  shares: MusicShare!
-  works: [MusicWorkLink]!
+
+  works: [PublisherWorkLink]!
 }
 
-type MusicRecording {
-  isrc: StringValue
+type Recording {
+  identifiers: [IdentifierValue]!
+
+  title:    StringValue
+  duration: StringValue
+
+  performers: [PerformerRecordingLink]!
+  releases:   [ReleaseRecordingLink]!
+  works:      [RecordingWorkLink]!
+}
+
+type Work {
+  identifiers: [IdentifierValue]!
 
   title: StringValue
 
-  performers: [MusicPerformerLink]!
-  releases:   [MusicReleaseLink]!
-  works:      [MusicWorkLink]!
+  composers:  [ComposerWorkLink]!
+  publishers: [PublisherWorkLink]!
+  recordings: [RecordingWorkLink]!
 }
 
-type MusicWork {
-  iswc: StringValue
+type Song {
+  identifiers: [IdentifierValue]!
 
+  title:    StringValue
+  duration: StringValue
+
+  recordings:    [SongRecordingLink]!
+  releases:      [ReleaseSongLink]!
+  record_labels: [RecordLabelSongLink]!
+}
+
+type Release {
+  identifiers: [IdentifierValue]!
+
+  type:  StringValue
   title: StringValue
+  date:  StringValue
 
-  composers:  [MusicComposerLink]!
-  publishers: [MusicPublisherLink]!
-  recordings: [MusicRecordingLink]!
+  recordings:    [ReleaseRecordingLink]!
+  songs:         [ReleaseSongLink]!
+  record_labels: [RecordLabelReleaseLink]!
 }
 
-type MusicRelease {
-  grid: StringValue
-
-  title: StringValue
-
-  products:   [MusicProductLink]!
-  recordings: [MusicRecordingLink]!
+#
+# --- Mutation Inputs ---
+#
+input PerformerInput {
+  identifier: IdentifierInput!
+  name:       String!
+  source:     SourceInput!
 }
 
-type MusicProduct {
-  upc: StringValue
-
-  title: StringValue
-
-  releases:   [MusicReleaseLink]!
-  performers: [MusicPerformerLink]!
-  labels:     [RecordLabelLink]!
+input ComposerInput {
+  identifier: IdentifierInput!
+  firstName:  String!
+  lastName:   String!
+  source:     SourceInput!
 }
 
-type MusicShare {
-	performance : StringValue
-	mechanical  : StringValue
-	synch       : StringValue
+input RecordLabelInput {
+  identifier: IdentifierInput!
+  name:       String!
+  source:     SourceInput!
 }
 
+input PublisherInput {
+  identifier: IdentifierInput!
+  name:       String!
+  source:     SourceInput!
+}
+
+input RecordingInput {
+  identifier: IdentifierInput!
+  title:      String!
+  duration:   String!
+  source:     SourceInput!
+}
+
+input WorkInput {
+  identifier: IdentifierInput!
+  title:      String!
+  source:     SourceInput!
+}
+
+input SongInput {
+  identifier: IdentifierInput!
+  title:      String!
+  duration:   String!
+  source:     SourceInput!
+}
+
+input ReleaseInput {
+  identifier: IdentifierInput!
+  type:       String!
+  title:      String!
+  date:       String!
+  source:     SourceInput!
+}
+
+input PerformerRecordingLinkInput {
+  performer_id:  IdentifierInput!
+  recording_id:  IdentifierInput!
+  role:          String!
+  source:        SourceInput!
+}
+
+input ComposerWorkLinkInput {
+  composer_id: IdentifierInput!
+  work_id:     IdentifierInput!
+  role:        String!
+  source:      SourceInput!
+}
+
+input RecordLabelSongLinkInput {
+  record_label_id: IdentifierInput!
+  song_id:         IdentifierInput!
+  source:          SourceInput!
+}
+
+input RecordLabelReleaseLinkInput {
+  record_label_id: IdentifierInput!
+  release_id:      IdentifierInput!
+  source:          SourceInput!
+}
+
+input PublisherWorkLinkInput {
+  publisher_id: IdentifierInput!
+  work_id:      IdentifierInput!
+  source:       SourceInput!
+}
+
+input SongRecordingLinkInput {
+  song_id:      IdentifierInput!
+  recording_id: IdentifierInput!
+  source:       SourceInput!
+}
+
+input ReleaseRecordingLinkInput {
+  release_id:   IdentifierInput!
+  recording_id: IdentifierInput!
+  source:       SourceInput!
+}
+
+input RecordingWorkLinkInput {
+  recording_id: IdentifierInput!
+  work_id:      IdentifierInput!
+  source:       SourceInput!
+}
+
+input ReleaseSongLinkInput {
+  release_id: IdentifierInput!
+  song_id:    IdentifierInput!
+  source:     SourceInput!
+}
+
+input IdentifierInput {
+  type:  String!
+  value: String!
+}
+
+input SourceInput {
+  name: String!
+}
 
 #
 # --- Link Types ---
 #
-type MusicPerformerLink {
+
+type PerformerRecordingLink {
+  performer: Performer!
+  recording: Recording!
+  role:      String!
   source:    Source!
-  performer: MusicPerformer!
-  role:      StringValue
 }
 
-type MusicComposerLink {
+type ComposerWorkLink {
+  composer: Composer!
+  work:     Work!
+  role:     String!
   source:   Source!
-  composer: MusicComposer!
 }
 
-type RecordLabelLink {
-  source: Source!
-  label:  RecordLabel!
+type RecordLabelSongLink {
+  record_label: RecordLabel!
+  song:         Song!
+  source:       Source!
 }
 
-type MusicPublisherLink {
+type RecordLabelReleaseLink {
+  record_label: RecordLabel!
+  release:      Release!
+  source:       Source!
+}
+
+type PublisherWorkLink {
+  publisher: Publisher!
+  work:      Work!
   source:    Source!
-  publisher: MusicPublisher!
 }
 
-type MusicRecordingLink {
+type SongRecordingLink {
+  song:      Song!
+  recording: Recording!
   source:    Source!
-  recording: MusicRecording!
 }
 
-type MusicWorkLink {
-  source: Source!
-  work:   MusicWork!
+type ReleaseRecordingLink {
+  release:   Release!
+  recording: Recording!
+  source:    Source!
 }
 
-type MusicReleaseLink {
+type RecordingWorkLink {
+  recording: Recording!
+  work:      Work!
+  source:    Source!
+}
+
+type ReleaseSongLink {
+  release: Release!
+  song:    Song!
   source:  Source!
-  release: MusicRelease!
-}
-
-type MusicProductLink {
-  source:  Source!
-  product: MusicProduct!
 }
 
 #
 # --- Value Types ---
 #
 
-type PartyIdentifier {
+type IdentifierValue {
+  value:   Identifier!
+  sources: [Source]!
+}
+
+type Identifier {
   type:   String!
   value:  String!
-  source: Source!
 }
 
 type StringValue {
@@ -241,14 +413,14 @@ type Source {
 `
 
 // Resolver defines GraphQL resolver functions for the schema contained in
-// the GraphQLSchema constant, retrieving data from a META store and SQLite3
-// index.
+// the GraphQLSchema constant, storing and retrieving data from a Media index.
 type Resolver struct {
-	MusicBrainz *musicbrainz.Resolver
-	Ern         *ern.Resolver
-	Cwr         *cwr.Resolver
-	Identity    *identity.Resolver
-	Store       *meta.Store
+	mediaIndex *Index
+	identity   *identity.Resolver
+}
+
+func NewResolver(mediaIndex *Index, identity *identity.Resolver) *Resolver {
+	return &Resolver{mediaIndex, identity}
 }
 
 type accountArgs struct {
@@ -256,7 +428,7 @@ type accountArgs struct {
 }
 
 func (r *Resolver) Account(args accountArgs) (*accountResolver, error) {
-	claimsResolver, err := r.Identity.Claim(identity.ClaimArgs{Subject: &args.MetaID})
+	claimsResolver, err := r.identity.Claim(identity.ClaimArgs{Subject: &args.MetaID})
 	if err != nil {
 		return nil, err
 	}
@@ -279,939 +451,1178 @@ type accountResolver struct {
 func (a *accountResolver) Performers() ([]*performerResolver, error) {
 	var performers []*performerResolver
 	if dpid, ok := a.aux["DPID"]; ok {
-		parties, err := a.resolver.Ern.Party(ern.PartyArgs{ID: &dpid})
-		if err != nil {
+		identifier, err := a.resolver.mediaIndex.Identifier(&Identifier{
+			Type:  "dpid",
+			Value: dpid,
+		})
+		if err == nil {
+			performers = append(performers, &performerResolver{a.resolver, identifier})
+		} else if !isIdentifierNotFound(err) {
 			return nil, err
-		}
-		if len(parties) > 0 {
-			performer := a.resolver.performerResolver(parties)
-			if len(performer.parties) > 0 {
-				performers = append(performers, performer)
-			}
 		}
 	}
 	return performers, nil
 }
 
-func (a *accountResolver) Labels() ([]*labelResolver, error) {
-	var labels []*labelResolver
+func (a *accountResolver) RecordLabels() ([]*recordLabelResolver, error) {
+	var recordLabels []*recordLabelResolver
 	if dpid, ok := a.aux["DPID"]; ok {
-		parties, err := a.resolver.Ern.Party(ern.PartyArgs{ID: &dpid})
-		if err != nil {
+		identifier, err := a.resolver.mediaIndex.Identifier(&Identifier{
+			Type:  "dpid",
+			Value: dpid,
+		})
+		if err == nil {
+			recordLabels = append(recordLabels, &recordLabelResolver{a.resolver, identifier})
+		} else if !isIdentifierNotFound(err) {
 			return nil, err
 		}
-		if len(parties) > 0 {
-			labels = append(labels, a.resolver.labelResolver(parties))
-		}
 	}
-	return labels, nil
+	return recordLabels, nil
 }
 
 func (a *accountResolver) Composers() ([]*composerResolver, error) {
 	var composers []*composerResolver
 	if ipi, ok := a.aux["IPI"]; ok {
-		ipiBaseWriters, err := a.resolver.Cwr.WriterControl(cwr.WriterControlArgs{WriterIPIBaseNumber: &ipi})
-		if err != nil {
+		identifier, err := a.resolver.mediaIndex.Identifier(&Identifier{
+			Type:  "ipi",
+			Value: ipi,
+		})
+		if err == nil {
+			composers = append(composers, &composerResolver{a.resolver, identifier})
+		} else if !isIdentifierNotFound(err) {
 			return nil, err
-		}
-		ipiNameWriters, err := a.resolver.Cwr.WriterControl(cwr.WriterControlArgs{WriterIPIName: &ipi})
-		if err != nil {
-			return nil, err
-		}
-
-		writers := append(ipiBaseWriters, ipiNameWriters...)
-		if len(writers) > 0 {
-			composers = append(composers, a.resolver.composerResolver(writers))
 		}
 	}
 	return composers, nil
 }
 
-type performerArgs struct {
-	DPID string
+type identifierArgs struct {
+	Identifier Identifier
 }
 
-func (r *Resolver) Performer(args performerArgs) (*performerResolver, error) {
-	// fetch parties by DPID from ERN
-	parties, err := r.Ern.Party(ern.PartyArgs{ID: &args.DPID})
+type createPerformerArgs struct {
+	Performer struct {
+		Performer
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreatePerformer(args createPerformerArgs) (*performerResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Performer.Performer,
+		&args.Performer.Identifier,
+		&args.Performer.Source,
+	)
 	if err != nil {
 		return nil, err
 	}
-	return r.performerResolver(parties), nil
+	return &performerResolver{r, identifier}, nil
 }
 
-func (r *Resolver) performerResolver(parties []*ern.PartyResolver) *performerResolver {
-	performer := &performerResolver{resolver: r}
-	for _, party := range parties {
-		if party.Type() != "DisplayArtist" {
-			continue
-		}
-		performer.parties = append(performer.parties, party)
+func (r *Resolver) Performer(args identifierArgs) (*performerResolver, error) {
+	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	if err != nil {
+		return nil, err
 	}
-	return performer
+	return &performerResolver{r, identifier}, nil
 }
 
 type performerResolver struct {
-	resolver *Resolver
-	parties  []*ern.PartyResolver
+	resolver   *Resolver
+	identifier *IdentifierRecord
 }
 
-func (p *performerResolver) Identifiers() []*partyIdentifierResolver {
-	var identifiers []*partyIdentifierResolver
-	for _, party := range p.parties {
-		identifiers = append(identifiers, &partyIdentifierResolver{
-			typ:    partyIdentifierTypeDPID,
-			value:  party.PartyId(),
-			source: &sourceResolver{name: party.Source()},
-		})
+func (p *performerResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{p.resolver, p.identifier}}
+}
+
+func (p *performerResolver) Name() (*stringValueResolver, error) {
+	records, err := p.resolver.mediaIndex.Performers(p.identifier)
+	if err != nil {
+		return nil, err
 	}
-	return identifiers
-}
-
-func (p *performerResolver) Name() *stringValueResolver {
-	name := &stringValueResolver{}
-	for _, party := range p.parties {
-		name.value = party.Fullname()
-		name.sources = append(name.sources, &stringSourceResolver{
-			value:  party.Fullname(),
-			source: &sourceResolver{name: party.Source()},
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Name
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Name,
+			source: &sourceResolver{id: record.Source},
 			score:  "1",
 		})
 	}
-	return name
+	return resolver, nil
 }
 
-func (p *performerResolver) Recordings() ([]*recordingLinkResolver, error) {
-	var recordings []*recordingLinkResolver
-	for _, party := range p.parties {
-		soundRecordings, err := party.SoundRecordings()
-		if err != nil {
-			return nil, err
-		}
-		for _, soundRecording := range soundRecordings {
-			recordings = append(recordings, &recordingLinkResolver{
-				resolver: p.resolver,
-				source:   &sourceResolver{name: soundRecording.Source()},
-				isrc:     soundRecording.SoundRecordingId(),
-			})
-		}
-	}
-	return recordings, nil
-}
-
-type composerArgs struct {
-	IPI string
-}
-
-func (r *Resolver) Composer(args composerArgs) (*composerResolver, error) {
-	ipiBaseWriters, err := r.Cwr.WriterControl(cwr.WriterControlArgs{WriterIPIBaseNumber: &args.IPI})
+func (p *performerResolver) Recordings() ([]*performerRecordingLinkResolver, error) {
+	records, err := p.resolver.mediaIndex.PerformerRecordings(p.identifier)
 	if err != nil {
 		return nil, err
 	}
-	ipiNameWriters, err := r.Cwr.WriterControl(cwr.WriterControlArgs{WriterIPIName: &args.IPI})
+	resolvers := make([]*performerRecordingLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &performerRecordingLinkResolver{
+			resolver: p.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+type createComposerArgs struct {
+	Composer struct {
+		Composer
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreateComposer(args createComposerArgs) (*composerResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Composer.Composer,
+		&args.Composer.Identifier,
+		&args.Composer.Source,
+	)
 	if err != nil {
 		return nil, err
 	}
-	return r.composerResolver(append(ipiBaseWriters, ipiNameWriters...)), nil
+	return &composerResolver{r, identifier}, nil
 }
 
-func (r *Resolver) composerResolver(writers []*cwr.WriterControlResolver) *composerResolver {
-	return &composerResolver{
-		resolver: r,
-		writers:  writers,
+func (r *Resolver) Composer(args identifierArgs) (*composerResolver, error) {
+	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	if err != nil {
+		return nil, err
 	}
+	return &composerResolver{r, identifier}, nil
 }
 
 type composerResolver struct {
-	resolver *Resolver
-	writers  []*cwr.WriterControlResolver
+	resolver   *Resolver
+	identifier *IdentifierRecord
 }
 
-func (c *composerResolver) Identifiers() []*partyIdentifierResolver {
-	var identifiers []*partyIdentifierResolver
-	for _, writer := range c.writers {
-		if ipi := writer.WriterIPIBaseNumber(); ipi != "" {
-			identifiers = append(identifiers, &partyIdentifierResolver{
-				typ:    partyIdentifierTypeIPI,
-				value:  ipi,
-				source: &sourceResolver{name: writer.Source()},
-			})
-		}
-		if ipi := writer.WriterIPIName(); ipi != "" {
-			identifiers = append(identifiers, &partyIdentifierResolver{
-				typ:    partyIdentifierTypeIPI,
-				value:  ipi,
-				source: &sourceResolver{name: writer.Source()},
-			})
-		}
-	}
-	return identifiers
+func (c *composerResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{c.resolver, c.identifier}}
 }
 
-func (c *composerResolver) FirstName() *stringValueResolver {
-	name := &stringValueResolver{}
-	for _, writer := range c.writers {
-		name.value = writer.WriterFirstName()
-		name.sources = append(name.sources, &stringSourceResolver{
-			value:  writer.WriterFirstName(),
-			source: &sourceResolver{name: writer.Source()},
-			score:  "1",
-		})
-	}
-	return name
-}
-
-func (c *composerResolver) LastName() *stringValueResolver {
-	name := &stringValueResolver{}
-	for _, writer := range c.writers {
-		name.value = writer.WriterLastName()
-		name.sources = append(name.sources, &stringSourceResolver{
-			value:  writer.WriterLastName(),
-			source: &sourceResolver{name: writer.Source()},
-			score:  "1",
-		})
-	}
-	return name
-}
-
-func (c *composerResolver) Shares() (*sharesResolver, error) {
-	var shares []*musicShares
-	for _, writer := range c.writers {
-		shares = append(shares, &musicShares{
-			performance: writer.PROwnershipShare(),
-			mechanical:  writer.MROwnershipShare(),
-			synch:       writer.SROwnershipShare(),
-			source:      writer.Source(),
-		})
-	}
-	return &sharesResolver{resolver: c.resolver, shares: shares}, nil
-}
-
-func (c *composerResolver) Works() ([]*workLinkResolver, error) {
-	return nil, nil
-}
-
-type labelArgs struct {
-	DPID string
-}
-
-func (r *Resolver) Label(args labelArgs) (*labelResolver, error) {
-	// fetch parties by DPID from ERN
-	parties, err := r.Ern.Party(ern.PartyArgs{ID: &args.DPID})
+func (c *composerResolver) FirstName() (*stringValueResolver, error) {
+	records, err := c.resolver.mediaIndex.Composers(c.identifier)
 	if err != nil {
 		return nil, err
 	}
-	return r.labelResolver(parties), nil
-}
-
-func (r *Resolver) labelResolver(parties []*ern.PartyResolver) *labelResolver {
-	label := &labelResolver{resolver: r}
-	for _, party := range parties {
-		if party.Type() != "MessageSender" {
-			continue
-		}
-		label.parties = append(label.parties, party)
-	}
-	return label
-}
-
-type labelResolver struct {
-	resolver *Resolver
-	parties  []*ern.PartyResolver
-}
-
-func (l *labelResolver) Identifiers() []*partyIdentifierResolver {
-	var identifiers []*partyIdentifierResolver
-	for _, party := range l.parties {
-		identifiers = append(identifiers, &partyIdentifierResolver{
-			typ:    partyIdentifierTypeDPID,
-			value:  party.PartyId(),
-			source: &sourceResolver{name: party.Source()},
-		})
-	}
-	return identifiers
-}
-
-func (l *labelResolver) Name() *stringValueResolver {
-	name := &stringValueResolver{}
-	for _, party := range l.parties {
-		name.value = party.Fullname()
-		name.sources = append(name.sources, &stringSourceResolver{
-			value:  party.Fullname(),
-			source: &sourceResolver{name: party.Source()},
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.FirstName
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.FirstName,
+			source: &sourceResolver{id: record.Source},
 			score:  "1",
 		})
 	}
-	return name
+	return resolver, nil
 }
 
-func (l *labelResolver) Products() ([]*productLinkResolver, error) {
-	var products []*productLinkResolver
-	for _, party := range l.parties {
-		ernReleases, err := party.Releases()
-		if err != nil {
-			return nil, err
-		}
-		for _, ernRelease := range ernReleases {
-			if icpn := ernRelease.ReleaseID().ICPN(); icpn != "" {
-				products = append(products, &productLinkResolver{
-					resolver: l.resolver,
-					source:   &sourceResolver{name: ernRelease.Source()},
-					upc:      icpn,
-				})
-			}
+func (c *composerResolver) LastName() (*stringValueResolver, error) {
+	records, err := c.resolver.mediaIndex.Composers(c.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.LastName
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.LastName,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (c *composerResolver) Works() ([]*composerWorkLinkResolver, error) {
+	records, err := c.resolver.mediaIndex.ComposerWorks(c.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*composerWorkLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &composerWorkLinkResolver{
+			resolver: c.resolver,
+			record:   record,
 		}
 	}
-	return products, nil
+	return resolvers, nil
 }
 
-type publisherArgs struct {
-	IPI string
+type createRecordLabelArgs struct {
+	RecordLabel struct {
+		RecordLabel
+
+		Identifier Identifier
+		Source     Source
+	}
 }
 
-func (r *Resolver) Publisher(args publisherArgs) (*publisherResolver, error) {
-	return nil, nil
+func (r *Resolver) CreateRecordLabel(args createRecordLabelArgs) (*recordLabelResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.RecordLabel.RecordLabel,
+		&args.RecordLabel.Identifier,
+		&args.RecordLabel.Source,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &recordLabelResolver{r, identifier}, nil
+}
+
+func (r *Resolver) RecordLabel(args identifierArgs) (*recordLabelResolver, error) {
+	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	if err != nil {
+		return nil, err
+	}
+	return &recordLabelResolver{r, identifier}, nil
+}
+
+type recordLabelResolver struct {
+	resolver   *Resolver
+	identifier *IdentifierRecord
+}
+
+func (l *recordLabelResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{l.resolver, l.identifier}}
+}
+
+func (l *recordLabelResolver) Name() (*stringValueResolver, error) {
+	records, err := l.resolver.mediaIndex.RecordLabels(l.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Name
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Name,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (l *recordLabelResolver) Songs() ([]*recordLabelSongLinkResolver, error) {
+	records, err := l.resolver.mediaIndex.RecordLabelSongs(l.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*recordLabelSongLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &recordLabelSongLinkResolver{
+			resolver: l.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (l *recordLabelResolver) Releases() ([]*recordLabelReleaseLinkResolver, error) {
+	records, err := l.resolver.mediaIndex.RecordLabelReleases(l.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*recordLabelReleaseLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &recordLabelReleaseLinkResolver{
+			resolver: l.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+type createPublisherArgs struct {
+	Publisher struct {
+		Publisher
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreatePublisher(args createPublisherArgs) (*publisherResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Publisher.Publisher,
+		&args.Publisher.Identifier,
+		&args.Publisher.Source,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &publisherResolver{r, identifier}, nil
+}
+
+func (r *Resolver) Publisher(args identifierArgs) (*publisherResolver, error) {
+	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	if err != nil {
+		return nil, err
+	}
+	return &publisherResolver{r, identifier}, nil
 }
 
 type publisherResolver struct {
 	resolver   *Resolver
-	publishers []*cwr.PublisherControlResolver
+	identifier *IdentifierRecord
 }
 
-func (p *publisherResolver) Identifiers() []*partyIdentifierResolver {
-	var identifiers []*partyIdentifierResolver
-	for _, publisher := range p.publishers {
-		if ipi := publisher.PublisherIPIBaseNumber(); ipi != "" {
-			identifiers = append(identifiers, &partyIdentifierResolver{
-				typ:    partyIdentifierTypeIPI,
-				value:  ipi,
-				source: &sourceResolver{name: publisher.Source()},
-			})
-		}
-		if ipi := publisher.PublisherIPINameNumber(); ipi != "" {
-			identifiers = append(identifiers, &partyIdentifierResolver{
-				typ:    partyIdentifierTypeIPI,
-				value:  ipi,
-				source: &sourceResolver{name: publisher.Source()},
-			})
-		}
-	}
-	return identifiers
+func (p *publisherResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{p.resolver, p.identifier}}
 }
 
-func (p *publisherResolver) Name() *stringValueResolver {
-	name := &stringValueResolver{}
-	for _, publisher := range p.publishers {
-		name.value = publisher.PublisherName()
-		name.sources = append(name.sources, &stringSourceResolver{
-			value:  publisher.PublisherName(),
-			source: &sourceResolver{name: publisher.Source()},
-			score:  "1",
-		})
-	}
-	return name
-}
-
-func (p *publisherResolver) Shares() (*sharesResolver, error) {
-	var shares []*musicShares
-	for _, publisher := range p.publishers {
-		shares = append(shares, &musicShares{
-			performance: publisher.PROwnershipShare(),
-			mechanical:  publisher.MROwnershipShare(),
-			synch:       publisher.SROwnershipShare(),
-			source:      publisher.Source()})
-	}
-	return &sharesResolver{resolver: p.resolver, shares: shares}, nil
-}
-
-func (p *publisherResolver) Works() ([]*workLinkResolver, error) {
-	return nil, nil
-}
-
-type recordingArgs struct {
-	ISRC string
-}
-
-func (r *Resolver) Recording(args recordingArgs) (*recordingResolver, error) {
-	// fetch sound recordings by ISRC from ERN
-	soundRecordings, err := r.Ern.SoundRecording(ern.SoundRecordingArgs{ID: &args.ISRC})
+func (p *publisherResolver) Name() (*stringValueResolver, error) {
+	records, err := p.resolver.mediaIndex.Publishers(p.identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &recordingResolver{
-		resolver:        r,
-		soundRecordings: soundRecordings,
-	}, nil
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Name
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Name,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (p *publisherResolver) Works() ([]*publisherWorkLinkResolver, error) {
+	records, err := p.resolver.mediaIndex.PublisherWorks(p.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*publisherWorkLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &publisherWorkLinkResolver{
+			resolver: p.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+type createRecordingArgs struct {
+	Recording struct {
+		Recording
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreateRecording(args createRecordingArgs) (*recordingResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Recording.Recording,
+		&args.Recording.Identifier,
+		&args.Recording.Source,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &recordingResolver{r, identifier}, nil
+}
+
+func (r *Resolver) Recording(args identifierArgs) (*recordingResolver, error) {
+	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	if err != nil {
+		return nil, err
+	}
+	return &recordingResolver{r, identifier}, nil
 }
 
 type recordingResolver struct {
-	resolver        *Resolver
-	soundRecordings []*ern.SoundRecordingResolver
+	resolver   *Resolver
+	identifier *IdentifierRecord
 }
 
-func (r *recordingResolver) ISRC() *stringValueResolver {
-	isrc := &stringValueResolver{}
-	for _, soundRecording := range r.soundRecordings {
-		isrc.value = soundRecording.SoundRecordingId()
-		isrc.sources = append(isrc.sources, &stringSourceResolver{
-			value:  soundRecording.SoundRecordingId(),
-			source: &sourceResolver{name: soundRecording.Source()},
-			score:  "1",
-		})
-	}
-	return isrc
+func (r *recordingResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{r.resolver, r.identifier}}
 }
 
-func (r *recordingResolver) Title() *stringValueResolver {
-	title := &stringValueResolver{}
-	for _, soundRecording := range r.soundRecordings {
-		title.value = soundRecording.ReferenceTitle()
-		title.sources = append(title.sources, &stringSourceResolver{
-			value:  soundRecording.ReferenceTitle(),
-			source: &sourceResolver{name: soundRecording.Source()},
-			score:  "1",
-		})
-	}
-	return title
-}
-
-func (r *recordingResolver) Performers() ([]*performerLinkResolver, error) {
-	var performers []*performerLinkResolver
-	for _, soundRecording := range r.soundRecordings {
-		parties, err := soundRecording.Contributors()
-		if err != nil {
-			return nil, err
-		}
-		performers = append(performers, &performerLinkResolver{
-			resolver: r.resolver,
-			source:   &sourceResolver{name: soundRecording.Source()},
-			parties:  parties,
-		})
-	}
-	return performers, nil
-}
-
-func (r *recordingResolver) Releases() ([]*releaseLinkResolver, error) {
-	var releases []*releaseLinkResolver
-	for _, soundRecording := range r.soundRecordings {
-		ernReleases, err := soundRecording.Releases()
-		if err != nil {
-			return nil, err
-		}
-		for _, ernRelease := range ernReleases {
-			if grid := ernRelease.ReleaseID().GRID(); grid != "" {
-				releases = append(releases, &releaseLinkResolver{
-					resolver: r.resolver,
-					source:   &sourceResolver{name: ernRelease.Source()},
-					grid:     grid,
-				})
-			}
-		}
-	}
-	return releases, nil
-}
-
-func (r *recordingResolver) Works() ([]*workLinkResolver, error) {
-	var works []*workLinkResolver
-	for _, soundRecording := range r.soundRecordings {
-		isrc := soundRecording.SoundRecordingId()
-		args := musicbrainz.RecordingWorkLinkArgs{ISRC: &isrc}
-		links, err := r.resolver.MusicBrainz.RecordingWorkLink(args)
-		if err != nil {
-			return nil, err
-		}
-		for _, link := range links {
-			work := &workLinkResolver{
-				resolver: r.resolver,
-				source:   &sourceResolver{name: link.Source()},
-				iswc:     link.ISWC(),
-			}
-			workResolver, err := work.Work()
-			if err != nil {
-				return nil, err
-			}
-			if len(workResolver.cwrWorks) > 0 {
-				works = append(works, work)
-			}
-		}
-	}
-	return works, nil
-}
-
-type workArgs struct {
-	ISWC string
-}
-
-func (r *Resolver) Work(args workArgs) (*workResolver, error) {
-	cwrWorks, err := r.Cwr.RegisteredWork(cwr.RegisteredWorkArgs{ISWC: &args.ISWC})
+func (r *recordingResolver) Title() (*stringValueResolver, error) {
+	records, err := r.resolver.mediaIndex.Recordings(r.identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &workResolver{
-		resolver: r,
-		cwrWorks: cwrWorks,
-	}, nil
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Title
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Title,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (r *recordingResolver) Duration() (*stringValueResolver, error) {
+	records, err := r.resolver.mediaIndex.Recordings(r.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Duration
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Duration,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (r *recordingResolver) Performers() ([]*performerRecordingLinkResolver, error) {
+	records, err := r.resolver.mediaIndex.RecordingPerformers(r.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*performerRecordingLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &performerRecordingLinkResolver{
+			resolver: r.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (r *recordingResolver) Releases() ([]*releaseRecordingLinkResolver, error) {
+	records, err := r.resolver.mediaIndex.RecordingReleases(r.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*releaseRecordingLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &releaseRecordingLinkResolver{
+			resolver: r.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (r *recordingResolver) Works() ([]*recordingWorkLinkResolver, error) {
+	records, err := r.resolver.mediaIndex.RecordingWorks(r.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*recordingWorkLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &recordingWorkLinkResolver{
+			resolver: r.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+type createWorkArgs struct {
+	Work struct {
+		Work
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreateWork(args createWorkArgs) (*workResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Work.Work,
+		&args.Work.Identifier,
+		&args.Work.Source,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &workResolver{r, identifier}, nil
+}
+
+func (r *Resolver) Work(args identifierArgs) (*workResolver, error) {
+	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	if err != nil {
+		return nil, err
+	}
+	return &workResolver{r, identifier}, nil
 }
 
 type workResolver struct {
-	resolver *Resolver
-	cwrWorks []*cwr.RegisteredWorkResolver
+	resolver   *Resolver
+	identifier *IdentifierRecord
 }
 
-func (w *workResolver) ISWC() *stringValueResolver {
-	iswc := &stringValueResolver{}
-	for _, cwrWork := range w.cwrWorks {
-		iswc.value = cwrWork.ISWC()
-		iswc.sources = append(iswc.sources, &stringSourceResolver{
-			value:  cwrWork.ISWC(),
-			source: &sourceResolver{name: cwrWork.Source()},
-			score:  "1",
-		})
-	}
-	return iswc
+func (w *workResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{w.resolver, w.identifier}}
 }
 
-func (w *workResolver) Title() *stringValueResolver {
-	title := &stringValueResolver{}
-	for _, work := range w.cwrWorks {
-		title.value = work.Title()
-		title.sources = append(title.sources, &stringSourceResolver{
-			value:  work.Title(),
-			source: &sourceResolver{name: work.Source()},
-			score:  "1",
-		})
-	}
-	return title
-}
-
-func (w *workResolver) Composers() ([]*composerLinkResolver, error) {
-	var composers []*composerLinkResolver
-	for _, cwrWork := range w.cwrWorks {
-		for _, writer := range cwrWork.Contributors() {
-			composers = append(composers, &composerLinkResolver{
-				resolver: w.resolver,
-				source:   &sourceResolver{name: writer.Source()},
-				writers:  []*cwr.WriterControlResolver{writer},
-			})
-		}
-	}
-	return composers, nil
-}
-
-func (w *workResolver) Publishers() ([]*publisherLinkResolver, error) {
-	var publishers []*publisherLinkResolver
-	for _, cwrWork := range w.cwrWorks {
-		for _, publisher := range cwrWork.Controls() {
-			publishers = append(publishers, &publisherLinkResolver{
-				resolver:   w.resolver,
-				source:     &sourceResolver{name: publisher.Source()},
-				publishers: []*cwr.PublisherControlResolver{publisher},
-			})
-		}
-	}
-	return publishers, nil
-}
-
-func (w *workResolver) Recordings() ([]*recordingLinkResolver, error) {
-	var recordings []*recordingLinkResolver
-	for _, cwrWork := range w.cwrWorks {
-		iswc := cwrWork.ISWC()
-		args := musicbrainz.RecordingWorkLinkArgs{ISWC: &iswc}
-		links, err := w.resolver.MusicBrainz.RecordingWorkLink(args)
-		if err != nil {
-			return nil, err
-		}
-		for _, link := range links {
-			recordings = append(recordings, &recordingLinkResolver{
-				resolver: w.resolver,
-				source:   &sourceResolver{name: link.Source()},
-				isrc:     link.ISRC(),
-			})
-		}
-	}
-	return recordings, nil
-}
-
-type releaseArgs struct {
-	GRID string
-}
-
-func (r *Resolver) Release(args releaseArgs) (*releaseResolver, error) {
-	// fetch releases by GRid from ERN
-	ernReleases, err := r.Ern.Release(ern.ReleaseArgs{ID: &args.GRID})
+func (w *workResolver) Title() (*stringValueResolver, error) {
+	records, err := w.resolver.mediaIndex.Works(w.identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &releaseResolver{
-		resolver:    r,
-		ernReleases: ernReleases,
-	}, nil
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Title
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Title,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (w *workResolver) Composers() ([]*composerWorkLinkResolver, error) {
+	records, err := w.resolver.mediaIndex.WorkComposers(w.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*composerWorkLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &composerWorkLinkResolver{
+			resolver: w.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (w *workResolver) Publishers() ([]*publisherWorkLinkResolver, error) {
+	records, err := w.resolver.mediaIndex.WorkPublishers(w.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*publisherWorkLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &publisherWorkLinkResolver{
+			resolver: w.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (w *workResolver) Recordings() ([]*recordingWorkLinkResolver, error) {
+	records, err := w.resolver.mediaIndex.WorkRecordings(w.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*recordingWorkLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &recordingWorkLinkResolver{
+			resolver: w.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+type createSongArgs struct {
+	Song struct {
+		Song
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreateSong(args createSongArgs) (*songResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Song.Song,
+		&args.Song.Identifier,
+		&args.Song.Source,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &songResolver{r, identifier}, nil
+}
+
+func (r *Resolver) Song(args identifierArgs) (*songResolver, error) {
+	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	if err != nil {
+		return nil, err
+	}
+	return &songResolver{r, identifier}, nil
+}
+
+type songResolver struct {
+	resolver   *Resolver
+	identifier *IdentifierRecord
+}
+
+func (s *songResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{s.resolver, s.identifier}}
+}
+
+func (s *songResolver) Title() (*stringValueResolver, error) {
+	records, err := s.resolver.mediaIndex.Songs(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Title
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Title,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (s *songResolver) Duration() (*stringValueResolver, error) {
+	records, err := s.resolver.mediaIndex.Songs(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Duration
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Duration,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (s *songResolver) Recordings() ([]*songRecordingLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.RecordingSongs(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*songRecordingLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &songRecordingLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (s *songResolver) Releases() ([]*releaseSongLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SongReleases(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*releaseSongLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &releaseSongLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (s *songResolver) RecordLabels() ([]*recordLabelSongLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SongRecordLabels(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*recordLabelSongLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &recordLabelSongLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+type createReleaseArgs struct {
+	Release struct {
+		Release
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreateRelease(args createReleaseArgs) (*releaseResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Release.Release,
+		&args.Release.Identifier,
+		&args.Release.Source,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &releaseResolver{r, identifier}, nil
+}
+
+func (r *Resolver) Release(args identifierArgs) (*releaseResolver, error) {
+	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	if err != nil {
+		return nil, err
+	}
+	return &releaseResolver{r, identifier}, nil
 }
 
 type releaseResolver struct {
-	resolver    *Resolver
-	ernReleases []*ern.ReleaseResolver
+	resolver   *Resolver
+	identifier *IdentifierRecord
 }
 
-func (r *releaseResolver) GRID() *stringValueResolver {
-	grid := &stringValueResolver{}
-	for _, ernRelease := range r.ernReleases {
-		grid.value = ernRelease.ReleaseID().GRID()
-		grid.sources = append(grid.sources, &stringSourceResolver{
-			value:  ernRelease.ReleaseID().GRID(),
-			source: &sourceResolver{name: ernRelease.Source()},
-			score:  "1",
-		})
-	}
-	return grid
+func (r *releaseResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{r.resolver, r.identifier}}
 }
 
-func (r *releaseResolver) Title() *stringValueResolver {
-	title := &stringValueResolver{}
-	for _, ernRelease := range r.ernReleases {
-		title.value = ernRelease.ReferenceTitle()
-		title.sources = append(title.sources, &stringSourceResolver{
-			value:  ernRelease.ReferenceTitle(),
-			source: &sourceResolver{name: ernRelease.Source()},
-			score:  "1",
-		})
-	}
-	return title
-}
-
-func (r *releaseResolver) Recordings() ([]*recordingLinkResolver, error) {
-	var recordings []*recordingLinkResolver
-	for _, ernRelease := range r.ernReleases {
-		soundRecordings, err := ernRelease.SoundRecordings()
-		if err != nil {
-			return nil, err
-		}
-		for _, soundRecording := range soundRecordings {
-			recordings = append(recordings, &recordingLinkResolver{
-				resolver: r.resolver,
-				source:   &sourceResolver{name: soundRecording.Source()},
-				isrc:     soundRecording.SoundRecordingId(),
-			})
-		}
-	}
-	return recordings, nil
-}
-
-func (r *releaseResolver) Products() []*productLinkResolver {
-	// if any of the ERN releases have an ICPN, return them as a product
-	products := make([]*productLinkResolver, 0, len(r.ernReleases))
-	for _, ernRelease := range r.ernReleases {
-		if icpn := ernRelease.ReleaseID().ICPN(); icpn != "" {
-			products = append(products, &productLinkResolver{
-				resolver: r.resolver,
-				source:   &sourceResolver{name: ernRelease.Source()},
-				upc:      icpn,
-			})
-		}
-	}
-	return products
-}
-
-type productArgs struct {
-	UPC string
-}
-
-func (r *Resolver) Product(args productArgs) (*productResolver, error) {
-	// fetch releases by UPC from ERN
-	ernReleases, err := r.Ern.Release(ern.ReleaseArgs{ID: &args.UPC})
+func (r *releaseResolver) Type() (*stringValueResolver, error) {
+	records, err := r.resolver.mediaIndex.Releases(r.identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &productResolver{
-		resolver:    r,
-		ernReleases: ernReleases,
-	}, nil
-}
-
-type productResolver struct {
-	resolver    *Resolver
-	ernReleases []*ern.ReleaseResolver
-}
-
-func (p *productResolver) UPC() *stringValueResolver {
-	upc := &stringValueResolver{}
-	for _, ernRelease := range p.ernReleases {
-		upc.value = ernRelease.ReleaseID().ICPN()
-		upc.sources = append(upc.sources, &stringSourceResolver{
-			value:  ernRelease.ReleaseID().ICPN(),
-			source: &sourceResolver{name: ernRelease.Source()},
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Type
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Type,
+			source: &sourceResolver{id: record.Source},
 			score:  "1",
 		})
 	}
-	return upc
+	return resolver, nil
 }
 
-func (p *productResolver) Title() *stringValueResolver {
-	title := &stringValueResolver{}
-	for _, ernRelease := range p.ernReleases {
-		title.value = ernRelease.ReferenceTitle()
-		title.sources = append(title.sources, &stringSourceResolver{
-			value:  ernRelease.ReferenceTitle(),
-			source: &sourceResolver{name: ernRelease.Source()},
+func (r *releaseResolver) Title() (*stringValueResolver, error) {
+	records, err := r.resolver.mediaIndex.Releases(r.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Title
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Title,
+			source: &sourceResolver{id: record.Source},
 			score:  "1",
 		})
 	}
-	return title
+	return resolver, nil
 }
 
-func (p *productResolver) Releases() []*releaseLinkResolver {
-	// if any of the ERN releases have a GRid, return them as a release
-	releases := make([]*releaseLinkResolver, 0, len(p.ernReleases))
-	for _, ernRelease := range p.ernReleases {
-		if grid := ernRelease.ReleaseID().GRID(); grid != "" {
-			releases = append(releases, &releaseLinkResolver{
-				resolver: p.resolver,
-				source:   &sourceResolver{name: ernRelease.Source()},
-				grid:     grid,
-			})
+func (r *releaseResolver) Date() (*stringValueResolver, error) {
+	records, err := r.resolver.mediaIndex.Releases(r.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Date
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Date,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (r *releaseResolver) Recordings() ([]*releaseRecordingLinkResolver, error) {
+	records, err := r.resolver.mediaIndex.ReleaseRecordings(r.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*releaseRecordingLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &releaseRecordingLinkResolver{
+			resolver: r.resolver,
+			record:   record,
 		}
 	}
-	return releases
+	return resolvers, nil
 }
 
-func (p *productResolver) Labels() ([]*labelLinkResolver, error) {
-	var labels []*labelLinkResolver
-	for _, ernRelease := range p.ernReleases {
-		parties, err := ernRelease.MessageSenders()
-		if err != nil {
-			return nil, err
-		}
-		labels = append(labels, &labelLinkResolver{
-			resolver: p.resolver,
-			source:   &sourceResolver{name: ernRelease.Source()},
-			parties:  parties,
-		})
+func (r *releaseResolver) Songs() ([]*releaseSongLinkResolver, error) {
+	records, err := r.resolver.mediaIndex.ReleaseSongs(r.identifier)
+	if err != nil {
+		return nil, err
 	}
-	return labels, nil
-}
-
-func (p *productResolver) Performers() ([]*performerLinkResolver, error) {
-	var performers []*performerLinkResolver
-	for _, ernRelease := range p.ernReleases {
-		parties, err := ernRelease.Contributors()
-		if err != nil {
-			return nil, err
-		}
-		performers = append(performers, &performerLinkResolver{
-			resolver: p.resolver,
-			source:   &sourceResolver{name: ernRelease.Source()},
-			parties:  parties,
-		})
-	}
-	return performers, nil
-}
-
-type performerLinkResolver struct {
-	resolver *Resolver
-	source   *sourceResolver
-	parties  []*ern.PartyResolver
-}
-
-func (r *performerLinkResolver) Source() *sourceResolver {
-	return r.source
-}
-
-func (r *performerLinkResolver) Performer() (*performerResolver, error) {
-	return r.resolver.performerResolver(r.parties), nil
-}
-
-func (p *performerLinkResolver) Role() *stringValueResolver {
-	role := &stringValueResolver{}
-	for _, party := range p.parties {
-		if partyRole := party.Role(); partyRole != "" {
-			role.value = partyRole
-			role.sources = append(role.sources, &stringSourceResolver{
-				value:  partyRole,
-				source: &sourceResolver{name: party.Source()},
-				score:  "1",
-			})
+	resolvers := make([]*releaseSongLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &releaseSongLinkResolver{
+			resolver: r.resolver,
+			record:   record,
 		}
 	}
-	return role
+	return resolvers, nil
 }
 
-type labelLinkResolver struct {
-	resolver *Resolver
-	source   *sourceResolver
-	parties  []*ern.PartyResolver
+func (r *releaseResolver) RecordLabels() ([]*recordLabelReleaseLinkResolver, error) {
+	records, err := r.resolver.mediaIndex.ReleaseRecordLabels(r.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*recordLabelReleaseLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &recordLabelReleaseLinkResolver{
+			resolver: r.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
 }
 
-func (r *labelLinkResolver) Source() *sourceResolver {
-	return r.source
-}
-
-func (r *labelLinkResolver) Label() (*labelResolver, error) {
-	return r.resolver.labelResolver(r.parties), nil
-}
-
-type recordingLinkResolver struct {
-	resolver *Resolver
-	source   *sourceResolver
-	isrc     string
-}
-
-func (r *recordingLinkResolver) Source() *sourceResolver {
-	return r.source
-}
-
-func (r *recordingLinkResolver) Recording() (*recordingResolver, error) {
-	return r.resolver.Recording(recordingArgs{ISRC: r.isrc})
-}
-
-type releaseLinkResolver struct {
-	resolver *Resolver
-	source   *sourceResolver
-	grid     string
-}
-
-func (r *releaseLinkResolver) Source() *sourceResolver {
-	return r.source
-}
-
-func (r *releaseLinkResolver) Release() (*releaseResolver, error) {
-	return r.resolver.Release(releaseArgs{GRID: r.grid})
-}
-
-type productLinkResolver struct {
-	resolver *Resolver
-	source   *sourceResolver
-	upc      string
-}
-
-func (p *productLinkResolver) Source() *sourceResolver {
-	return p.source
-}
-
-func (p *productLinkResolver) Product() (*productResolver, error) {
-	return p.resolver.Product(productArgs{UPC: p.upc})
-}
-
-type workLinkResolver struct {
-	resolver *Resolver
-	source   *sourceResolver
-	iswc     string
-}
-
-func (p *workLinkResolver) Source() *sourceResolver {
-	return p.source
-}
-
-func (p *workLinkResolver) Work() (*workResolver, error) {
-	return p.resolver.Work(workArgs{ISWC: p.iswc})
-}
-
-type composerLinkResolver struct {
-	resolver *Resolver
-	source   *sourceResolver
-	writers  []*cwr.WriterControlResolver
-}
-
-func (c *composerLinkResolver) Source() *sourceResolver {
-	return c.source
-}
-
-func (c *composerLinkResolver) Composer() *composerResolver {
-	return &composerResolver{
-		resolver: c.resolver,
-		writers:  c.writers,
+type createPerformerRecordingLinkArgs struct {
+	Link struct {
+		PerformerID Identifier
+		RecordingID Identifier
+		Role        string
+		Source      Source
 	}
 }
 
-type publisherLinkResolver struct {
-	resolver   *Resolver
-	source     *sourceResolver
-	publishers []*cwr.PublisherControlResolver
-}
-
-func (p *publisherLinkResolver) Source() *sourceResolver {
-	return p.source
-}
-
-func (p *publisherLinkResolver) Publisher() *publisherResolver {
-	return &publisherResolver{
-		resolver:   p.resolver,
-		publishers: p.publishers,
+func (r *Resolver) CreatePerformerRecordingLink(args createPerformerRecordingLinkArgs) (*performerRecordingLinkResolver, error) {
+	link := &PerformerRecordingLink{
+		Performer: args.Link.PerformerID,
+		Recording: args.Link.RecordingID,
+		Role:      args.Link.Role,
 	}
+	record, err := r.mediaIndex.CreatePerformerRecording(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &performerRecordingLinkResolver{r, record}, nil
 }
 
-type musicShares struct {
-	performance string
-	mechanical  string
-	synch       string
-	source      string
-}
-
-type sharesResolver struct {
+type performerRecordingLinkResolver struct {
 	resolver *Resolver
-	shares   []*musicShares
+	record   *PerformerRecordingRecord
 }
 
-func (s *sharesResolver) Performance() *stringValueResolver {
-	performance := &stringValueResolver{}
-	for _, publisher := range s.shares {
-		performance.value = publisher.performance
-		performance.sources = append(performance.sources, &stringSourceResolver{
-			value:  publisher.performance,
-			source: &sourceResolver{name: publisher.source},
-			score:  "1",
-		})
+func (p *performerRecordingLinkResolver) Performer() *performerResolver {
+	return &performerResolver{p.resolver, p.record.Performer}
+}
+
+func (p *performerRecordingLinkResolver) Recording() *recordingResolver {
+	return &recordingResolver{p.resolver, p.record.Recording}
+}
+
+func (p *performerRecordingLinkResolver) Role() string {
+	return p.record.Role
+}
+
+func (p *performerRecordingLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{p.resolver, p.record.Source}
+}
+
+type createComposerWorkLinkArgs struct {
+	Link struct {
+		ComposerID Identifier
+		WorkID     Identifier
+		Role       string
+		Source     Source
 	}
-	return performance
 }
 
-func (s *sharesResolver) Mechanical() *stringValueResolver {
-	mechanical := &stringValueResolver{}
-	for _, publisher := range s.shares {
-		mechanical.value = publisher.mechanical
-		mechanical.sources = append(mechanical.sources, &stringSourceResolver{
-			value:  publisher.mechanical,
-			source: &sourceResolver{name: publisher.source},
-			score:  "1",
-		})
+func (r *Resolver) CreateComposerWorkLink(args createComposerWorkLinkArgs) (*composerWorkLinkResolver, error) {
+	link := &ComposerWorkLink{
+		Composer: args.Link.ComposerID,
+		Work:     args.Link.WorkID,
+		Role:     args.Link.Role,
 	}
-	return mechanical
-}
-
-func (s *sharesResolver) Synch() *stringValueResolver {
-	synch := &stringValueResolver{}
-	for _, publisher := range s.shares {
-		synch.value = publisher.synch
-		synch.sources = append(synch.sources, &stringSourceResolver{
-			value:  publisher.synch,
-			source: &sourceResolver{name: publisher.source},
-			score:  "1",
-		})
+	record, err := r.mediaIndex.CreateComposerWork(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
 	}
-	return synch
+	return &composerWorkLinkResolver{r, record}, nil
 }
 
-const (
-	partyIdentifierTypeISNI string = "ISNI"
-	partyIdentifierTypeIPI  string = "IPI"
-	partyIdentifierTypeDPID string = "DPID"
-)
-
-type partyIdentifierResolver struct {
-	typ    string
-	value  string
-	source *sourceResolver
+type composerWorkLinkResolver struct {
+	resolver *Resolver
+	record   *ComposerWorkRecord
 }
 
-func (p *partyIdentifierResolver) Type() string {
-	return p.typ
+func (c *composerWorkLinkResolver) Composer() *composerResolver {
+	return &composerResolver{c.resolver, c.record.Composer}
 }
 
-func (p *partyIdentifierResolver) Value() string {
-	return p.value
+func (c *composerWorkLinkResolver) Work() *workResolver {
+	return &workResolver{c.resolver, c.record.Work}
 }
 
-func (p *partyIdentifierResolver) Source() *sourceResolver {
-	return p.source
+func (c *composerWorkLinkResolver) Role() string {
+	return c.record.Role
+}
+
+func (c *composerWorkLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{c.resolver, c.record.Source}
+}
+
+type createRecordLabelSongLinkArgs struct {
+	Link struct {
+		RecordLabelID Identifier
+		SongID        Identifier
+		Source        Source
+	}
+}
+
+func (r *Resolver) CreateRecordLabelSongLink(args createRecordLabelSongLinkArgs) (*recordLabelSongLinkResolver, error) {
+	link := &RecordLabelSongLink{
+		RecordLabel: args.Link.RecordLabelID,
+		Song:        args.Link.SongID,
+	}
+	record, err := r.mediaIndex.CreateRecordLabelSong(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &recordLabelSongLinkResolver{r, record}, nil
+}
+
+type recordLabelSongLinkResolver struct {
+	resolver *Resolver
+	record   *RecordLabelSongRecord
+}
+
+func (r *recordLabelSongLinkResolver) RecordLabel() *recordLabelResolver {
+	return &recordLabelResolver{r.resolver, r.record.RecordLabel}
+}
+
+func (r *recordLabelSongLinkResolver) Song() *songResolver {
+	return &songResolver{r.resolver, r.record.Song}
+}
+
+func (r *recordLabelSongLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createRecordLabelReleaseLinkArgs struct {
+	Link struct {
+		RecordLabelID Identifier
+		ReleaseID     Identifier
+		Source        Source
+	}
+}
+
+func (r *Resolver) CreateRecordLabelReleaseLink(args createRecordLabelReleaseLinkArgs) (*recordLabelReleaseLinkResolver, error) {
+	link := &RecordLabelReleaseLink{
+		RecordLabel: args.Link.RecordLabelID,
+		Release:     args.Link.ReleaseID,
+	}
+	record, err := r.mediaIndex.CreateRecordLabelRelease(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &recordLabelReleaseLinkResolver{r, record}, nil
+}
+
+type recordLabelReleaseLinkResolver struct {
+	resolver *Resolver
+	record   *RecordLabelReleaseRecord
+}
+
+func (r *recordLabelReleaseLinkResolver) RecordLabel() *recordLabelResolver {
+	return &recordLabelResolver{r.resolver, r.record.RecordLabel}
+}
+
+func (r *recordLabelReleaseLinkResolver) Release() *releaseResolver {
+	return &releaseResolver{r.resolver, r.record.Release}
+}
+
+func (r *recordLabelReleaseLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createPublisherWorkLinkArgs struct {
+	Link struct {
+		PublisherID Identifier
+		WorkID      Identifier
+		Source      Source
+	}
+}
+
+func (r *Resolver) CreatePublisherWorkLink(args createPublisherWorkLinkArgs) (*publisherWorkLinkResolver, error) {
+	link := &PublisherWorkLink{
+		Publisher: args.Link.PublisherID,
+		Work:      args.Link.WorkID,
+	}
+	record, err := r.mediaIndex.CreatePublisherWork(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &publisherWorkLinkResolver{r, record}, nil
+}
+
+type publisherWorkLinkResolver struct {
+	resolver *Resolver
+	record   *PublisherWorkRecord
+}
+
+func (p *publisherWorkLinkResolver) Publisher() *publisherResolver {
+	return &publisherResolver{p.resolver, p.record.Publisher}
+}
+
+func (p *publisherWorkLinkResolver) Work() *workResolver {
+	return &workResolver{p.resolver, p.record.Work}
+}
+
+func (p *publisherWorkLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{p.resolver, p.record.Source}
+}
+
+type createSongRecordingLinkArgs struct {
+	Link struct {
+		SongID      Identifier
+		RecordingID Identifier
+		Source      Source
+	}
+}
+
+func (r *Resolver) CreateSongRecordingLink(args createSongRecordingLinkArgs) (*songRecordingLinkResolver, error) {
+	link := &SongRecordingLink{
+		Song:      args.Link.SongID,
+		Recording: args.Link.RecordingID,
+	}
+	record, err := r.mediaIndex.CreateSongRecording(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &songRecordingLinkResolver{r, record}, nil
+}
+
+type songRecordingLinkResolver struct {
+	resolver *Resolver
+	record   *SongRecordingRecord
+}
+
+func (s *songRecordingLinkResolver) Song() *songResolver {
+	return &songResolver{s.resolver, s.record.Song}
+}
+
+func (s *songRecordingLinkResolver) Recording() *recordingResolver {
+	return &recordingResolver{s.resolver, s.record.Recording}
+}
+
+func (s *songRecordingLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{s.resolver, s.record.Source}
+}
+
+type createReleaseRecordingLinkArgs struct {
+	Link struct {
+		ReleaseID   Identifier
+		RecordingID Identifier
+		Source      Source
+	}
+}
+
+func (r *Resolver) CreateReleaseRecordingLink(args createReleaseRecordingLinkArgs) (*releaseRecordingLinkResolver, error) {
+	link := &ReleaseRecordingLink{
+		Release:   args.Link.ReleaseID,
+		Recording: args.Link.RecordingID,
+	}
+	record, err := r.mediaIndex.CreateReleaseRecording(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &releaseRecordingLinkResolver{r, record}, nil
+}
+
+type releaseRecordingLinkResolver struct {
+	resolver *Resolver
+	record   *ReleaseRecordingRecord
+}
+
+func (r *releaseRecordingLinkResolver) Release() *releaseResolver {
+	return &releaseResolver{r.resolver, r.record.Release}
+}
+
+func (r *releaseRecordingLinkResolver) Recording() *recordingResolver {
+	return &recordingResolver{r.resolver, r.record.Recording}
+}
+
+func (r *releaseRecordingLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createRecordingWorkLinkArgs struct {
+	Link struct {
+		RecordingID Identifier
+		WorkID      Identifier
+		Source      Source
+	}
+}
+
+func (r *Resolver) CreateRecordingWorkLink(args createRecordingWorkLinkArgs) (*recordingWorkLinkResolver, error) {
+	link := &RecordingWorkLink{
+		Recording: args.Link.RecordingID,
+		Work:      args.Link.WorkID,
+	}
+	record, err := r.mediaIndex.CreateRecordingWork(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &recordingWorkLinkResolver{r, record}, nil
+}
+
+type recordingWorkLinkResolver struct {
+	resolver *Resolver
+	record   *RecordingWorkRecord
+}
+
+func (r *recordingWorkLinkResolver) Recording() *recordingResolver {
+	return &recordingResolver{r.resolver, r.record.Recording}
+}
+
+func (r *recordingWorkLinkResolver) Work() *workResolver {
+	return &workResolver{r.resolver, r.record.Work}
+}
+
+func (r *recordingWorkLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createReleaseSongLinkArgs struct {
+	Link struct {
+		ReleaseID Identifier
+		SongID    Identifier
+		Source    Source
+	}
+}
+
+func (r *Resolver) CreateReleaseSongLink(args createReleaseSongLinkArgs) (*releaseSongLinkResolver, error) {
+	link := &ReleaseSongLink{
+		Release: args.Link.ReleaseID,
+		Song:    args.Link.SongID,
+	}
+	record, err := r.mediaIndex.CreateReleaseSong(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &releaseSongLinkResolver{r, record}, nil
+}
+
+type releaseSongLinkResolver struct {
+	resolver *Resolver
+	record   *ReleaseSongRecord
+}
+
+func (r *releaseSongLinkResolver) Release() *releaseResolver {
+	return &releaseResolver{r.resolver, r.record.Release}
+}
+
+func (r *releaseSongLinkResolver) Song() *songResolver {
+	return &songResolver{r.resolver, r.record.Song}
+}
+
+func (r *releaseSongLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
 }
 
 type stringValueResolver struct {
@@ -1246,9 +1657,40 @@ func (s *stringSourceResolver) Score() string {
 }
 
 type sourceResolver struct {
-	name string
+	resolver *Resolver
+	id       int64
 }
 
-func (s *sourceResolver) Name() string {
-	return s.name
+func (s *sourceResolver) Name() (string, error) {
+	source, err := s.resolver.mediaIndex.Source(s.id)
+	if err != nil {
+		return "", err
+	}
+	return source.Name, nil
+}
+
+type identifierValueResolver struct {
+	resolver   *Resolver
+	identifier *IdentifierRecord
+}
+
+func (i *identifierValueResolver) Value() *identifierResolver {
+	return &identifierResolver{i.resolver, i.identifier}
+}
+
+func (i *identifierValueResolver) Sources() []*sourceResolver {
+	return nil
+}
+
+type identifierResolver struct {
+	resolver   *Resolver
+	identifier *IdentifierRecord
+}
+
+func (i *identifierResolver) Type() string {
+	return i.identifier.Type
+}
+
+func (i *identifierResolver) Value() string {
+	return i.identifier.Value
 }

@@ -60,7 +60,7 @@ func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, erro
 		Store: store,
 	}
 	if index, ok := indexes["identity"]; ok {
-		api, err := identity.NewAPI(index.DB, index)
+		api, err := identity.NewAPI(index)
 		if err != nil {
 			return nil, err
 		}

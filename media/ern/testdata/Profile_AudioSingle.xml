@@ -37,7 +37,7 @@
 		<SoundRecording>
 			<SoundRecordingType>MusicalWorkSoundRecording</SoundRecordingType>
 			<SoundRecordingId>
-				<ISRC>CASE00000001</ISRC>
+				<ISRC>CASE02000001</ISRC>
 			</SoundRecordingId>
 			<IndirectSoundRecordingId>
 				<ISWC>T1234567890</ISWC>
@@ -99,7 +99,7 @@
 				<TechnicalSoundRecordingDetails>
 					<TechnicalResourceDetailsReference>T1</TechnicalResourceDetailsReference>
 					<File>
-						<FileName>A1UCASE0000000001X_01_01.wav</FileName>
+						<FileName>A1UCASE0200000001X_01_01.wav</FileName>
 					</File>
 				</TechnicalSoundRecordingDetails>
 			</SoundRecordingDetailsByTerritory>
@@ -117,7 +117,7 @@
 				<TechnicalImageDetails>
 					<TechnicalResourceDetailsReference>T2</TechnicalResourceDetailsReference>
 					<File>
-						<FileName>A1UCASE0000000001X.jpeg</FileName>
+						<FileName>A1UCASE0200000001X.jpeg</FileName>
 					</File>
 				</TechnicalImageDetails>
 			</ImageDetailsByTerritory>
@@ -126,8 +126,8 @@
 	<ReleaseList>
 		<Release IsMainRelease="true">
 			<ReleaseId>
-				<GRid>A1UCASE0000000001X</GRid>
-				<ISRC>CASE00000001</ISRC>
+				<GRid>A1UCASE0200000001X</GRid>
+				<ISRC>CASE02000001</ISRC>
 			</ReleaseId>
 			<ReleaseReference>R0</ReleaseReference>
 			<ReferenceTitle>
@@ -202,8 +202,8 @@
 		</Release>
 		<Release>
 			<ReleaseId>
-				<GRid>A1UCASE0000000001X</GRid>
-				<ISRC>CASE00000001</ISRC>
+				<GRid>A1UCASE0200000001X</GRid>
+				<ISRC>CASE02000001</ISRC>
 			</ReleaseId>
 			<ReleaseReference>R1</ReleaseReference>
 			<ReferenceTitle>

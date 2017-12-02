@@ -38,7 +38,7 @@
 		<SoundRecording>
 			<SoundRecordingType>MusicalWorkSoundRecording</SoundRecordingType>
 			<SoundRecordingId>
-				<ISRC>CASE00000001</ISRC>
+				<ISRC>CASE01000001</ISRC>
 			</SoundRecordingId>
 			<IndirectSoundRecordingId>
 				<ISWC>T1234567890</ISWC>
@@ -91,7 +91,7 @@
 				<TechnicalSoundRecordingDetails>
 					<TechnicalResourceDetailsReference>T1</TechnicalResourceDetailsReference>
 					<File>
-						<FileName>A1UCASE0000000401X_01_01.wav</FileName>
+						<FileName>A1UCASE0100000401X_01_01.wav</FileName>
 					</File>
 				</TechnicalSoundRecordingDetails>
 			</SoundRecordingDetailsByTerritory>
@@ -99,7 +99,7 @@
 		<SoundRecording>
 			<SoundRecordingType>MusicalWorkSoundRecording</SoundRecordingType>
 			<SoundRecordingId>
-				<ISRC>CASE00000002</ISRC>
+				<ISRC>CASE01000002</ISRC>
 			</SoundRecordingId>
 			<IndirectSoundRecordingId>
 				<ISWC>T1234567890</ISWC>
@@ -152,7 +152,7 @@
 				<TechnicalSoundRecordingDetails>
 					<TechnicalResourceDetailsReference>T2</TechnicalResourceDetailsReference>
 					<File>
-						<FileName>A1UCASE0000000401X_01_02.wav</FileName>
+						<FileName>A1UCASE0100000401X_01_02.wav</FileName>
 					</File>
 				</TechnicalSoundRecordingDetails>
 			</SoundRecordingDetailsByTerritory>
@@ -160,7 +160,7 @@
 		<SoundRecording>
 			<SoundRecordingType>MusicalWorkSoundRecording</SoundRecordingType>
 			<SoundRecordingId>
-				<ISRC>CASE00000003</ISRC>
+				<ISRC>CASE01000003</ISRC>
 			</SoundRecordingId>
 			<IndirectSoundRecordingId>
 				<ISWC>T1234567890</ISWC>
@@ -213,7 +213,7 @@
 				<TechnicalSoundRecordingDetails>
 					<TechnicalResourceDetailsReference>T3</TechnicalResourceDetailsReference>
 					<File>
-						<FileName>A1UCASE0000000401X_01_03.wav</FileName>
+						<FileName>A1UCASE0100000401X_01_03.wav</FileName>
 					</File>
 				</TechnicalSoundRecordingDetails>
 			</SoundRecordingDetailsByTerritory>
@@ -221,7 +221,7 @@
 		<SoundRecording>
 			<SoundRecordingType>MusicalWorkSoundRecording</SoundRecordingType>
 			<SoundRecordingId>
-				<ISRC>CASE00000004</ISRC>
+				<ISRC>CASE01000004</ISRC>
 			</SoundRecordingId>
 			<IndirectSoundRecordingId>
 				<ISWC>T1234567890</ISWC>
@@ -274,7 +274,7 @@
 				<TechnicalSoundRecordingDetails>
 					<TechnicalResourceDetailsReference>T4</TechnicalResourceDetailsReference>
 					<File>
-						<FileName>A1UCASE0000000401X_01_04.wav</FileName>
+						<FileName>A1UCASE0100000401X_01_04.wav</FileName>
 					</File>
 				</TechnicalSoundRecordingDetails>
 			</SoundRecordingDetailsByTerritory>
@@ -282,7 +282,7 @@
 		<SoundRecording>
 			<SoundRecordingType>MusicalWorkSoundRecording</SoundRecordingType>
 			<SoundRecordingId>
-				<ISRC>CASE00000005</ISRC>
+				<ISRC>CASE01000005</ISRC>
 			</SoundRecordingId>
 			<IndirectSoundRecordingId>
 				<ISWC>T1234567890</ISWC>
@@ -335,7 +335,7 @@
 				<TechnicalSoundRecordingDetails>
 					<TechnicalResourceDetailsReference>T5</TechnicalResourceDetailsReference>
 					<File>
-						<FileName>A1UCASE0000000401X_01_05.wav</FileName>
+						<FileName>A1UCASE0100000401X_01_05.wav</FileName>
 					</File>
 				</TechnicalSoundRecordingDetails>
 			</SoundRecordingDetailsByTerritory>
@@ -343,7 +343,7 @@
 		<SoundRecording>
 			<SoundRecordingType>MusicalWorkSoundRecording</SoundRecordingType>
 			<SoundRecordingId>
-				<ISRC>CASE00000006</ISRC>
+				<ISRC>CASE01000006</ISRC>
 			</SoundRecordingId>
 			<IndirectSoundRecordingId>
 				<ISWC>T1234567890</ISWC>
@@ -396,7 +396,7 @@
 				<TechnicalSoundRecordingDetails>
 					<TechnicalResourceDetailsReference>T6</TechnicalResourceDetailsReference>
 					<File>
-						<FileName>A1UCASE0000000401X_01_06.wav</FileName>
+						<FileName>A1UCASE0100000401X_01_06.wav</FileName>
 					</File>
 				</TechnicalSoundRecordingDetails>
 			</SoundRecordingDetailsByTerritory>
@@ -414,7 +414,7 @@
 				<TechnicalImageDetails>
 					<TechnicalResourceDetailsReference>T7</TechnicalResourceDetailsReference>
 					<File>
-						<FileName>A1UCASE0000000401X.jpeg</FileName>
+						<FileName>A1UCASE0100000401X.jpeg</FileName>
 					</File>
 				</TechnicalImageDetails>
 			</ImageDetailsByTerritory>
@@ -423,7 +423,7 @@
 	<ReleaseList>
 		<Release IsMainRelease="true">
 			<ReleaseId>
-				<GRid>A1UCASE0000000401X</GRid>
+				<GRid>A1UCASE0100000401X</GRid>
 				<ICPN IsEan="false">UPC000000001</ICPN>
 			</ReleaseId>
 			<ReleaseReference>R0</ReleaseReference>
@@ -533,8 +533,8 @@
 
 		<Release>
 			<ReleaseId>
-				<GRid>A1UCASE0000000001X</GRid>
-				<ISRC>CASE00000001</ISRC>
+				<GRid>A1UCASE0100000001X</GRid>
+				<ISRC>CASE01000001</ISRC>
 			</ReleaseId>
 			<ReleaseReference>R1</ReleaseReference>
 			<ReferenceTitle>
@@ -588,8 +588,8 @@
 		</Release>
 		<Release>
 			<ReleaseId>
-				<GRid>A1UCASE0000000002X</GRid>
-				<ISRC>CASE00000002</ISRC>
+				<GRid>A1UCASE0100000002X</GRid>
+				<ISRC>CASE01000002</ISRC>
 			</ReleaseId>
 			<ReleaseReference>R2</ReleaseReference>
 			<ReferenceTitle>
@@ -643,8 +643,8 @@
 		</Release>
 		<Release>
 			<ReleaseId>
-				<GRid>A1UCASE0000000003X</GRid>
-				<ISRC>CASE00000003</ISRC>
+				<GRid>A1UCASE0100000003X</GRid>
+				<ISRC>CASE01000003</ISRC>
 			</ReleaseId>
 			<ReleaseReference>R3</ReleaseReference>
 			<ReferenceTitle>
@@ -698,8 +698,8 @@
 		</Release>
 		<Release>
 			<ReleaseId>
-				<GRid>A1UCASE0000000004X</GRid>
-				<ISRC>CASE00000004</ISRC>
+				<GRid>A1UCASE0100000004X</GRid>
+				<ISRC>CASE01000004</ISRC>
 			</ReleaseId>
 			<ReleaseReference>R4</ReleaseReference>
 			<ReferenceTitle>
@@ -753,8 +753,8 @@
 		</Release>
 		<Release>
 			<ReleaseId>
-				<GRid>A1UCASE0000000005X</GRid>
-				<ISRC>CASE00000005</ISRC>
+				<GRid>A1UCASE0100000005X</GRid>
+				<ISRC>CASE01000005</ISRC>
 			</ReleaseId>
 			<ReleaseReference>R5</ReleaseReference>
 			<ReferenceTitle>
@@ -808,8 +808,8 @@
 		</Release>
 		<Release>
 			<ReleaseId>
-				<GRid>A1UCASE0000000006X</GRid>
-				<ISRC>CASE00000006</ISRC>
+				<GRid>A1UCASE0100000006X</GRid>
+				<ISRC>CASE01000006</ISRC>
 			</ReleaseId>
 			<ReleaseReference>R6</ReleaseReference>
 			<ReferenceTitle>

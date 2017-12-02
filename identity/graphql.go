@@ -65,18 +65,18 @@ type Claim {
 // the GraphQLSchema constant, retrieving data from a META SQLite3
 // index.
 type Resolver struct {
-	db      *sql.DB
+	index   *meta.Index
 	indexer *Indexer
 }
 
 // NewResolver returns a Resolver which retrieves data from the given META
 // SQLite3 index.
-func NewResolver(db *sql.DB, index *meta.Index) (*Resolver, error) {
+func NewResolver(index *meta.Index) (*Resolver, error) {
 	indexer, err := NewIndexer(index)
 	if err != nil {
 		return nil, err
 	}
-	return &Resolver{db, indexer}, nil
+	return &Resolver{index, indexer}, nil
 }
 
 // IdentityArgs are the arguments for a GraphQL identity query.
@@ -93,9 +93,9 @@ func (r *Resolver) Identity(args IdentityArgs) ([]*IdentityResolver, error) {
 	var err error
 	switch {
 	case args.Owner != nil:
-		rows, err = r.db.Query("SELECT * FROM identity WHERE owner = ?", *args.Owner)
+		rows, err = r.index.Query("SELECT * FROM identity WHERE owner = ?", *args.Owner)
 	case args.ID != nil:
-		rows, err = r.db.Query("SELECT * FROM identity WHERE id = ?", *args.ID)
+		rows, err = r.index.Query("SELECT * FROM identity WHERE id = ?", *args.ID)
 	default:
 		return nil, errors.New("missing owner or id argument")
 	}
@@ -156,15 +156,15 @@ func (r *Resolver) Claim(args ClaimArgs) ([]*ClaimResolver, error) {
 	var err error
 	switch {
 	case args.Issuer != nil:
-		rows, err = r.db.Query("SELECT * FROM claim WHERE issuer = ?", *args.Issuer)
+		rows, err = r.index.Query("SELECT * FROM claim WHERE issuer = ?", *args.Issuer)
 	case args.Subject != nil:
-		rows, err = r.db.Query("SELECT * FROM claim WHERE subject = ?", *args.Subject)
+		rows, err = r.index.Query("SELECT * FROM claim WHERE subject = ?", *args.Subject)
 	case args.Claim != nil:
-		rows, err = r.db.Query("SELECT * FROM claim WHERE subject = ?", *args.Claim)
+		rows, err = r.index.Query("SELECT * FROM claim WHERE subject = ?", *args.Claim)
 	case args.Signature != nil:
-		rows, err = r.db.Query("SELECT * FROM claim WHERE signature = ?", *args.Signature)
+		rows, err = r.index.Query("SELECT * FROM claim WHERE signature = ?", *args.Signature)
 	case args.ID != nil:
-		rows, err = r.db.Query("SELECT * FROM claim WHERE id = ?", *args.ID)
+		rows, err = r.index.Query("SELECT * FROM claim WHERE id = ?", *args.ID)
 	default:
 		return nil, errors.New("missing issuer,subject,claim,signature or id argument")
 	}

@@ -20,7 +20,6 @@
 package identity
 
 import (
-	"database/sql"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
@@ -31,14 +30,13 @@ import (
 
 // API is a http.Handler which serves GraphQL query responses using a Resolver.
 type API struct {
-	db       *sql.DB
 	router   *httprouter.Router
 	resolver *Resolver
 }
 
-// NewAPI returns API for a given db and index
-func NewAPI(db *sql.DB, index *meta.Index) (*API, error) {
-	resolver, err := NewResolver(db, index)
+// NewAPI returns API for a given index
+func NewAPI(index *meta.Index) (*API, error) {
+	resolver, err := NewResolver(index)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +45,6 @@ func NewAPI(db *sql.DB, index *meta.Index) (*API, error) {
 		return nil, err
 	}
 	api := &API{
-		db:       db,
 		router:   httprouter.New(),
 		resolver: resolver,
 	}
