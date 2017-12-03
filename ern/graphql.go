@@ -84,6 +84,7 @@ type SoundRecording {
   soundRecordingId:   String!
   soundRecordingType: String!
   referenceTitle:     String!
+  duration:           String!
   detailsByTerritory: [SoundRecordingDetailsByTerritory]!
 }
 
@@ -327,6 +328,7 @@ type SoundRecordingResolver struct {
 	soundRecordingId   string
 	soundRecordingType string
 	referenceTitle     string
+	duration           string
 	detailsByTerritory []*SoundRecordingDetailsResolver
 }
 
@@ -348,6 +350,10 @@ func (sr *SoundRecordingResolver) SoundRecordingType() string {
 
 func (sr *SoundRecordingResolver) ReferenceTitle() string {
 	return sr.referenceTitle
+}
+
+func (sr *SoundRecordingResolver) Duration() string {
+	return sr.duration
 }
 
 func (sr *SoundRecordingResolver) DetailsByTerritory() []*SoundRecordingDetailsResolver {
@@ -563,6 +569,11 @@ func (r *Resolver) soundRecordingResolver(objectID string) (*SoundRecordingResol
 		return nil, err
 	}
 
+	duration, err := DecodeObj(r.store, obj, "Duration")
+	if err != nil {
+		return nil, err
+	}
+
 	recording := &SoundRecordingResolver{
 		resolver:           r,
 		cid:                objectID,
@@ -570,6 +581,7 @@ func (r *Resolver) soundRecordingResolver(objectID string) (*SoundRecordingResol
 		soundRecordingId:   soundRecordingId.Value,
 		soundRecordingType: soundRecordingType.Value,
 		referenceTitle:     referenceTitle.Value,
+		duration:           duration.Value,
 	}
 
 	detailIDs, err := decodeLinks(r.store, obj, "SoundRecordingDetailsByTerritory")
@@ -663,8 +675,9 @@ func (r *Resolver) soundRecordingResolver(objectID string) (*SoundRecordingResol
  */
 
 type ReleaseArgs struct {
-	ID    *string
-	Title *string
+	ID              *string
+	Title           *string
+	WithMainRelease *bool
 }
 
 type ReleaseResolver struct {
@@ -860,6 +873,18 @@ func (g *Resolver) Release(args ReleaseArgs) ([]*ReleaseResolver, error) {
 		if err := rows.Scan(&objectID); err != nil {
 			return nil, err
 		}
+		if args.WithMainRelease != nil {
+			isMainRelease, err := g.isMainRelease(objectID)
+			if err != nil {
+				return nil, err
+			}
+			if !*args.WithMainRelease && isMainRelease {
+				continue
+			}
+			if *args.WithMainRelease && !isMainRelease {
+				continue
+			}
+		}
 
 		release, err := g.releaseResolver(objectID)
 		if err != nil {
@@ -874,6 +899,23 @@ func (g *Resolver) Release(args ReleaseArgs) ([]*ReleaseResolver, error) {
 	}
 
 	return releases, nil
+}
+
+func (g *Resolver) isMainRelease(objectID string) (bool, error) {
+	objCid, err := cid.Parse(objectID)
+	if err != nil {
+		return false, err
+	}
+	obj, err := g.store.Get(objCid)
+	if err != nil {
+		return false, err
+	}
+
+	isMainRelease, err := obj.GetString("IsMainRelease")
+	if err != nil {
+		return false, nil
+	}
+	return (isMainRelease == "true"), err
 }
 
 func (r *Resolver) releaseResolver(objectID string) (*ReleaseResolver, error) {

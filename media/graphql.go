@@ -20,7 +20,6 @@
 package media
 
 import (
-	meta "github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/cwr"
 	"github.com/meta-network/go-meta/ern"
 	"github.com/meta-network/go-meta/identity"
@@ -38,8 +37,8 @@ import (
 // MusicPublisher
 // MusicRecording
 // MusicWork
+// Song
 // MusicRelease
-// MusicProduct
 //
 // Each entity has a set of identifiers which are used to uniquely identify
 // them:
@@ -50,8 +49,8 @@ import (
 // DPID    - DDEX Party Identifier
 // ISRC    - International Standard Recording Code
 // ISWC    - International Standard Musical Work Code
-// GRid    - Global Release Identifier
-// UPC     - Universal Product Code
+// GRid    - Global Song Identifier
+// UPC     - Universal Release Code
 // EAN     - International Article Number
 //
 // Other entity properties (like performer name or recording title) are linked
@@ -76,9 +75,9 @@ type Query {
 
   work(iswc: String!): MusicWork!
 
-  release(grid: String!): MusicRelease!
+  song(grid: String!): Song!
 
-  product(upc: String!): MusicProduct!
+  release(upc: String!): MusicRelease!
 }
 
 #
@@ -113,7 +112,7 @@ type RecordLabel {
 
   name: StringValue
 
-  products: [MusicProductLink]!
+  releases: [MusicReleaseLink]!
 }
 
 type MusicPublisher {
@@ -125,12 +124,13 @@ type MusicPublisher {
 }
 
 type MusicRecording {
-  isrc: StringValue
+  isrc:       StringValue
 
-  title: StringValue
+  title:      StringValue
+  duration :  StringValue
 
   performers: [MusicPerformerLink]!
-  releases:   [MusicReleaseLink]!
+  songs:      [SongLink]!
   works:      [MusicWorkLink]!
 }
 
@@ -144,22 +144,22 @@ type MusicWork {
   recordings: [MusicRecordingLink]!
 }
 
-type MusicRelease {
+type Song {
   grid: StringValue
 
   title: StringValue
 
-  products:   [MusicProductLink]!
+  releases:   [MusicReleaseLink]!
   recordings: [MusicRecordingLink]!
 }
 
-type MusicProduct {
+type MusicRelease {
   upc: StringValue
 
   title: StringValue
 
-  releases:   [MusicReleaseLink]!
-  performers: [MusicPerformerLink]!
+  songs:      [SongLink]!
+  performer:  MusicPerformerLink!
   labels:     [RecordLabelLink]!
 }
 
@@ -204,14 +204,14 @@ type MusicWorkLink {
   work:   MusicWork!
 }
 
+type SongLink {
+  source:  Source!
+  song: Song!
+}
+
 type MusicReleaseLink {
   source:  Source!
   release: MusicRelease!
-}
-
-type MusicProductLink {
-  source:  Source!
-  product: MusicProduct!
 }
 
 #
@@ -248,7 +248,6 @@ type Resolver struct {
 	Ern         *ern.Resolver
 	Cwr         *cwr.Resolver
 	Identity    *identity.Resolver
-	Store       *meta.Store
 }
 
 type accountArgs struct {
@@ -545,8 +544,8 @@ func (l *labelResolver) Name() *stringValueResolver {
 	return name
 }
 
-func (l *labelResolver) Products() ([]*productLinkResolver, error) {
-	var products []*productLinkResolver
+func (l *labelResolver) Releases() ([]*releaseLinkResolver, error) {
+	var releases []*releaseLinkResolver
 	for _, party := range l.parties {
 		ernReleases, err := party.Releases()
 		if err != nil {
@@ -554,7 +553,7 @@ func (l *labelResolver) Products() ([]*productLinkResolver, error) {
 		}
 		for _, ernRelease := range ernReleases {
 			if icpn := ernRelease.ReleaseID().ICPN(); icpn != "" {
-				products = append(products, &productLinkResolver{
+				releases = append(releases, &releaseLinkResolver{
 					resolver: l.resolver,
 					source:   &sourceResolver{name: ernRelease.Source()},
 					upc:      icpn,
@@ -562,7 +561,7 @@ func (l *labelResolver) Products() ([]*productLinkResolver, error) {
 			}
 		}
 	}
-	return products, nil
+	return releases, nil
 }
 
 type publisherArgs struct {
@@ -675,6 +674,19 @@ func (r *recordingResolver) Title() *stringValueResolver {
 	return title
 }
 
+func (r *recordingResolver) Duration() *stringValueResolver {
+	duration := &stringValueResolver{}
+	for _, soundRecording := range r.soundRecordings {
+		duration.value = soundRecording.Duration()
+		duration.sources = append(duration.sources, &stringSourceResolver{
+			value:  soundRecording.Duration(),
+			source: &sourceResolver{name: soundRecording.Source()},
+			score:  "1",
+		})
+	}
+	return duration
+}
+
 func (r *recordingResolver) Performers() ([]*performerLinkResolver, error) {
 	var performers []*performerLinkResolver
 	for _, soundRecording := range r.soundRecordings {
@@ -691,8 +703,8 @@ func (r *recordingResolver) Performers() ([]*performerLinkResolver, error) {
 	return performers, nil
 }
 
-func (r *recordingResolver) Releases() ([]*releaseLinkResolver, error) {
-	var releases []*releaseLinkResolver
+func (r *recordingResolver) Songs() ([]*songLinkResolver, error) {
+	var songs []*songLinkResolver
 	for _, soundRecording := range r.soundRecordings {
 		ernReleases, err := soundRecording.Releases()
 		if err != nil {
@@ -700,7 +712,7 @@ func (r *recordingResolver) Releases() ([]*releaseLinkResolver, error) {
 		}
 		for _, ernRelease := range ernReleases {
 			if grid := ernRelease.ReleaseID().GRID(); grid != "" {
-				releases = append(releases, &releaseLinkResolver{
+				songs = append(songs, &songLinkResolver{
 					resolver: r.resolver,
 					source:   &sourceResolver{name: ernRelease.Source()},
 					grid:     grid,
@@ -708,7 +720,7 @@ func (r *recordingResolver) Releases() ([]*releaseLinkResolver, error) {
 			}
 		}
 	}
-	return releases, nil
+	return songs, nil
 }
 
 func (r *recordingResolver) Works() ([]*workLinkResolver, error) {
@@ -832,28 +844,37 @@ func (w *workResolver) Recordings() ([]*recordingLinkResolver, error) {
 	return recordings, nil
 }
 
-type releaseArgs struct {
+type songArgs struct {
 	GRID string
 }
 
-func (r *Resolver) Release(args releaseArgs) (*releaseResolver, error) {
-	// fetch releases by GRid from ERN
-	ernReleases, err := r.Ern.Release(ern.ReleaseArgs{ID: &args.GRID})
+func (r *Resolver) Song(args songArgs) (*songResolver, error) {
+	// fetch songs by GRid from ERN
+	var withMainRelease = false
+	ernReleases, err := r.Ern.Release(ern.ReleaseArgs{ID: &args.GRID, WithMainRelease: &withMainRelease})
 	if err != nil {
 		return nil, err
 	}
-	return &releaseResolver{
-		resolver:    r,
-		ernReleases: ernReleases,
+	withMainRelease = true
+	ernMainRelease, err := r.Ern.Release(ern.ReleaseArgs{ID: &args.GRID, WithMainRelease: &withMainRelease})
+	if err != nil {
+		return nil, err
+	}
+
+	return &songResolver{
+		resolver:       r,
+		ernReleases:    ernReleases,
+		ernMainRelease: ernMainRelease,
 	}, nil
 }
 
-type releaseResolver struct {
-	resolver    *Resolver
-	ernReleases []*ern.ReleaseResolver
+type songResolver struct {
+	resolver       *Resolver
+	ernReleases    []*ern.ReleaseResolver
+	ernMainRelease []*ern.ReleaseResolver
 }
 
-func (r *releaseResolver) GRID() *stringValueResolver {
+func (r *songResolver) GRID() *stringValueResolver {
 	grid := &stringValueResolver{}
 	for _, ernRelease := range r.ernReleases {
 		grid.value = ernRelease.ReleaseID().GRID()
@@ -866,7 +887,7 @@ func (r *releaseResolver) GRID() *stringValueResolver {
 	return grid
 }
 
-func (r *releaseResolver) Title() *stringValueResolver {
+func (r *songResolver) Title() *stringValueResolver {
 	title := &stringValueResolver{}
 	for _, ernRelease := range r.ernReleases {
 		title.value = ernRelease.ReferenceTitle()
@@ -879,7 +900,7 @@ func (r *releaseResolver) Title() *stringValueResolver {
 	return title
 }
 
-func (r *releaseResolver) Recordings() ([]*recordingLinkResolver, error) {
+func (r *songResolver) Recordings() ([]*recordingLinkResolver, error) {
 	var recordings []*recordingLinkResolver
 	for _, ernRelease := range r.ernReleases {
 		soundRecordings, err := ernRelease.SoundRecordings()
@@ -897,45 +918,54 @@ func (r *releaseResolver) Recordings() ([]*recordingLinkResolver, error) {
 	return recordings, nil
 }
 
-func (r *releaseResolver) Products() []*productLinkResolver {
-	// if any of the ERN releases have an ICPN, return them as a product
-	products := make([]*productLinkResolver, 0, len(r.ernReleases))
-	for _, ernRelease := range r.ernReleases {
+func (r *songResolver) Releases() []*releaseLinkResolver {
+	// if any of the ERN songs have an ICPN, return them as a release
+	releases := make([]*releaseLinkResolver, 0, len(r.ernReleases))
+	for _, ernRelease := range r.ernMainRelease {
 		if icpn := ernRelease.ReleaseID().ICPN(); icpn != "" {
-			products = append(products, &productLinkResolver{
+			releases = append(releases, &releaseLinkResolver{
 				resolver: r.resolver,
 				source:   &sourceResolver{name: ernRelease.Source()},
 				upc:      icpn,
 			})
 		}
 	}
-	return products
+	return releases
 }
 
-type productArgs struct {
+type releaseArgs struct {
 	UPC string
 }
 
-func (r *Resolver) Product(args productArgs) (*productResolver, error) {
-	// fetch releases by UPC from ERN
-	ernReleases, err := r.Ern.Release(ern.ReleaseArgs{ID: &args.UPC})
+func (r *Resolver) Release(args releaseArgs) (*releaseResolver, error) {
+	// fetch songs by UPC from ERN
+	var withMainRelease = true
+	ernMainRelease, err := r.Ern.Release(ern.ReleaseArgs{ID: &args.UPC, WithMainRelease: &withMainRelease})
 	if err != nil {
 		return nil, err
 	}
-	return &productResolver{
-		resolver:    r,
-		ernReleases: ernReleases,
+	withMainRelease = false
+	ernReleases, err := r.Ern.Release(ern.ReleaseArgs{ID: &args.UPC, WithMainRelease: &withMainRelease})
+	//ernReleases, err := r.Ern.Release(ern.ReleaseArgs{ID: &args.UPC})
+	if err != nil {
+		return nil, err
+	}
+	return &releaseResolver{
+		resolver:       r,
+		ernReleases:    ernReleases,
+		ernMainRelease: ernMainRelease,
 	}, nil
 }
 
-type productResolver struct {
-	resolver    *Resolver
-	ernReleases []*ern.ReleaseResolver
+type releaseResolver struct {
+	resolver       *Resolver
+	ernReleases    []*ern.ReleaseResolver
+	ernMainRelease []*ern.ReleaseResolver
 }
 
-func (p *productResolver) UPC() *stringValueResolver {
+func (p *releaseResolver) UPC() *stringValueResolver {
 	upc := &stringValueResolver{}
-	for _, ernRelease := range p.ernReleases {
+	for _, ernRelease := range p.ernMainRelease {
 		upc.value = ernRelease.ReleaseID().ICPN()
 		upc.sources = append(upc.sources, &stringSourceResolver{
 			value:  ernRelease.ReleaseID().ICPN(),
@@ -946,9 +976,9 @@ func (p *productResolver) UPC() *stringValueResolver {
 	return upc
 }
 
-func (p *productResolver) Title() *stringValueResolver {
+func (p *releaseResolver) Title() *stringValueResolver {
 	title := &stringValueResolver{}
-	for _, ernRelease := range p.ernReleases {
+	for _, ernRelease := range p.ernMainRelease {
 		title.value = ernRelease.ReferenceTitle()
 		title.sources = append(title.sources, &stringSourceResolver{
 			value:  ernRelease.ReferenceTitle(),
@@ -959,24 +989,25 @@ func (p *productResolver) Title() *stringValueResolver {
 	return title
 }
 
-func (p *productResolver) Releases() []*releaseLinkResolver {
-	// if any of the ERN releases have a GRid, return them as a release
-	releases := make([]*releaseLinkResolver, 0, len(p.ernReleases))
+func (p *releaseResolver) Songs() []*songLinkResolver {
+	// if any of the ERN songs have a GRid, return them as a song
+	songs := make([]*songLinkResolver, 0, len(p.ernReleases))
+
 	for _, ernRelease := range p.ernReleases {
 		if grid := ernRelease.ReleaseID().GRID(); grid != "" {
-			releases = append(releases, &releaseLinkResolver{
+			songs = append(songs, &songLinkResolver{
 				resolver: p.resolver,
 				source:   &sourceResolver{name: ernRelease.Source()},
 				grid:     grid,
 			})
 		}
 	}
-	return releases
+	return songs
 }
 
-func (p *productResolver) Labels() ([]*labelLinkResolver, error) {
+func (p *releaseResolver) Labels() ([]*labelLinkResolver, error) {
 	var labels []*labelLinkResolver
-	for _, ernRelease := range p.ernReleases {
+	for _, ernRelease := range p.ernMainRelease {
 		parties, err := ernRelease.MessageSenders()
 		if err != nil {
 			return nil, err
@@ -990,20 +1021,16 @@ func (p *productResolver) Labels() ([]*labelLinkResolver, error) {
 	return labels, nil
 }
 
-func (p *productResolver) Performers() ([]*performerLinkResolver, error) {
-	var performers []*performerLinkResolver
-	for _, ernRelease := range p.ernReleases {
-		parties, err := ernRelease.Contributors()
-		if err != nil {
-			return nil, err
-		}
-		performers = append(performers, &performerLinkResolver{
-			resolver: p.resolver,
-			source:   &sourceResolver{name: ernRelease.Source()},
-			parties:  parties,
-		})
+func (p *releaseResolver) Performer() (*performerLinkResolver, error) {
+	parties, err := p.ernMainRelease[0].Contributors()
+	if err != nil {
+		return nil, err
 	}
-	return performers, nil
+	return &performerLinkResolver{
+		resolver: p.resolver,
+		source:   &sourceResolver{name: p.ernMainRelease[0].Source()},
+		parties:  parties,
+	}, nil
 }
 
 type performerLinkResolver struct {
@@ -1063,32 +1090,32 @@ func (r *recordingLinkResolver) Recording() (*recordingResolver, error) {
 	return r.resolver.Recording(recordingArgs{ISRC: r.isrc})
 }
 
-type releaseLinkResolver struct {
+type songLinkResolver struct {
 	resolver *Resolver
 	source   *sourceResolver
 	grid     string
 }
 
-func (r *releaseLinkResolver) Source() *sourceResolver {
+func (r *songLinkResolver) Source() *sourceResolver {
 	return r.source
 }
 
-func (r *releaseLinkResolver) Release() (*releaseResolver, error) {
-	return r.resolver.Release(releaseArgs{GRID: r.grid})
+func (r *songLinkResolver) Song() (*songResolver, error) {
+	return r.resolver.Song(songArgs{GRID: r.grid})
 }
 
-type productLinkResolver struct {
+type releaseLinkResolver struct {
 	resolver *Resolver
 	source   *sourceResolver
 	upc      string
 }
 
-func (p *productLinkResolver) Source() *sourceResolver {
+func (p *releaseLinkResolver) Source() *sourceResolver {
 	return p.source
 }
 
-func (p *productLinkResolver) Product() (*productResolver, error) {
-	return p.resolver.Product(productArgs{UPC: p.upc})
+func (p *releaseLinkResolver) Release() (*releaseResolver, error) {
+	return p.resolver.Release(releaseArgs{UPC: p.upc})
 }
 
 type workLinkResolver struct {

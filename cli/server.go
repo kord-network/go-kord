@@ -56,9 +56,8 @@ func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, erro
 	router.Handler("GET", "/stream/*path", http.StripPrefix("/stream", streamAPI))
 	router.Handler("POST", "/stream/*path", http.StripPrefix("/stream", streamAPI))
 
-	mediaResolver := &media.Resolver{
-		Store: store,
-	}
+	mediaResolver := &media.Resolver{}
+
 	if index, ok := indexes["identity"]; ok {
 		api, err := identity.NewAPI(index.DB, index)
 		if err != nil {

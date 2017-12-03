@@ -71,7 +71,6 @@ func TestResolver(t *testing.T) {
 		Cwr:         cwr.NewResolver(cwrIndex.DB, store),
 		MusicBrainz: musicbrainz.NewResolver(musicBrainzIndex.DB, store),
 		Identity:    identityResolver,
-		Store:       store,
 	}
 
 	// query account
@@ -140,7 +139,7 @@ func TestResolver(t *testing.T) {
 	if name := label.Name().Value(); name != "NAME_OF_THE_SENDER" {
 		t.Fatalf("expected name to be %q, got %q", "NAME_OF_THE_SENDER", name)
 	}
-	labelProducts, err := label.Products()
+	labelProducts, err := label.Releases()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +162,7 @@ func TestResolver(t *testing.T) {
 	if len(recordingPerformers) != 5 {
 		t.Fatalf("expected recording to have 5 performers, got %d", len(recordingPerformers))
 	}
-	recordingReleases, err := recording.Releases()
+	recordingReleases, err := recording.Songs()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,56 +194,47 @@ func TestResolver(t *testing.T) {
 	}
 
 	// query releases
-	release, err := resolver.Release(releaseArgs{GRID: "A1UCASE0000000401X"})
+	song, err := resolver.Song(songArgs{GRID: "A1UCASE0000000001X"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if title := release.Title().Value(); title != "A Monkey Claw in a Velvet Glove" {
-		t.Fatalf("expected name to be %q, got %q", "A Monkey Claw in a Velvet Glove", title)
+	if title := song.Title().Value(); title != "The Tin Drum" {
+		t.Fatalf("expected name to be %q, got %q", "The Tin Drum", title)
 	}
-	releaseRecordings, err := release.Recordings()
+	songRecordings, err := song.Recordings()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(releaseRecordings) != 12 {
-		t.Fatalf("expected release to have 12 recordings, got %d", len(releaseRecordings))
-	}
-	releaseProducts := release.Products()
-	if len(releaseProducts) != 1 {
-		t.Fatalf("expected release to have 1 product, got %d", len(releaseProducts))
+	if len(songRecordings) != 7 {
+		t.Fatalf("expected song to have 7 recordings, got %d", len(songRecordings))
 	}
 
 	// query products
-	product, err := resolver.Product(productArgs{UPC: "UPC000000001"})
+	release, err := resolver.Release(releaseArgs{UPC: "UPC000000001"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	releases := product.Releases()
+	if release.Title().Value() != "A Monkey Claw in a Velvet Glove" {
+		t.Fatalf("expected name to be %q, got %q", "A Monkey Claw in a Velvet Glove", release.Title().Value())
+	}
+
+	Labels, err := release.Labels()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(releases) != 1 {
-		t.Fatalf("expected product to have 1 release, got %d", len(releases))
+	if len(Labels) != 1 {
+		t.Fatalf("expected release to have 1 label, got %d", len(Labels))
 	}
-	productRelease, err := releases[0].Release()
+
+	performerResolver, err := release.Performer()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if grid := productRelease.GRID().Value(); grid != "A1UCASE0000000401X" {
-		t.Fatalf("expected product release GRid to be %q, got %q", "A1UCASE0000000401X", grid)
-	}
-	productLabels, err := product.Labels()
+	p, err := performerResolver.Performer()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(productLabels) != 1 {
-		t.Fatalf("expected product to have 1 label, got %d", len(productLabels))
-	}
-	productPerformers, err := product.Performers()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(productPerformers) != 1 {
-		t.Fatalf("expected product to have 1 performer, got %d", len(productPerformers))
+	if p.Name().Value() != "Monkey Claw" {
+		t.Fatalf("expected performer name to be %q got %q", "Monkey Claw", p.Name().Value())
 	}
 }
