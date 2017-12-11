@@ -24,7 +24,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -230,6 +229,7 @@ type Store struct {
 	dpa       *storage.DPA
 	ens       ENS
 	streamDir string
+	dbDir     string
 }
 
 // NewStore returns a new store which maintains a local Swarm chunk databsse
@@ -237,6 +237,10 @@ type Store struct {
 func NewStore(dir string, ens ENS) (*Store, error) {
 	streamDir := filepath.Join(dir, "streams")
 	if err := os.MkdirAll(streamDir, 0755); err != nil {
+		return nil, err
+	}
+	dbDir := filepath.Join(dir, "db")
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
 		return nil, err
 	}
 	localStore, err := storage.NewLocalStore(storage.MakeHashFunc("SHA3"), &storage.StoreParams{
@@ -255,6 +259,7 @@ func NewStore(dir string, ens ENS) (*Store, error) {
 		dpa:       dpa,
 		ens:       ens,
 		streamDir: streamDir,
+		dbDir:     dbDir,
 	}, nil
 }
 
@@ -341,39 +346,41 @@ func (s *Store) streamPath(name string) string {
 // OpenIndex opens the META index with the given name by fetching it from
 // Swarm to a temp file and opening it as a SQLite3 database.
 func (s *Store) OpenIndex(name string) (index *Index, err error) {
-	hash, err := s.ens.Resolve(name)
-	if err == ErrNameNotExist {
-		// if the name doesn't exist, create a new empty index (which
-		// mimics the behaviour of opening a new SQLite3 file)
-		hash, err = s.createIndex(name)
-		if err != nil {
-			return nil, err
-		}
-	} else if err != nil {
-		return nil, err
-	}
-	reader := s.dpa.Retrieve(hash[:])
-	size, err := reader.Size(nil)
-	if err != nil {
-		return nil, fmt.Errorf("index %s (%s) not found", name, hash)
-	}
-	tmp, err := ioutil.TempFile("", "meta-index")
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		tmp.Close()
-		if err != nil {
-			os.Remove(tmp.Name())
-		}
-	}()
-	n, err := io.Copy(tmp, io.LimitReader(reader, size))
-	if err != nil {
-		return nil, err
-	} else if n != size {
-		return nil, io.ErrShortWrite
-	}
-	db, err := sql.Open("sqlite3", tmp.Name())
+	// hash, err := s.ens.Resolve(name)
+	// if err == ErrNameNotExist {
+	// 	// if the name doesn't exist, create a new empty index (which
+	// 	// mimics the behaviour of opening a new SQLite3 file)
+	// 	hash, err = s.createIndex(name)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// } else if err != nil {
+	// 	return nil, err
+	// }
+	// reader := s.dpa.Retrieve(hash[:])
+	// size, err := reader.Size(nil)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("index %s (%s) not found", name, hash)
+	// }
+	// tmp, err := ioutil.TempFile("", "meta-index")
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// defer func() {
+	// 	tmp.Close()
+	// 	if err != nil {
+	// 		os.Remove(tmp.Name())
+	// 	}
+	// }()
+	// n, err := io.Copy(tmp, io.LimitReader(reader, size))
+	// if err != nil {
+	// 	return nil, err
+	// } else if n != size {
+	// 	return nil, io.ErrShortWrite
+	// }
+	// db, err := sql.Open("sqlite3", tmp.Name())
+	path := filepath.Join(s.dbDir, name)
+	db, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +388,8 @@ func (s *Store) OpenIndex(name string) (index *Index, err error) {
 		DB:    db,
 		name:  name,
 		store: s,
-		path:  tmp.Name(),
+		// path:  tmp.Name(),
+		path: path,
 	}, nil
 }
 
@@ -416,7 +424,7 @@ func (i *Index) Path() string {
 
 // Close closes the SQLite3 database and deletes the file.
 func (i *Index) Close() error {
-	defer os.Remove(i.path)
+	// defer os.Remove(i.path)
 	return i.DB.Close()
 }
 
@@ -434,25 +442,26 @@ func (i *Index) Update(fn func(*sql.Tx) error) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	tmp, err := os.Open(i.path)
-	if err != nil {
-		return err
-	}
-	defer tmp.Close()
-	info, err := tmp.Stat()
-	if err != nil {
-		return err
-	}
-	hash, err := i.store.dpa.Store(
-		tmp,
-		info.Size(),
-		&sync.WaitGroup{},
-		&sync.WaitGroup{},
-	)
-	if err != nil {
-		return err
-	}
-	return i.store.ens.SetContentHash(i.name, common.BytesToHash(hash))
+	// tmp, err := os.Open(i.path)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer tmp.Close()
+	// info, err := tmp.Stat()
+	// if err != nil {
+	// 	return err
+	// }
+	// hash, err := i.store.dpa.Store(
+	// 	tmp,
+	// 	info.Size(),
+	// 	&sync.WaitGroup{},
+	// 	&sync.WaitGroup{},
+	// )
+	// if err != nil {
+	// 	return err
+	// }
+	// return i.store.ens.SetContentHash(i.name, common.BytesToHash(hash))
+	return nil
 }
 
 // cidV1 is the number which identifies a CID as being CIDv1.
