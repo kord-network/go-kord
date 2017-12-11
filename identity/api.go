@@ -23,7 +23,6 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/meta-network/go-meta"
 	"github.com/neelance/graphql-go"
 	"github.com/neelance/graphql-go/relay"
 )
@@ -35,11 +34,8 @@ type API struct {
 }
 
 // NewAPI returns API for a given index
-func NewAPI(index *meta.Index) (*API, error) {
-	resolver, err := NewResolver(index)
-	if err != nil {
-		return nil, err
-	}
+func NewAPI(index *Index) (*API, error) {
+	resolver := NewResolver(index)
 	schema, err := graphql.ParseSchema(GraphQLSchema, resolver)
 	if err != nil {
 		return nil, err
@@ -51,11 +47,6 @@ func NewAPI(index *meta.Index) (*API, error) {
 	api.router.GET("/", api.handleIndex)
 	api.router.Handler("POST", "/graphql", &relay.Handler{Schema: schema})
 	return api, nil
-}
-
-// Resolver is a getter for the API's resolver
-func (a *API) Resolver() *Resolver {
-	return a.resolver
 }
 
 // ServeHTTP calls a.router.ServeHTTP(w, req)

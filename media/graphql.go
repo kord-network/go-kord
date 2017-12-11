@@ -415,88 +415,103 @@ type Source {
 // Resolver defines GraphQL resolver functions for the schema contained in
 // the GraphQLSchema constant, storing and retrieving data from a Media index.
 type Resolver struct {
-	mediaIndex *Index
-	identity   *identity.Resolver
+	mediaIndex    *Index
+	identityIndex *identity.Index
 }
 
-func NewResolver(mediaIndex *Index, identity *identity.Resolver) *Resolver {
-	return &Resolver{mediaIndex, identity}
+func NewResolver(mediaIndex *Index, identityIndex *identity.Index) *Resolver {
+	return &Resolver{mediaIndex, identityIndex}
 }
 
-type accountArgs struct {
+type AccountArgs struct {
 	MetaID string
 }
 
-func (r *Resolver) Account(args accountArgs) (*accountResolver, error) {
-	claimsResolver, err := r.identity.Claim(identity.ClaimArgs{Subject: &args.MetaID})
+func (r *Resolver) Account(args AccountArgs) (*AccountResolver, error) {
+	identity, err := r.identityIndex.Identity(args.MetaID)
 	if err != nil {
 		return nil, err
 	}
-	aux := make(map[string]string)
-	for _, claimsResolver := range claimsResolver {
-		aux[claimsResolver.Claim()] = claimsResolver.Signature()
-	}
-
-	return &accountResolver{
-		resolver: r,
-		aux:      aux,
-	}, nil
+	return &AccountResolver{r, identity}, nil
 }
 
-type accountResolver struct {
+type AccountResolver struct {
 	resolver *Resolver
-	aux      map[string]string
+	identity *identity.Identity
 }
 
-func (a *accountResolver) Performers() ([]*performerResolver, error) {
-	var performers []*performerResolver
-	if dpid, ok := a.aux["DPID"]; ok {
-		identifier, err := a.resolver.mediaIndex.Identifier(&Identifier{
-			Type:  "dpid",
-			Value: dpid,
-		})
+func (a *AccountResolver) Performers() ([]*PerformerResolver, error) {
+	identifiers, err := a.identifiers("dpid")
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*PerformerResolver, 0, len(identifiers))
+	for _, id := range identifiers {
+		identifier, err := a.resolver.mediaIndex.Identifier(id)
 		if err == nil {
-			performers = append(performers, &performerResolver{a.resolver, identifier})
+			resolvers = append(resolvers, &PerformerResolver{a.resolver, identifier})
 		} else if !isIdentifierNotFound(err) {
 			return nil, err
 		}
 	}
-	return performers, nil
+	return resolvers, nil
 }
 
-func (a *accountResolver) RecordLabels() ([]*recordLabelResolver, error) {
-	var recordLabels []*recordLabelResolver
-	if dpid, ok := a.aux["DPID"]; ok {
-		identifier, err := a.resolver.mediaIndex.Identifier(&Identifier{
-			Type:  "dpid",
-			Value: dpid,
-		})
+func (a *AccountResolver) RecordLabels() ([]*RecordLabelResolver, error) {
+	identifiers, err := a.identifiers("dpid")
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*RecordLabelResolver, 0, len(identifiers))
+	for _, id := range identifiers {
+		identifier, err := a.resolver.mediaIndex.Identifier(id)
 		if err == nil {
-			recordLabels = append(recordLabels, &recordLabelResolver{a.resolver, identifier})
+			resolvers = append(resolvers, &RecordLabelResolver{a.resolver, identifier})
 		} else if !isIdentifierNotFound(err) {
 			return nil, err
 		}
 	}
-	return recordLabels, nil
+	return resolvers, nil
 }
 
-func (a *accountResolver) Composers() ([]*composerResolver, error) {
-	var composers []*composerResolver
-	if ipi, ok := a.aux["IPI"]; ok {
-		identifier, err := a.resolver.mediaIndex.Identifier(&Identifier{
-			Type:  "ipi",
-			Value: ipi,
-		})
+func (a *AccountResolver) Composers() ([]*ComposerResolver, error) {
+	identifiers, err := a.identifiers("ipi")
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*ComposerResolver, 0, len(identifiers))
+	for _, id := range identifiers {
+		identifier, err := a.resolver.mediaIndex.Identifier(id)
 		if err == nil {
-			composers = append(composers, &composerResolver{a.resolver, identifier})
+			resolvers = append(resolvers, &ComposerResolver{a.resolver, identifier})
 		} else if !isIdentifierNotFound(err) {
 			return nil, err
 		}
 	}
-	return composers, nil
+	return resolvers, nil
 }
 
-type identifierArgs struct {
+func (a *AccountResolver) identifiers(typ string) ([]*Identifier, error) {
+	id := a.identity.ID().String()
+	claims, err := a.resolver.identityIndex.Claims(identity.ClaimFilter{
+		Subject:  &id,
+		Property: &typ,
+	})
+	if err != nil {
+		return nil, err
+	}
+	identifiers := make(map[Identifier]struct{})
+	for _, claim := range claims {
+		identifiers[Identifier{Type: typ, Value: claim.Claim}] = struct{}{}
+	}
+	res := make([]*Identifier, 0, len(identifiers))
+	for identifier := range identifiers {
+		res = append(res, &identifier)
+	}
+	return res, nil
+}
+
+type IdentifierArgs struct {
 	Identifier Identifier
 }
 
@@ -509,7 +524,7 @@ type createPerformerArgs struct {
 	}
 }
 
-func (r *Resolver) CreatePerformer(args createPerformerArgs) (*performerResolver, error) {
+func (r *Resolver) CreatePerformer(args createPerformerArgs) (*PerformerResolver, error) {
 	identifier, err := r.mediaIndex.CreateRecord(
 		&args.Performer.Performer,
 		&args.Performer.Identifier,
@@ -518,27 +533,27 @@ func (r *Resolver) CreatePerformer(args createPerformerArgs) (*performerResolver
 	if err != nil {
 		return nil, err
 	}
-	return &performerResolver{r, identifier}, nil
+	return &PerformerResolver{r, identifier}, nil
 }
 
-func (r *Resolver) Performer(args identifierArgs) (*performerResolver, error) {
+func (r *Resolver) Performer(args IdentifierArgs) (*PerformerResolver, error) {
 	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &performerResolver{r, identifier}, nil
+	return &PerformerResolver{r, identifier}, nil
 }
 
-type performerResolver struct {
+type PerformerResolver struct {
 	resolver   *Resolver
 	identifier *IdentifierRecord
 }
 
-func (p *performerResolver) Identifiers() []*identifierValueResolver {
+func (p *PerformerResolver) Identifiers() []*identifierValueResolver {
 	return []*identifierValueResolver{{p.resolver, p.identifier}}
 }
 
-func (p *performerResolver) Name() (*stringValueResolver, error) {
+func (p *PerformerResolver) Name() (*stringValueResolver, error) {
 	records, err := p.resolver.mediaIndex.Performers(p.identifier)
 	if err != nil {
 		return nil, err
@@ -555,7 +570,7 @@ func (p *performerResolver) Name() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (p *performerResolver) Recordings() ([]*performerRecordingLinkResolver, error) {
+func (p *PerformerResolver) Recordings() ([]*performerRecordingLinkResolver, error) {
 	records, err := p.resolver.mediaIndex.PerformerRecordings(p.identifier)
 	if err != nil {
 		return nil, err
@@ -579,7 +594,7 @@ type createComposerArgs struct {
 	}
 }
 
-func (r *Resolver) CreateComposer(args createComposerArgs) (*composerResolver, error) {
+func (r *Resolver) CreateComposer(args createComposerArgs) (*ComposerResolver, error) {
 	identifier, err := r.mediaIndex.CreateRecord(
 		&args.Composer.Composer,
 		&args.Composer.Identifier,
@@ -588,27 +603,27 @@ func (r *Resolver) CreateComposer(args createComposerArgs) (*composerResolver, e
 	if err != nil {
 		return nil, err
 	}
-	return &composerResolver{r, identifier}, nil
+	return &ComposerResolver{r, identifier}, nil
 }
 
-func (r *Resolver) Composer(args identifierArgs) (*composerResolver, error) {
+func (r *Resolver) Composer(args IdentifierArgs) (*ComposerResolver, error) {
 	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &composerResolver{r, identifier}, nil
+	return &ComposerResolver{r, identifier}, nil
 }
 
-type composerResolver struct {
+type ComposerResolver struct {
 	resolver   *Resolver
 	identifier *IdentifierRecord
 }
 
-func (c *composerResolver) Identifiers() []*identifierValueResolver {
+func (c *ComposerResolver) Identifiers() []*identifierValueResolver {
 	return []*identifierValueResolver{{c.resolver, c.identifier}}
 }
 
-func (c *composerResolver) FirstName() (*stringValueResolver, error) {
+func (c *ComposerResolver) FirstName() (*stringValueResolver, error) {
 	records, err := c.resolver.mediaIndex.Composers(c.identifier)
 	if err != nil {
 		return nil, err
@@ -625,7 +640,7 @@ func (c *composerResolver) FirstName() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (c *composerResolver) LastName() (*stringValueResolver, error) {
+func (c *ComposerResolver) LastName() (*stringValueResolver, error) {
 	records, err := c.resolver.mediaIndex.Composers(c.identifier)
 	if err != nil {
 		return nil, err
@@ -642,7 +657,7 @@ func (c *composerResolver) LastName() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (c *composerResolver) Works() ([]*composerWorkLinkResolver, error) {
+func (c *ComposerResolver) Works() ([]*composerWorkLinkResolver, error) {
 	records, err := c.resolver.mediaIndex.ComposerWorks(c.identifier)
 	if err != nil {
 		return nil, err
@@ -666,7 +681,7 @@ type createRecordLabelArgs struct {
 	}
 }
 
-func (r *Resolver) CreateRecordLabel(args createRecordLabelArgs) (*recordLabelResolver, error) {
+func (r *Resolver) CreateRecordLabel(args createRecordLabelArgs) (*RecordLabelResolver, error) {
 	identifier, err := r.mediaIndex.CreateRecord(
 		&args.RecordLabel.RecordLabel,
 		&args.RecordLabel.Identifier,
@@ -675,27 +690,27 @@ func (r *Resolver) CreateRecordLabel(args createRecordLabelArgs) (*recordLabelRe
 	if err != nil {
 		return nil, err
 	}
-	return &recordLabelResolver{r, identifier}, nil
+	return &RecordLabelResolver{r, identifier}, nil
 }
 
-func (r *Resolver) RecordLabel(args identifierArgs) (*recordLabelResolver, error) {
+func (r *Resolver) RecordLabel(args IdentifierArgs) (*RecordLabelResolver, error) {
 	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &recordLabelResolver{r, identifier}, nil
+	return &RecordLabelResolver{r, identifier}, nil
 }
 
-type recordLabelResolver struct {
+type RecordLabelResolver struct {
 	resolver   *Resolver
 	identifier *IdentifierRecord
 }
 
-func (l *recordLabelResolver) Identifiers() []*identifierValueResolver {
+func (l *RecordLabelResolver) Identifiers() []*identifierValueResolver {
 	return []*identifierValueResolver{{l.resolver, l.identifier}}
 }
 
-func (l *recordLabelResolver) Name() (*stringValueResolver, error) {
+func (l *RecordLabelResolver) Name() (*stringValueResolver, error) {
 	records, err := l.resolver.mediaIndex.RecordLabels(l.identifier)
 	if err != nil {
 		return nil, err
@@ -712,7 +727,7 @@ func (l *recordLabelResolver) Name() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (l *recordLabelResolver) Songs() ([]*recordLabelSongLinkResolver, error) {
+func (l *RecordLabelResolver) Songs() ([]*recordLabelSongLinkResolver, error) {
 	records, err := l.resolver.mediaIndex.RecordLabelSongs(l.identifier)
 	if err != nil {
 		return nil, err
@@ -727,7 +742,7 @@ func (l *recordLabelResolver) Songs() ([]*recordLabelSongLinkResolver, error) {
 	return resolvers, nil
 }
 
-func (l *recordLabelResolver) Releases() ([]*recordLabelReleaseLinkResolver, error) {
+func (l *RecordLabelResolver) Releases() ([]*recordLabelReleaseLinkResolver, error) {
 	records, err := l.resolver.mediaIndex.RecordLabelReleases(l.identifier)
 	if err != nil {
 		return nil, err
@@ -751,7 +766,7 @@ type createPublisherArgs struct {
 	}
 }
 
-func (r *Resolver) CreatePublisher(args createPublisherArgs) (*publisherResolver, error) {
+func (r *Resolver) CreatePublisher(args createPublisherArgs) (*PublisherResolver, error) {
 	identifier, err := r.mediaIndex.CreateRecord(
 		&args.Publisher.Publisher,
 		&args.Publisher.Identifier,
@@ -760,27 +775,27 @@ func (r *Resolver) CreatePublisher(args createPublisherArgs) (*publisherResolver
 	if err != nil {
 		return nil, err
 	}
-	return &publisherResolver{r, identifier}, nil
+	return &PublisherResolver{r, identifier}, nil
 }
 
-func (r *Resolver) Publisher(args identifierArgs) (*publisherResolver, error) {
+func (r *Resolver) Publisher(args IdentifierArgs) (*PublisherResolver, error) {
 	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &publisherResolver{r, identifier}, nil
+	return &PublisherResolver{r, identifier}, nil
 }
 
-type publisherResolver struct {
+type PublisherResolver struct {
 	resolver   *Resolver
 	identifier *IdentifierRecord
 }
 
-func (p *publisherResolver) Identifiers() []*identifierValueResolver {
+func (p *PublisherResolver) Identifiers() []*identifierValueResolver {
 	return []*identifierValueResolver{{p.resolver, p.identifier}}
 }
 
-func (p *publisherResolver) Name() (*stringValueResolver, error) {
+func (p *PublisherResolver) Name() (*stringValueResolver, error) {
 	records, err := p.resolver.mediaIndex.Publishers(p.identifier)
 	if err != nil {
 		return nil, err
@@ -797,14 +812,14 @@ func (p *publisherResolver) Name() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (p *publisherResolver) Works() ([]*publisherWorkLinkResolver, error) {
+func (p *PublisherResolver) Works() ([]*PublisherWorkLinkResolver, error) {
 	records, err := p.resolver.mediaIndex.PublisherWorks(p.identifier)
 	if err != nil {
 		return nil, err
 	}
-	resolvers := make([]*publisherWorkLinkResolver, len(records))
+	resolvers := make([]*PublisherWorkLinkResolver, len(records))
 	for i, record := range records {
-		resolvers[i] = &publisherWorkLinkResolver{
+		resolvers[i] = &PublisherWorkLinkResolver{
 			resolver: p.resolver,
 			record:   record,
 		}
@@ -821,7 +836,7 @@ type createRecordingArgs struct {
 	}
 }
 
-func (r *Resolver) CreateRecording(args createRecordingArgs) (*recordingResolver, error) {
+func (r *Resolver) CreateRecording(args createRecordingArgs) (*RecordingResolver, error) {
 	identifier, err := r.mediaIndex.CreateRecord(
 		&args.Recording.Recording,
 		&args.Recording.Identifier,
@@ -830,27 +845,27 @@ func (r *Resolver) CreateRecording(args createRecordingArgs) (*recordingResolver
 	if err != nil {
 		return nil, err
 	}
-	return &recordingResolver{r, identifier}, nil
+	return &RecordingResolver{r, identifier}, nil
 }
 
-func (r *Resolver) Recording(args identifierArgs) (*recordingResolver, error) {
+func (r *Resolver) Recording(args IdentifierArgs) (*RecordingResolver, error) {
 	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &recordingResolver{r, identifier}, nil
+	return &RecordingResolver{r, identifier}, nil
 }
 
-type recordingResolver struct {
+type RecordingResolver struct {
 	resolver   *Resolver
 	identifier *IdentifierRecord
 }
 
-func (r *recordingResolver) Identifiers() []*identifierValueResolver {
+func (r *RecordingResolver) Identifiers() []*identifierValueResolver {
 	return []*identifierValueResolver{{r.resolver, r.identifier}}
 }
 
-func (r *recordingResolver) Title() (*stringValueResolver, error) {
+func (r *RecordingResolver) Title() (*stringValueResolver, error) {
 	records, err := r.resolver.mediaIndex.Recordings(r.identifier)
 	if err != nil {
 		return nil, err
@@ -867,7 +882,7 @@ func (r *recordingResolver) Title() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (r *recordingResolver) Duration() (*stringValueResolver, error) {
+func (r *RecordingResolver) Duration() (*stringValueResolver, error) {
 	records, err := r.resolver.mediaIndex.Recordings(r.identifier)
 	if err != nil {
 		return nil, err
@@ -884,7 +899,7 @@ func (r *recordingResolver) Duration() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (r *recordingResolver) Performers() ([]*performerRecordingLinkResolver, error) {
+func (r *RecordingResolver) Performers() ([]*performerRecordingLinkResolver, error) {
 	records, err := r.resolver.mediaIndex.RecordingPerformers(r.identifier)
 	if err != nil {
 		return nil, err
@@ -899,7 +914,7 @@ func (r *recordingResolver) Performers() ([]*performerRecordingLinkResolver, err
 	return resolvers, nil
 }
 
-func (r *recordingResolver) Releases() ([]*releaseRecordingLinkResolver, error) {
+func (r *RecordingResolver) Releases() ([]*releaseRecordingLinkResolver, error) {
 	records, err := r.resolver.mediaIndex.RecordingReleases(r.identifier)
 	if err != nil {
 		return nil, err
@@ -914,7 +929,7 @@ func (r *recordingResolver) Releases() ([]*releaseRecordingLinkResolver, error) 
 	return resolvers, nil
 }
 
-func (r *recordingResolver) Works() ([]*recordingWorkLinkResolver, error) {
+func (r *RecordingResolver) Works() ([]*recordingWorkLinkResolver, error) {
 	records, err := r.resolver.mediaIndex.RecordingWorks(r.identifier)
 	if err != nil {
 		return nil, err
@@ -938,7 +953,7 @@ type createWorkArgs struct {
 	}
 }
 
-func (r *Resolver) CreateWork(args createWorkArgs) (*workResolver, error) {
+func (r *Resolver) CreateWork(args createWorkArgs) (*WorkResolver, error) {
 	identifier, err := r.mediaIndex.CreateRecord(
 		&args.Work.Work,
 		&args.Work.Identifier,
@@ -947,27 +962,27 @@ func (r *Resolver) CreateWork(args createWorkArgs) (*workResolver, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &workResolver{r, identifier}, nil
+	return &WorkResolver{r, identifier}, nil
 }
 
-func (r *Resolver) Work(args identifierArgs) (*workResolver, error) {
+func (r *Resolver) Work(args IdentifierArgs) (*WorkResolver, error) {
 	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &workResolver{r, identifier}, nil
+	return &WorkResolver{r, identifier}, nil
 }
 
-type workResolver struct {
+type WorkResolver struct {
 	resolver   *Resolver
 	identifier *IdentifierRecord
 }
 
-func (w *workResolver) Identifiers() []*identifierValueResolver {
+func (w *WorkResolver) Identifiers() []*identifierValueResolver {
 	return []*identifierValueResolver{{w.resolver, w.identifier}}
 }
 
-func (w *workResolver) Title() (*stringValueResolver, error) {
+func (w *WorkResolver) Title() (*stringValueResolver, error) {
 	records, err := w.resolver.mediaIndex.Works(w.identifier)
 	if err != nil {
 		return nil, err
@@ -984,7 +999,7 @@ func (w *workResolver) Title() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (w *workResolver) Composers() ([]*composerWorkLinkResolver, error) {
+func (w *WorkResolver) Composers() ([]*composerWorkLinkResolver, error) {
 	records, err := w.resolver.mediaIndex.WorkComposers(w.identifier)
 	if err != nil {
 		return nil, err
@@ -999,14 +1014,14 @@ func (w *workResolver) Composers() ([]*composerWorkLinkResolver, error) {
 	return resolvers, nil
 }
 
-func (w *workResolver) Publishers() ([]*publisherWorkLinkResolver, error) {
+func (w *WorkResolver) Publishers() ([]*PublisherWorkLinkResolver, error) {
 	records, err := w.resolver.mediaIndex.WorkPublishers(w.identifier)
 	if err != nil {
 		return nil, err
 	}
-	resolvers := make([]*publisherWorkLinkResolver, len(records))
+	resolvers := make([]*PublisherWorkLinkResolver, len(records))
 	for i, record := range records {
-		resolvers[i] = &publisherWorkLinkResolver{
+		resolvers[i] = &PublisherWorkLinkResolver{
 			resolver: w.resolver,
 			record:   record,
 		}
@@ -1014,7 +1029,7 @@ func (w *workResolver) Publishers() ([]*publisherWorkLinkResolver, error) {
 	return resolvers, nil
 }
 
-func (w *workResolver) Recordings() ([]*recordingWorkLinkResolver, error) {
+func (w *WorkResolver) Recordings() ([]*recordingWorkLinkResolver, error) {
 	records, err := w.resolver.mediaIndex.WorkRecordings(w.identifier)
 	if err != nil {
 		return nil, err
@@ -1038,7 +1053,7 @@ type createSongArgs struct {
 	}
 }
 
-func (r *Resolver) CreateSong(args createSongArgs) (*songResolver, error) {
+func (r *Resolver) CreateSong(args createSongArgs) (*SongResolver, error) {
 	identifier, err := r.mediaIndex.CreateRecord(
 		&args.Song.Song,
 		&args.Song.Identifier,
@@ -1047,27 +1062,27 @@ func (r *Resolver) CreateSong(args createSongArgs) (*songResolver, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &songResolver{r, identifier}, nil
+	return &SongResolver{r, identifier}, nil
 }
 
-func (r *Resolver) Song(args identifierArgs) (*songResolver, error) {
+func (r *Resolver) Song(args IdentifierArgs) (*SongResolver, error) {
 	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &songResolver{r, identifier}, nil
+	return &SongResolver{r, identifier}, nil
 }
 
-type songResolver struct {
+type SongResolver struct {
 	resolver   *Resolver
 	identifier *IdentifierRecord
 }
 
-func (s *songResolver) Identifiers() []*identifierValueResolver {
+func (s *SongResolver) Identifiers() []*identifierValueResolver {
 	return []*identifierValueResolver{{s.resolver, s.identifier}}
 }
 
-func (s *songResolver) Title() (*stringValueResolver, error) {
+func (s *SongResolver) Title() (*stringValueResolver, error) {
 	records, err := s.resolver.mediaIndex.Songs(s.identifier)
 	if err != nil {
 		return nil, err
@@ -1084,7 +1099,7 @@ func (s *songResolver) Title() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (s *songResolver) Duration() (*stringValueResolver, error) {
+func (s *SongResolver) Duration() (*stringValueResolver, error) {
 	records, err := s.resolver.mediaIndex.Songs(s.identifier)
 	if err != nil {
 		return nil, err
@@ -1101,7 +1116,7 @@ func (s *songResolver) Duration() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (s *songResolver) Recordings() ([]*songRecordingLinkResolver, error) {
+func (s *SongResolver) Recordings() ([]*songRecordingLinkResolver, error) {
 	records, err := s.resolver.mediaIndex.RecordingSongs(s.identifier)
 	if err != nil {
 		return nil, err
@@ -1116,7 +1131,7 @@ func (s *songResolver) Recordings() ([]*songRecordingLinkResolver, error) {
 	return resolvers, nil
 }
 
-func (s *songResolver) Releases() ([]*releaseSongLinkResolver, error) {
+func (s *SongResolver) Releases() ([]*releaseSongLinkResolver, error) {
 	records, err := s.resolver.mediaIndex.SongReleases(s.identifier)
 	if err != nil {
 		return nil, err
@@ -1131,7 +1146,7 @@ func (s *songResolver) Releases() ([]*releaseSongLinkResolver, error) {
 	return resolvers, nil
 }
 
-func (s *songResolver) RecordLabels() ([]*recordLabelSongLinkResolver, error) {
+func (s *SongResolver) RecordLabels() ([]*recordLabelSongLinkResolver, error) {
 	records, err := s.resolver.mediaIndex.SongRecordLabels(s.identifier)
 	if err != nil {
 		return nil, err
@@ -1155,7 +1170,7 @@ type createReleaseArgs struct {
 	}
 }
 
-func (r *Resolver) CreateRelease(args createReleaseArgs) (*releaseResolver, error) {
+func (r *Resolver) CreateRelease(args createReleaseArgs) (*ReleaseResolver, error) {
 	identifier, err := r.mediaIndex.CreateRecord(
 		&args.Release.Release,
 		&args.Release.Identifier,
@@ -1164,27 +1179,27 @@ func (r *Resolver) CreateRelease(args createReleaseArgs) (*releaseResolver, erro
 	if err != nil {
 		return nil, err
 	}
-	return &releaseResolver{r, identifier}, nil
+	return &ReleaseResolver{r, identifier}, nil
 }
 
-func (r *Resolver) Release(args identifierArgs) (*releaseResolver, error) {
+func (r *Resolver) Release(args IdentifierArgs) (*ReleaseResolver, error) {
 	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
 	if err != nil {
 		return nil, err
 	}
-	return &releaseResolver{r, identifier}, nil
+	return &ReleaseResolver{r, identifier}, nil
 }
 
-type releaseResolver struct {
+type ReleaseResolver struct {
 	resolver   *Resolver
 	identifier *IdentifierRecord
 }
 
-func (r *releaseResolver) Identifiers() []*identifierValueResolver {
+func (r *ReleaseResolver) Identifiers() []*identifierValueResolver {
 	return []*identifierValueResolver{{r.resolver, r.identifier}}
 }
 
-func (r *releaseResolver) Type() (*stringValueResolver, error) {
+func (r *ReleaseResolver) Type() (*stringValueResolver, error) {
 	records, err := r.resolver.mediaIndex.Releases(r.identifier)
 	if err != nil {
 		return nil, err
@@ -1201,7 +1216,7 @@ func (r *releaseResolver) Type() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (r *releaseResolver) Title() (*stringValueResolver, error) {
+func (r *ReleaseResolver) Title() (*stringValueResolver, error) {
 	records, err := r.resolver.mediaIndex.Releases(r.identifier)
 	if err != nil {
 		return nil, err
@@ -1218,7 +1233,7 @@ func (r *releaseResolver) Title() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (r *releaseResolver) Date() (*stringValueResolver, error) {
+func (r *ReleaseResolver) Date() (*stringValueResolver, error) {
 	records, err := r.resolver.mediaIndex.Releases(r.identifier)
 	if err != nil {
 		return nil, err
@@ -1235,7 +1250,7 @@ func (r *releaseResolver) Date() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (r *releaseResolver) Recordings() ([]*releaseRecordingLinkResolver, error) {
+func (r *ReleaseResolver) Recordings() ([]*releaseRecordingLinkResolver, error) {
 	records, err := r.resolver.mediaIndex.ReleaseRecordings(r.identifier)
 	if err != nil {
 		return nil, err
@@ -1250,7 +1265,7 @@ func (r *releaseResolver) Recordings() ([]*releaseRecordingLinkResolver, error) 
 	return resolvers, nil
 }
 
-func (r *releaseResolver) Songs() ([]*releaseSongLinkResolver, error) {
+func (r *ReleaseResolver) Songs() ([]*releaseSongLinkResolver, error) {
 	records, err := r.resolver.mediaIndex.ReleaseSongs(r.identifier)
 	if err != nil {
 		return nil, err
@@ -1265,7 +1280,7 @@ func (r *releaseResolver) Songs() ([]*releaseSongLinkResolver, error) {
 	return resolvers, nil
 }
 
-func (r *releaseResolver) RecordLabels() ([]*recordLabelReleaseLinkResolver, error) {
+func (r *ReleaseResolver) RecordLabels() ([]*recordLabelReleaseLinkResolver, error) {
 	records, err := r.resolver.mediaIndex.ReleaseRecordLabels(r.identifier)
 	if err != nil {
 		return nil, err
@@ -1307,12 +1322,12 @@ type performerRecordingLinkResolver struct {
 	record   *PerformerRecordingRecord
 }
 
-func (p *performerRecordingLinkResolver) Performer() *performerResolver {
-	return &performerResolver{p.resolver, p.record.Performer}
+func (p *performerRecordingLinkResolver) Performer() *PerformerResolver {
+	return &PerformerResolver{p.resolver, p.record.Performer}
 }
 
-func (p *performerRecordingLinkResolver) Recording() *recordingResolver {
-	return &recordingResolver{p.resolver, p.record.Recording}
+func (p *performerRecordingLinkResolver) Recording() *RecordingResolver {
+	return &RecordingResolver{p.resolver, p.record.Recording}
 }
 
 func (p *performerRecordingLinkResolver) Role() string {
@@ -1350,12 +1365,12 @@ type composerWorkLinkResolver struct {
 	record   *ComposerWorkRecord
 }
 
-func (c *composerWorkLinkResolver) Composer() *composerResolver {
-	return &composerResolver{c.resolver, c.record.Composer}
+func (c *composerWorkLinkResolver) Composer() *ComposerResolver {
+	return &ComposerResolver{c.resolver, c.record.Composer}
 }
 
-func (c *composerWorkLinkResolver) Work() *workResolver {
-	return &workResolver{c.resolver, c.record.Work}
+func (c *composerWorkLinkResolver) Work() *WorkResolver {
+	return &WorkResolver{c.resolver, c.record.Work}
 }
 
 func (c *composerWorkLinkResolver) Role() string {
@@ -1391,12 +1406,12 @@ type recordLabelSongLinkResolver struct {
 	record   *RecordLabelSongRecord
 }
 
-func (r *recordLabelSongLinkResolver) RecordLabel() *recordLabelResolver {
-	return &recordLabelResolver{r.resolver, r.record.RecordLabel}
+func (r *recordLabelSongLinkResolver) RecordLabel() *RecordLabelResolver {
+	return &RecordLabelResolver{r.resolver, r.record.RecordLabel}
 }
 
-func (r *recordLabelSongLinkResolver) Song() *songResolver {
-	return &songResolver{r.resolver, r.record.Song}
+func (r *recordLabelSongLinkResolver) Song() *SongResolver {
+	return &SongResolver{r.resolver, r.record.Song}
 }
 
 func (r *recordLabelSongLinkResolver) Source() *sourceResolver {
@@ -1428,12 +1443,12 @@ type recordLabelReleaseLinkResolver struct {
 	record   *RecordLabelReleaseRecord
 }
 
-func (r *recordLabelReleaseLinkResolver) RecordLabel() *recordLabelResolver {
-	return &recordLabelResolver{r.resolver, r.record.RecordLabel}
+func (r *recordLabelReleaseLinkResolver) RecordLabel() *RecordLabelResolver {
+	return &RecordLabelResolver{r.resolver, r.record.RecordLabel}
 }
 
-func (r *recordLabelReleaseLinkResolver) Release() *releaseResolver {
-	return &releaseResolver{r.resolver, r.record.Release}
+func (r *recordLabelReleaseLinkResolver) Release() *ReleaseResolver {
+	return &ReleaseResolver{r.resolver, r.record.Release}
 }
 
 func (r *recordLabelReleaseLinkResolver) Source() *sourceResolver {
@@ -1448,7 +1463,7 @@ type createPublisherWorkLinkArgs struct {
 	}
 }
 
-func (r *Resolver) CreatePublisherWorkLink(args createPublisherWorkLinkArgs) (*publisherWorkLinkResolver, error) {
+func (r *Resolver) CreatePublisherWorkLink(args createPublisherWorkLinkArgs) (*PublisherWorkLinkResolver, error) {
 	link := &PublisherWorkLink{
 		Publisher: args.Link.PublisherID,
 		Work:      args.Link.WorkID,
@@ -1457,23 +1472,23 @@ func (r *Resolver) CreatePublisherWorkLink(args createPublisherWorkLinkArgs) (*p
 	if err != nil {
 		return nil, err
 	}
-	return &publisherWorkLinkResolver{r, record}, nil
+	return &PublisherWorkLinkResolver{r, record}, nil
 }
 
-type publisherWorkLinkResolver struct {
+type PublisherWorkLinkResolver struct {
 	resolver *Resolver
 	record   *PublisherWorkRecord
 }
 
-func (p *publisherWorkLinkResolver) Publisher() *publisherResolver {
-	return &publisherResolver{p.resolver, p.record.Publisher}
+func (p *PublisherWorkLinkResolver) Publisher() *PublisherResolver {
+	return &PublisherResolver{p.resolver, p.record.Publisher}
 }
 
-func (p *publisherWorkLinkResolver) Work() *workResolver {
-	return &workResolver{p.resolver, p.record.Work}
+func (p *PublisherWorkLinkResolver) Work() *WorkResolver {
+	return &WorkResolver{p.resolver, p.record.Work}
 }
 
-func (p *publisherWorkLinkResolver) Source() *sourceResolver {
+func (p *PublisherWorkLinkResolver) Source() *sourceResolver {
 	return &sourceResolver{p.resolver, p.record.Source}
 }
 
@@ -1502,12 +1517,12 @@ type songRecordingLinkResolver struct {
 	record   *SongRecordingRecord
 }
 
-func (s *songRecordingLinkResolver) Song() *songResolver {
-	return &songResolver{s.resolver, s.record.Song}
+func (s *songRecordingLinkResolver) Song() *SongResolver {
+	return &SongResolver{s.resolver, s.record.Song}
 }
 
-func (s *songRecordingLinkResolver) Recording() *recordingResolver {
-	return &recordingResolver{s.resolver, s.record.Recording}
+func (s *songRecordingLinkResolver) Recording() *RecordingResolver {
+	return &RecordingResolver{s.resolver, s.record.Recording}
 }
 
 func (s *songRecordingLinkResolver) Source() *sourceResolver {
@@ -1539,12 +1554,12 @@ type releaseRecordingLinkResolver struct {
 	record   *ReleaseRecordingRecord
 }
 
-func (r *releaseRecordingLinkResolver) Release() *releaseResolver {
-	return &releaseResolver{r.resolver, r.record.Release}
+func (r *releaseRecordingLinkResolver) Release() *ReleaseResolver {
+	return &ReleaseResolver{r.resolver, r.record.Release}
 }
 
-func (r *releaseRecordingLinkResolver) Recording() *recordingResolver {
-	return &recordingResolver{r.resolver, r.record.Recording}
+func (r *releaseRecordingLinkResolver) Recording() *RecordingResolver {
+	return &RecordingResolver{r.resolver, r.record.Recording}
 }
 
 func (r *releaseRecordingLinkResolver) Source() *sourceResolver {
@@ -1576,12 +1591,12 @@ type recordingWorkLinkResolver struct {
 	record   *RecordingWorkRecord
 }
 
-func (r *recordingWorkLinkResolver) Recording() *recordingResolver {
-	return &recordingResolver{r.resolver, r.record.Recording}
+func (r *recordingWorkLinkResolver) Recording() *RecordingResolver {
+	return &RecordingResolver{r.resolver, r.record.Recording}
 }
 
-func (r *recordingWorkLinkResolver) Work() *workResolver {
-	return &workResolver{r.resolver, r.record.Work}
+func (r *recordingWorkLinkResolver) Work() *WorkResolver {
+	return &WorkResolver{r.resolver, r.record.Work}
 }
 
 func (r *recordingWorkLinkResolver) Source() *sourceResolver {
@@ -1613,12 +1628,12 @@ type releaseSongLinkResolver struct {
 	record   *ReleaseSongRecord
 }
 
-func (r *releaseSongLinkResolver) Release() *releaseResolver {
-	return &releaseResolver{r.resolver, r.record.Release}
+func (r *releaseSongLinkResolver) Release() *ReleaseResolver {
+	return &ReleaseResolver{r.resolver, r.record.Release}
 }
 
-func (r *releaseSongLinkResolver) Song() *songResolver {
-	return &songResolver{r.resolver, r.record.Song}
+func (r *releaseSongLinkResolver) Song() *SongResolver {
+	return &SongResolver{r.resolver, r.record.Song}
 }
 
 func (r *releaseSongLinkResolver) Source() *sourceResolver {

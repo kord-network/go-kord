@@ -34,7 +34,7 @@ func TestCLISwarmServer(t *testing.T) {
 	// start the API
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	srv, err := NewServer(store, nil)
+	srv, err := NewServer(store, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

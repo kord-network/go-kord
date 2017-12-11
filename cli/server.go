@@ -20,94 +20,32 @@
 package cli
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
-	"strings"
 
 	swarmhttp "github.com/ethereum/go-ethereum/swarm/api/http"
-	"github.com/ipfs/go-cid"
 	"github.com/julienschmidt/httprouter"
-	"github.com/meta-network/go-meta"
-	"github.com/meta-network/go-meta/cwr"
-	"github.com/meta-network/go-meta/eidr"
-	"github.com/meta-network/go-meta/ern"
+	meta "github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/identity"
 	"github.com/meta-network/go-meta/media"
-	"github.com/meta-network/go-meta/musicbrainz"
-	"github.com/meta-network/go-meta/stream"
-	"github.com/meta-network/go-meta/xml"
 )
 
 type Server struct {
 	handler http.Handler
-	store   *meta.Store
 }
 
-func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, error) {
-	srv := &Server{store: store}
+func NewServer(store *meta.Store, identityIndex *identity.Index, mediaIndex *media.Index) (*Server, error) {
+	srv := &Server{}
 
 	router := httprouter.New()
-	router.GET("/object/:cid", srv.HandleGetObject)
-	router.POST("/convert/xml", srv.HandleConvertXML)
 
-	// add the stream API at /stream
-	streamAPI := stream.NewAPI(store)
-	router.Handler("GET", "/stream/*path", http.StripPrefix("/stream", streamAPI))
-	router.Handler("POST", "/stream/*path", http.StripPrefix("/stream", streamAPI))
+	identityAPI, err := identity.NewAPI(identityIndex)
+	if err != nil {
+		return nil, err
+	}
+	router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
+	router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
 
-	mediaResolver := &media.Resolver{
-		Store: store,
-	}
-	if index, ok := indexes["identity"]; ok {
-		api, err := identity.NewAPI(index)
-		if err != nil {
-			return nil, err
-		}
-		mediaResolver.Identity = api.Resolver()
-		router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", api))
-		router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", api))
-	}
-
-	if index, ok := indexes["musicbrainz"]; ok {
-		api, err := musicbrainz.NewAPI(index.DB, store)
-		if err != nil {
-			return nil, err
-		}
-		mediaResolver.MusicBrainz = api.Resolver()
-		router.Handler("GET", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", api))
-		router.Handler("POST", "/musicbrainz/*path", http.StripPrefix("/musicbrainz", api))
-	}
-
-	if index, ok := indexes["cwr"]; ok {
-		api, err := cwr.NewAPI(index.DB, store)
-		if err != nil {
-			return nil, err
-		}
-		mediaResolver.Cwr = api.Resolver()
-		router.Handler("GET", "/cwr/*path", http.StripPrefix("/cwr", api))
-		router.Handler("POST", "/cwr/*path", http.StripPrefix("/cwr", api))
-	}
-
-	if index, ok := indexes["ern"]; ok {
-		api, err := ern.NewAPI(index.DB, store)
-		if err != nil {
-			return nil, err
-		}
-		mediaResolver.Ern = api.Resolver()
-		router.Handler("GET", "/ern/*path", http.StripPrefix("/ern", api))
-		router.Handler("POST", "/ern/*path", http.StripPrefix("/ern", api))
-	}
-	if index, ok := indexes["eidr"]; ok {
-		api, err := eidr.NewAPI(index.DB, store)
-		if err != nil {
-			return nil, err
-		}
-		router.Handler("GET", "/eidr/*path", http.StripPrefix("/eidr", api))
-		router.Handler("POST", "/eidr/*path", http.StripPrefix("/eidr", api))
-	}
-
-	mediaAPI, err := media.NewAPI(mediaResolver)
+	mediaAPI, err := media.NewAPI(mediaIndex, identityIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -128,51 +66,4 @@ func NewServer(store *meta.Store, indexes map[string]*meta.Index) (*Server, erro
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	s.handler.ServeHTTP(w, req)
-}
-
-func (s *Server) HandleConvertXML(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	source := req.URL.Query().Get("source")
-	if source == "" {
-		http.Error(w, "missing source parameter", http.StatusBadRequest)
-		return
-	}
-
-	var context []*cid.Cid
-	if c := req.URL.Query().Get("context"); c != "" {
-		for _, v := range strings.Split(c, ",") {
-			cid, err := cid.Decode(v)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("invalid CID in context value %q: %s", v, err), http.StatusBadRequest)
-				return
-			}
-			context = append(context, cid)
-		}
-	}
-
-	converter := metaxml.NewConverter(s.store)
-	obj, err := converter.ConvertXML(req.Body, context, source)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(obj)
-}
-
-func (s *Server) HandleGetObject(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	cid, err := cid.Decode(p.ByName("cid"))
-	if err != nil {
-		http.Error(w, fmt.Sprintf("invalid CID %q: %s", p.ByName("cid"), err), http.StatusBadRequest)
-		return
-	}
-
-	obj, err := s.store.Get(cid)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(obj)
 }

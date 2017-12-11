@@ -20,11 +20,8 @@
 package identity
 
 import (
-	"database/sql"
-	"errors"
-
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/meta-network/go-meta"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 // GraphQLSchema is the GraphQL schema for the MusicBrainz META index.
@@ -35,29 +32,58 @@ schema {
 }
 
 type Query {
-  identity(id: String,owner: String): [Identity]!
+  identity(filter: IdentityFilter!): [Identity]!
 
-  claim(issuer: String,subject: String,claim:String,signature:String,id:String): [Claim]!
+  claim(filter: ClaimFilter!): [Claim]!
 }
 
 type Mutation {
-	createIdentity(username: String, owner: String,signature:String): Identity
+  createIdentity(input: IdentityInput!): Identity!
 
-  createClaim(issuer: String,subject: String,claim: String,signature: String): Claim
+  createClaim(input: ClaimInput!): Claim!
 }
 
 type Identity {
   id:        String!
+  username:  String!
   owner:     String!
   signature: String!
 }
 
+input IdentityInput {
+  username:  String!
+  owner:     String!
+  signature: String!
+}
+
+input IdentityFilter {
+  id:       String
+  username: String
+  owner:    String
+}
+
 type Claim {
-  issuer:     String!
-  subject:    String!
-  claim:      String!
-  signature : String!
-  id :        String!
+  id:        String!
+  issuer:    String!
+  subject:   String!
+  property:  String!
+  claim:     String!
+  signature: String!
+}
+
+input ClaimInput {
+  issuer:    String!
+  subject:   String!
+  property:  String!
+  claim:     String!
+  signature: String!
+}
+
+input ClaimFilter {
+  issuer:   String
+  subject:  String
+  property: String
+  claim:    String
 }
 `
 
@@ -65,56 +91,31 @@ type Claim {
 // the GraphQLSchema constant, retrieving data from a META SQLite3
 // index.
 type Resolver struct {
-	index   *meta.Index
-	indexer *Indexer
+	index *Index
 }
 
 // NewResolver returns a Resolver which retrieves data from the given META
 // SQLite3 index.
-func NewResolver(index *meta.Index) (*Resolver, error) {
-	indexer, err := NewIndexer(index)
-	if err != nil {
-		return nil, err
-	}
-	return &Resolver{index, indexer}, nil
+func NewResolver(index *Index) *Resolver {
+	return &Resolver{index}
 }
 
 // IdentityArgs are the arguments for a GraphQL identity query.
 type IdentityArgs struct {
-	Owner *string
-	ID    *string
+	Filter IdentityFilter
 }
 
 // Identity is a GraphQL resolver function which retrieves object IDs from the
 // SQLite3 index using either an Identity ID or Owner and loads the
 // associated META objects from the META index.
 func (r *Resolver) Identity(args IdentityArgs) ([]*IdentityResolver, error) {
-	var rows *sql.Rows
-	var err error
-	switch {
-	case args.Owner != nil:
-		rows, err = r.index.Query("SELECT * FROM identity WHERE owner = ?", *args.Owner)
-	case args.ID != nil:
-		rows, err = r.index.Query("SELECT * FROM identity WHERE id = ?", *args.ID)
-	default:
-		return nil, errors.New("missing owner or id argument")
-	}
+	identities, err := r.index.Identities(args.Filter)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var resolvers []*IdentityResolver
-	for rows.Next() {
-
-		var owner, signature, id string
-		if err := rows.Scan(&owner, &signature, &id); err != nil {
-			return nil, err
-		}
-
-		resolvers = append(resolvers, &IdentityResolver{&Identity{Owner: common.HexToAddress(owner), Sig: signature, ID: id}})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	resolvers := make([]*IdentityResolver, len(identities))
+	for i, identity := range identities {
+		resolvers[i] = &IdentityResolver{identity}
 	}
 	return resolvers, nil
 }
@@ -124,64 +125,42 @@ type IdentityResolver struct {
 	identity *Identity
 }
 
+// ID resolver
+func (i *IdentityResolver) ID() string {
+	return i.identity.ID().String()
+}
+
+// Username resolver
+func (i *IdentityResolver) Username() string {
+	return i.identity.Username
+}
+
 // Owner resolver
 func (i *IdentityResolver) Owner() string {
 	return i.identity.Owner.String()
 }
 
-// ID resolver
-func (i *IdentityResolver) ID() string {
-	return i.identity.ID
-}
-
 // Signature resolver
 func (i *IdentityResolver) Signature() string {
-	return i.identity.Sig
+	return hexutil.Encode(i.identity.Signature)
 }
 
 // ClaimArgs are the arguments for a GraphQL claim query.
 type ClaimArgs struct {
-	Issuer    *string
-	Subject   *string
-	Claim     *string
-	Signature *string
-	ID        *string
+	Filter ClaimFilter
 }
 
 // Claim is a GraphQL resolver function which retrieves object Claims from the
 // SQLite3 index using either Claim ID,Issuer,subject,Claim or Signature and loads the
 // associated META objects from the META index.
 func (r *Resolver) Claim(args ClaimArgs) ([]*ClaimResolver, error) {
-	var rows *sql.Rows
-	var err error
-	switch {
-	case args.Issuer != nil:
-		rows, err = r.index.Query("SELECT * FROM claim WHERE issuer = ?", *args.Issuer)
-	case args.Subject != nil:
-		rows, err = r.index.Query("SELECT * FROM claim WHERE subject = ?", *args.Subject)
-	case args.Claim != nil:
-		rows, err = r.index.Query("SELECT * FROM claim WHERE subject = ?", *args.Claim)
-	case args.Signature != nil:
-		rows, err = r.index.Query("SELECT * FROM claim WHERE signature = ?", *args.Signature)
-	case args.ID != nil:
-		rows, err = r.index.Query("SELECT * FROM claim WHERE id = ?", *args.ID)
-	default:
-		return nil, errors.New("missing issuer,subject,claim,signature or id argument")
-	}
+	claims, err := r.index.Claims(args.Filter)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var resolvers []*ClaimResolver
-	for rows.Next() {
-		var claim Claim
-		if err := rows.Scan(&claim.Issuer, &claim.Subject, &claim.Claim, &claim.Signature, &claim.ID); err != nil {
-			return nil, err
-		}
-		resolvers = append(resolvers, &ClaimResolver{&claim})
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
+	resolvers := make([]*ClaimResolver, len(claims))
+	for i, claim := range claims {
+		resolvers[i] = &ClaimResolver{claim}
 	}
 	return resolvers, nil
 }
@@ -191,14 +170,24 @@ type ClaimResolver struct {
 	claim *Claim
 }
 
+// ID resolver
+func (c *ClaimResolver) ID() string {
+	return c.claim.ID().String()
+}
+
 // Issuer resolver
 func (c *ClaimResolver) Issuer() string {
-	return c.claim.Issuer
+	return c.claim.Issuer.String()
 }
 
 // Subject resolver
 func (c *ClaimResolver) Subject() string {
-	return c.claim.Subject
+	return c.claim.Subject.String()
+}
+
+// Property resolver
+func (c *ClaimResolver) Property() string {
+	return c.claim.Property
 }
 
 // Claim resolver
@@ -208,55 +197,54 @@ func (c *ClaimResolver) Claim() string {
 
 // Signature resolver
 func (c *ClaimResolver) Signature() string {
-	return c.claim.Signature
-}
-
-// ID resolver
-func (c *ClaimResolver) ID() string {
-	return c.claim.ID
+	return hexutil.Encode(c.claim.Signature)
 }
 
 // CreateIdentityArgs are the arguments for a GraphQL CreateIdentity mutation.
 type CreateIdentityArgs struct {
-	Username  *string
-	Owner     *string
-	Signature *string
+	Input struct {
+		Username  string
+		Owner     string
+		Signature string
+	}
 }
 
 // CreateIdentity is a GraphQL resolver function which create identity and
 // index it on SQLite3 index.
-func (r *Resolver) CreateIdentity(args *CreateIdentityArgs) (*IdentityResolver, error) {
-	if args.Owner == nil || args.Username == nil || args.Signature == nil {
-		return nil, errors.New("CreateIdentity: one or more argument is nil")
+func (r *Resolver) CreateIdentity(args CreateIdentityArgs) (*IdentityResolver, error) {
+	identity := &Identity{
+		Username:  args.Input.Username,
+		Owner:     common.HexToAddress(args.Input.Owner),
+		Signature: common.FromHex(args.Input.Signature),
 	}
-	metaid, err := NewIdentity(*args.Username, common.HexToAddress(*args.Owner), common.FromHex(*args.Signature))
-	if err != nil {
+	if err := r.index.CreateIdentity(identity); err != nil {
 		return nil, err
 	}
-	if err := r.indexer.IndexIdentity(metaid); err != nil {
-		return nil, err
-	}
-	return &IdentityResolver{identity: metaid}, nil
+	return &IdentityResolver{identity: identity}, nil
 }
 
 // CreateClaimArgs are the arguments for a GraphQL CreateClaim mutation.
 type CreateClaimArgs struct {
-	Issuer    *string
-	Subject   *string
-	Claim     *string
-	Signature *string
+	Input struct {
+		Issuer    string
+		Subject   string
+		Property  string
+		Claim     string
+		Signature string
+	}
 }
 
 // CreateClaim is a GraphQL resolver function which create claim and
 // index it on SQLite3 index.
 func (r *Resolver) CreateClaim(args *CreateClaimArgs) (*ClaimResolver, error) {
-
-	if args.Issuer == nil || args.Subject == nil || args.Claim == nil || args.Signature == nil {
-		return nil, errors.New("CreateClaim: one or more argument is nil")
+	claim := &Claim{
+		Issuer:    HexToID(args.Input.Issuer),
+		Subject:   HexToID(args.Input.Subject),
+		Property:  args.Input.Property,
+		Claim:     args.Input.Claim,
+		Signature: common.FromHex(args.Input.Signature),
 	}
-	claim := NewClaim(*args.Issuer, *args.Subject, *args.Claim, *args.Signature)
-
-	if err := r.indexer.IndexClaim(claim); err != nil {
+	if err := r.index.CreateClaim(claim); err != nil {
 		return nil, err
 	}
 	return &ClaimResolver{claim: claim}, nil

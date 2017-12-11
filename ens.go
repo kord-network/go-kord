@@ -55,11 +55,11 @@ func (l *localENS) Resolve(name string) (common.Hash, error) {
 	} else if err != nil {
 		return common.Hash{}, err
 	}
-	return common.BytesToHash(hash), nil
+	return common.HexToHash(string(hash)), nil
 }
 
 func (l *localENS) SetContentHash(name string, hash common.Hash) error {
-	return ioutil.WriteFile(l.path(name), hash.Bytes(), 0644)
+	return ioutil.WriteFile(l.path(name), []byte(hash.String()), 0644)
 }
 
 func (l *localENS) path(name string) string {

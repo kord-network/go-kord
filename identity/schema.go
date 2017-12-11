@@ -31,26 +31,29 @@ func init() {
 
 	migrations.Add(1, `
 CREATE TABLE identity (
-	owner          text NOT NULL,
-	signature      text NOT NULL,
-	id             text NOT NULL PRIMARY KEY
+	id        text NOT NULL PRIMARY KEY,
+	username  text NOT NULL,
+	owner     text NOT NULL,
+	signature text NOT NULL
 );
 
-CREATE INDEX identity_signature_idx ON identity (signature);
-CREATE INDEX identity_owner_idx     ON identity (owner);
+CREATE INDEX identity_id_idx       ON identity (id);
+CREATE INDEX identity_username_idx ON identity (username);
+CREATE INDEX identity_owner_idx    ON identity (owner);
 
 CREATE TABLE claim (
+	id        text NOT NULL PRIMARY KEY,
 	issuer    text NOT NULL,
 	subject   text NOT NULL,
+	property  text NOT NULL,
 	claim     text NOT NULL,
-	signature text NOT NULL,
-	id        text NOT NULL PRIMARY KEY
+	signature text NOT NULL
 );
 
-CREATE INDEX claim_issuer_idx    ON claim (issuer);
-CREATE INDEX claim_subject_idx   ON claim (subject);
-CREATE INDEX claim_claim_idx     ON claim (claim);
-CREATE INDEX claim_signature_idx ON claim (signature);
+CREATE INDEX claim_issuer_idx   ON claim (issuer);
+CREATE INDEX claim_subject_idx  ON claim (subject);
+CREATE INDEX claim_property_idx ON claim (property);
+CREATE INDEX claim_claim_idx    ON claim (claim);
 `,
 	)
 }

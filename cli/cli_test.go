@@ -21,200 +21,89 @@ package cli
 
 import (
 	"context"
-	"os"
+	"net/http/httptest"
 	"os/exec"
-	"reflect"
-	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/identity"
+	"github.com/meta-network/go-meta/media"
 	"github.com/meta-network/go-meta/testutil"
 )
 
-// TestCWRCommands tests running the 'meta convert cwr' and
-// 'meta index cwr' commands.
-func TestCWRCommands(t *testing.T) {
+// TestMediaImportERN tests running the 'meta media import ern' command
+func TestMediaImportERN(t *testing.T) {
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	c := &testCLI{t, store}
+	srv := newTestServer(t, store)
+	defer srv.Close()
+	c := &testCLI{t}
 
-	// check 'meta convert cwr' adds CIDs to the cwr.meta stream
-	c.run("convert", "cwr",
+	c.run("media", "import",
+		"--url", srv.URL,
 		"--source", "test",
-		"../cwr/testdata/example_double_nwr.cwr",
-		"../cwr/testdata/example_nwr.cwr")
-	ids := c.readStream("cwr.meta", 2)
-	expected := []string{
-		"zdqaWQEia42M6R7Rr6CcxnTk6hUyvipPnhSDFshDdhQPHKech",
-		"zdqaWRJgjMLsscjuo2RQK4cLw2JFG4UhD16fbP62dYdoeX9Sr",
-	}
-	if !reflect.DeepEqual(ids, expected) {
-		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
-	}
-
-	// run 'meta index cwr'
-	indexName := "cwr.test"
-	c.run("index", "cwr", indexName, "--count=2")
+		"ern",
+		"../media/ern/testdata/Profile_AudioAlbumMusicOnly.xml",
+		"../media/ern/testdata/Profile_AudioSingle.xml",
+		"../media/ern/testdata/Profile_AudioSingle_WithCompoundArtistsAndTerritorialOverride.xml",
+	)
 
 	// check the index was populated
-	index, err := store.OpenIndex(indexName)
+	index, err := store.OpenIndex("media.meta")
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("sqlite3", index.Path(), "SELECT cwr_id FROM transmission_header ORDER BY cwr_id")
+	defer index.Close()
+	cmd := exec.Command("sqlite3", index.Path(), "SELECT COUNT(*) FROM release")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("error checking index: %s: %s", err, out)
 	}
-	gotIDs := strings.Split(strings.TrimSpace(string(out)), "\n")
-	sort.Strings(expected)
-	if !reflect.DeepEqual(gotIDs, expected) {
-		t.Fatalf("unexpected index output:\nexpected: %v\ngot:      %q", expected, gotIDs)
+	count := strings.TrimSpace(string(out))
+	if count != "3" {
+		t.Fatalf("expected 3 releases, got %d", count)
 	}
 }
 
-// TestERNCommands tests running the 'meta convert ern' and
-// 'meta index ern' commands.
-func TestERNCommands(t *testing.T) {
-	store, cleanup := testutil.NewTestStore(t)
-	defer cleanup()
-	c := &testCLI{t, store}
-
-	// check 'meta convert ern' adds CIDs to the ern.meta stream
-	c.run("convert", "ern",
-		"--source", "test",
-		"../ern/testdata/Profile_AudioAlbumMusicOnly.xml",
-		"../ern/testdata/Profile_AudioAlbum_WithBooklet.xml",
-		"../ern/testdata/Profile_AudioBook.xml",
-		"../ern/testdata/Profile_AudioSingle.xml",
-		"../ern/testdata/Profile_AudioSingle_WithCompoundArtistsAndTerritorialOverride.xml",
-	)
-	ids := c.readStream("ern.meta", 5)
-	expected := []string{
-		"zdqaWMMSZgBtPNTUJj6s9GxWdaNLiF8oEGLDc2uYqG7T9nmqL",
-		"zdqaWJ4jkU4haHkCfJY8Tz7bNtdi38Kq1bRy4iiU9DUDJqUkB",
-		"zdqaWRL5oXkGnwhf9JWzgMdV7H1YUWp6YociP5aWB9EU6qAJr",
-		"zdqaWQnNQ9oTMxVnDWWKagJWAwcfQQuirAmgYAPc9CPnRsFR9",
-		"zdqaWBoE9GfAc1dsJgW1jqtbHYKHgLcFfw55SKDyxEEGcQWso",
-	}
-	if !reflect.DeepEqual(ids, expected) {
-		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
-	}
-
-	// run 'meta index ern'
-	indexName := "ern.test"
-	c.run("index", "ern", indexName, "--count=5")
-
-	// check the index was populated
-	index, err := store.OpenIndex(indexName)
+func newTestServer(t *testing.T, store *meta.Store) *testServer {
+	identityIndex, err := identity.NewIndex(store)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.Command("sqlite3", index.Path(), "SELECT cid FROM ern ORDER BY cid")
-	out, err := cmd.CombinedOutput()
+	mediaIndex, err := media.NewIndex(store)
 	if err != nil {
-		t.Fatalf("error checking index: %s: %s", err, out)
+		identityIndex.Close()
+		t.Fatal(err)
 	}
-	gotIDs := strings.Split(strings.TrimSpace(string(out)), "\n")
-	sort.Strings(expected)
-	if !reflect.DeepEqual(gotIDs, expected) {
-		t.Fatalf("unexpected index output:\nexpected: %v\ngot:      %q", expected, gotIDs)
+	srv, err := NewServer(store, identityIndex, mediaIndex)
+	if err != nil {
+		identityIndex.Close()
+		mediaIndex.Close()
+		t.Fatal(err)
 	}
+	return &testServer{httptest.NewServer(srv), identityIndex, mediaIndex}
 }
 
-// TestERNCommands tests running the 'meta convert eidr' and
-// 'meta index eidr' commands.
-func TestEIDRCommands(t *testing.T) {
-	store, cleanup := testutil.NewTestStore(t)
-	defer cleanup()
-	c := &testCLI{t, store}
+type testServer struct {
+	*httptest.Server
 
-	// check 'meta convert eidr' adds CIDs to the eidr.meta stream
-	c.run("convert", "eidr",
-		"--source", "test",
-		"../eidr/testdata/dummy_child.xml",
-		"../eidr/testdata/dummy_parent.xml",
-	)
-	ids := c.readStream("eidr.meta", 2)
-	expected := []string{
-		"zdqaWUgTjLPoFrMCmBcbPcJNPuHTvUs5fBn3f4iYsniHACo7q",
-		"zdqaWTaGbQFm2HEYo2iwHsFanffKDYq49XVk5ggEc6dYaBQkv",
-	}
-	if !reflect.DeepEqual(ids, expected) {
-		t.Fatalf("unexpected CIDs:\nexpected: %v\ngot:      %v", expected, ids)
-	}
+	identityIndex *identity.Index
+	mediaIndex    *media.Index
+}
 
-	// run 'meta index eidr'
-	indexName := "eidr.test"
-	c.run("index", "eidr", indexName, "--count=2")
-
-	// check the index was populated
-	index, err := store.OpenIndex(indexName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cmd := exec.Command("sqlite3", index.Path(), "select count(*) from xobject_baseobject_link x inner join baseobject p, xobject_episode e on p.doi_id = x.parent_doi_id where e.id = x.xobject_id")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("error checking index: %s: %s", err, out)
-	}
-	if strings.TrimSpace(string(out)) != "1" {
-		t.Fatalf("baseobject/xobject link count mismatch; expected 1, got %s", out)
-	}
-
-	// check if associatedorgs are inserted and linked
-	cmd = exec.Command("sqlite3", index.Path(), "select count(*) from org o inner join baseobject b on o.base_doi_id = b.doi_id")
-	out, err = cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("error checking index: %s: %s", err, out)
-	}
-	if strings.TrimSpace(string(out)) != "2" {
-		t.Fatalf("associatedorg link count mismatch; expected 2, got %s", out)
-	}
-
-	// check if alternateids are inserted and linked
-	cmd = exec.Command("sqlite3", index.Path(), "select count(*) from alternateid a inner join baseobject b on a.base_doi_id = b.doi_id")
-	out, err = cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("error checking index: %s: %s", err, out)
-	}
-	if strings.TrimSpace(string(out)) != "2" {
-		t.Fatalf("alternateid link count mismatch; expected 2, got %s", out)
-	}
+func (t *testServer) Close() {
+	t.Server.Close()
+	t.identityIndex.Close()
+	t.mediaIndex.Close()
 }
 
 type testCLI struct {
-	t     *testing.T
-	store *meta.Store
+	t *testing.T
 }
 
 func (c *testCLI) run(args ...string) {
-	cli := New(c.store, nil, os.Stdout)
-	if err := cli.Run(context.Background(), args...); err != nil {
+	if err := Run(context.Background(), args...); err != nil {
 		c.t.Fatal(err)
 	}
-}
-
-func (c *testCLI) readStream(name string, count int) []string {
-	reader, err := c.store.StreamReader(name, meta.StreamLimit(count))
-	if err != nil {
-		c.t.Fatal(err)
-	}
-	defer reader.Close()
-	var ids []string
-	timeout := time.After(10 * time.Second)
-	for n := 0; n < count; n++ {
-		select {
-		case id, ok := <-reader.Ch():
-			if !ok {
-				c.t.Fatal(reader.Err())
-			}
-			ids = append(ids, id.String())
-		case <-timeout:
-			c.t.Fatalf("timed out waiting for stream values")
-		}
-	}
-	return ids
 }

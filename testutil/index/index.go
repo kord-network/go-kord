@@ -247,69 +247,46 @@ func GenerateMusicBrainzIndex(t *testing.T, dir string, store *meta.Store) (*met
 	return index, artists, links
 }
 
-func GenerateIdentityIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index, *identity.Identity) {
+const (
+	testIdentityAddr     = "970e8128ab834e8eac17ab8e3812f010678cf791"
+	testIdentityKey      = "289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032"
+	testIdentityUsername = "testid"
+)
 
-	metaid, err := GenerateTestMetaId()
+func GenerateTestIdentity(t *testing.T) *identity.Identity {
+	key, err := crypto.HexToECDSA(testIdentityKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// index the ID
-	index, err := store.OpenIndex("id.index.meta")
+	identity := &identity.Identity{
+		Username: testIdentityUsername,
+		Owner:    common.HexToAddress(testIdentityAddr),
+	}
+	id := identity.ID()
+	signature, err := crypto.Sign(id.Hash[:], key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	indexer, err := identity.NewIndexer(index)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := indexer.IndexIdentity(metaid); err != nil {
-		t.Fatal(err)
-	}
-	return index, metaid
+	identity.Signature = signature
+	return identity
 }
 
-func GenerateClaimIndex(t *testing.T, dir string, store *meta.Store) (*meta.Index, []*identity.Claim) {
-
-	claims := make([]*identity.Claim, 2)
-	metaId, err := GenerateTestMetaId()
+func GenerateTestClaim(t *testing.T, testIdentity *identity.Identity, property, claim string) *identity.Claim {
+	key, err := crypto.HexToECDSA(testIdentityKey)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var i = 0
-	index, err := store.OpenIndex("claim.index.meta")
+	c := &identity.Claim{
+		Issuer:   testIdentity.ID(),
+		Subject:  testIdentity.ID(),
+		Property: property,
+		Claim:    claim,
+	}
+	id := c.ID()
+	signature, err := crypto.Sign(id[:], key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	indexer, err := identity.NewIndexer(index)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for key, value := range map[string]string{
-		"DPID": "DPID_OF_THE_ARTIST_1",
-		"IPI":  "123456789ABCD",
-	} {
-		claims[i] = identity.NewClaim(metaId.ID, metaId.ID, key, value)
-		if err := indexer.IndexClaim(claims[i]); err != nil {
-			t.Fatal(err)
-		}
-		i++
-	}
-	return index, claims
-}
-
-func GenerateTestMetaId() (*identity.Identity, error) {
-
-	var testAddrHex = "970e8128ab834e8eac17ab8e3812f010678cf791"
-	var testPrivHex = "289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032"
-	var username = "testid"
-
-	key, _ := crypto.HexToECDSA(testPrivHex)
-	addr := common.HexToAddress(testAddrHex)
-
-	msg := crypto.Keccak256([]byte(username))
-	sig, err := crypto.Sign(msg, key)
-	if err != nil {
-		return nil, err
-	}
-	return identity.NewIdentity(username, addr, sig)
+	c.Signature = signature
+	return c
 }

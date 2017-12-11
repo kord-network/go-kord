@@ -34,25 +34,17 @@ func TestImport(t *testing.T) {
 	// start Media API
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	index, err := store.OpenIndex("media.meta")
+	mediaIndex, err := media.NewIndex(store)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer index.Close()
-	mediaIndex, err := media.NewIndex(index)
+	defer mediaIndex.Close()
+	identityIndex, err := identity.NewIndex(store)
 	if err != nil {
 		t.Fatal(err)
 	}
-	idIndex, err := store.OpenIndex("id.meta")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer idIndex.Close()
-	idResolver, err := identity.NewResolver(idIndex)
-	if err != nil {
-		t.Fatal(err)
-	}
-	api, err := media.NewAPI(media.NewResolver(mediaIndex, idResolver))
+	defer identityIndex.Close()
+	api, err := media.NewAPI(mediaIndex, identityIndex)
 	if err != nil {
 		t.Fatal(err)
 	}

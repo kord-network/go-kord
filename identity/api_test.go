@@ -21,14 +21,12 @@ package identity_test
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/identity"
 	"github.com/meta-network/go-meta/testutil"
 	"github.com/meta-network/go-meta/testutil/index"
@@ -46,19 +44,22 @@ func TestIdentityAPI(t *testing.T) {
 	// create a test index of identity
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	index, id := testindex.GenerateIdentityIndex(t, ".", store)
+	index, err := identity.NewIndex(store)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer index.Close()
 
 	// start the API server
-	s, err := newTestAPI(index.DB, index)
+	s, err := newTestAPI(index)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Close()
 
 	// define a function to execute and assert an identity GraphQL query
-	assertIdentity := func(id *identity.Identity, query string, args ...interface{}) error {
-		data, _ := json.Marshal(map[string]string{"query": fmt.Sprintf(query, args...)})
+	assertIdentity := func(id *identity.Identity, p params) error {
+		data, _ := json.Marshal(p)
 		req, err := http.NewRequest("POST", s.URL+"/graphql", bytes.NewReader(data))
 		if err != nil {
 			return err
@@ -100,12 +101,30 @@ func TestIdentityAPI(t *testing.T) {
 		return nil
 	}
 
-	if id.Owner.String() != "" {
-		if err := assertIdentity(id,
-			`{ identity (owner:%q) {id owner}}`,
-			id.Owner.String()); err != nil {
-			t.Fatal(err)
-		}
+	query := `
+query GetIdentity($filter: IdentityFilter!) {
+  identity(filter: $filter) {
+    id
+    owner
+  }
+}
+`
+	identity := testindex.GenerateTestIdentity(t)
+	if err := index.CreateIdentity(identity); err != nil {
+		t.Fatal(err)
+	}
+	if err := assertIdentity(
+		identity,
+		params{
+			Query: query,
+			Variables: map[string]interface{}{
+				"filter": map[string]interface{}{
+					"owner": identity.Owner.String(),
+				},
+			},
+		},
+	); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -114,21 +133,20 @@ func TestCreateIdentityAPI(t *testing.T) {
 
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	index, err := store.OpenIndex("id.index.meta")
+	index, err := identity.NewIndex(store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer index.Close()
 
 	// start the API server
-	s, err := newTestAPI(index.DB, index)
+	s, err := newTestAPI(index)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Close()
 	// define a function to execute and assert an identity GraphQL query
 	assertCreateIdentity := func(id *identity.Identity, p params) error {
-
 		data, _ := json.Marshal(p)
 		req, err := http.NewRequest("POST", s.URL+"/graphql", bytes.NewReader(data))
 		if err != nil {
@@ -167,22 +185,25 @@ func TestCreateIdentityAPI(t *testing.T) {
 		}
 		return nil
 	}
-	testMetaId, err := testindex.GenerateTestMetaId()
-	if err != nil {
-		t.Fatal(err)
-	}
+	identity := testindex.GenerateTestIdentity(t)
 
-	if err := assertCreateIdentity(testMetaId,
-		params{Query: `mutation CreateIdentity($username: String, $owner: String,$signature:String) {
-						createIdentity(username: $username, owner: $owner,signature:$signature) {
-							id
-							owner
-						}
-					}`,
+	query := `
+mutation CreateIdentity($input: IdentityInput!) {
+  createIdentity(input: $input) {
+    id
+    owner
+  }
+}
+`
+	if err := assertCreateIdentity(
+		identity,
+		params{
+			Query: query,
 			Variables: map[string]interface{}{
-				"username":  "testid",
-				"owner":     testMetaId.Owner,
-				"signature": testMetaId.Sig}}); err != nil {
+				"input": identity,
+			},
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -192,14 +213,14 @@ func TestCreateClaimAPI(t *testing.T) {
 
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	index, err := store.OpenIndex("claim.index.meta")
+	index, err := identity.NewIndex(store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer index.Close()
 
 	// start the API server
-	s, err := newTestAPI(index.DB, index)
+	s, err := newTestAPI(index)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,35 +267,43 @@ func TestCreateClaimAPI(t *testing.T) {
 		if rw.Claim.Issuer != claim.Issuer {
 			return fmt.Errorf("unexpected claim Issuer: expected %q ", claim.Issuer)
 		}
+		if rw.Claim.Property != claim.Property {
+			return fmt.Errorf("unexpected claim Property: expected %q ", claim.Property)
+		}
 		if rw.Claim.Claim != claim.Claim {
 			return fmt.Errorf("unexpected claim Claim: expected %q ", claim.Claim)
 		}
-		if rw.Claim.Signature != claim.Signature {
+		if !bytes.Equal(rw.Claim.Signature, claim.Signature) {
 			return fmt.Errorf("unexpected claim Signature: expected %q ", claim.Signature)
 		}
 		return nil
 	}
-	testMetaId, err := testindex.GenerateTestMetaId()
-	if err != nil {
+	identity := testindex.GenerateTestIdentity(t)
+	if err := index.CreateIdentity(identity); err != nil {
 		t.Fatal(err)
 	}
-	testClaim := identity.NewClaim(testMetaId.ID, testMetaId.ID, "name", "testname")
+	testClaim := testindex.GenerateTestClaim(t, identity, "name", "testname")
 
-	if err := assertCreateClaim(testClaim,
-		params{Query: `mutation CreateClaim($issuer: String, $subject: String,$claim: String,$signature: String) {
-						createClaim(issuer: $issuer, subject: $subject,claim: $claim,signature: $signature) {
-							id
-							issuer
-							subject
-							claim
-							signature
-						}
-					}`,
+	query := `
+mutation CreateClaim($input: ClaimInput!) {
+  createClaim(input: $input) {
+    id
+    issuer
+    subject
+    property
+    claim
+    signature
+  }
+}`
+	if err := assertCreateClaim(
+		testClaim,
+		params{
+			Query: query,
 			Variables: map[string]interface{}{
-				"issuer":    testClaim.Issuer,
-				"subject":   testClaim.Subject,
-				"claim":     "name",
-				"signature": "testname"}}); err != nil {
+				"input": testClaim,
+			},
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -284,19 +313,37 @@ func TestClaimAPI(t *testing.T) {
 	// create a test index of identity
 	store, cleanup := testutil.NewTestStore(t)
 	defer cleanup()
-	index, claims := testindex.GenerateClaimIndex(t, ".", store)
+	index, err := identity.NewIndex(store)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer index.Close()
+	testIdentity := testindex.GenerateTestIdentity(t)
+	if err := index.CreateIdentity(testIdentity); err != nil {
+		t.Fatal(err)
+	}
+	claims := make([]*identity.Claim, 0, 2)
+	for property, claim := range map[string]string{
+		"dpid": "123",
+		"ipi":  "xyz",
+	} {
+		claim := testindex.GenerateTestClaim(t, testIdentity, property, claim)
+		if err := index.CreateClaim(claim); err != nil {
+			t.Fatal(err)
+		}
+		claims = append(claims, claim)
+	}
 
 	// start the API server
-	s, err := newTestAPI(index.DB, index)
+	s, err := newTestAPI(index)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Close()
 
 	// define a function to execute and assert a claim GraphQL query
-	assertClaim := func(claim *identity.Claim, query string, args ...interface{}) error {
-		data, _ := json.Marshal(map[string]string{"query": fmt.Sprintf(query, args...)})
+	assertClaim := func(claim *identity.Claim, p params) error {
+		data, _ := json.Marshal(p)
 		req, err := http.NewRequest("POST", s.URL+"/graphql", bytes.NewReader(data))
 		if err != nil {
 			return err
@@ -331,24 +378,43 @@ func TestClaimAPI(t *testing.T) {
 		}
 
 		for i, r := range rw.Claims {
-			if r.Signature != claim.Signature && i == len(rw.Claims) {
+			if !bytes.Equal(r.Signature, claim.Signature) && i == len(rw.Claims) {
 				return fmt.Errorf("unexpected claim name: expected %q ", claim.Signature)
 			}
 		}
 		return nil
 	}
 
-	if claims[0].Signature != "" {
-		if err := assertClaim(claims[0],
-			`{ claim (subject:%q) {issuer subject claim signature }}`,
-			claims[0].Subject); err != nil {
+	query := `
+query GetClaim($filter: ClaimFilter!) {
+  claim(filter: $filter) {
+    id
+    issuer
+    subject
+    claim
+    signature
+  }
+}
+`
+	for _, claim := range claims {
+		if err := assertClaim(
+			claim,
+			params{
+				Query: query,
+				Variables: map[string]interface{}{
+					"filter": map[string]interface{}{
+						"subject": claim.Subject,
+					},
+				},
+			},
+		); err != nil {
 			t.Fatal(err)
 		}
 	}
 }
 
-func newTestAPI(db *sql.DB, index *meta.Index) (*httptest.Server, error) {
-	api, err := identity.NewAPI(db, index)
+func newTestAPI(index *identity.Index) (*httptest.Server, error) {
+	api, err := identity.NewAPI(index)
 	if err != nil {
 		return nil, err
 	}

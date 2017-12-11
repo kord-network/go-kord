@@ -23,22 +23,14 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/cli"
 )
 
 func main() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
-
-	store, err := openStore()
-	if err != nil {
-		log.Crit("error opening meta store", "err", err)
-	}
-	defer store.Close()
 
 	// shutdown gracefully on SIGINT or SIGTERM
 	ctx, cancel := context.WithCancel(context.Background())
@@ -50,19 +42,7 @@ func main() {
 		log.Info("received signal, exiting...")
 	}()
 
-	if err := cli.New(store, os.Stdin, os.Stdout).Run(ctx, os.Args[1:]...); err != nil {
+	if err := cli.Run(ctx, os.Args[1:]...); err != nil {
 		log.Crit("error running meta command", "err", err)
 	}
-}
-
-func openStore() (*meta.Store, error) {
-	metaDir := ".meta"
-	if err := os.MkdirAll(metaDir, 0755); err != nil {
-		return nil, err
-	}
-	ensDir := filepath.Join(metaDir, "ens")
-	if err := os.MkdirAll(ensDir, 0755); err != nil {
-		return nil, err
-	}
-	return meta.NewStore(metaDir, meta.LocalENS(ensDir))
 }

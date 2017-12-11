@@ -30,9 +30,14 @@ type Index struct {
 	*meta.Index
 }
 
-func NewIndex(index *meta.Index) (*Index, error) {
+func NewIndex(store *meta.Store) (*Index, error) {
+	index, err := store.OpenIndex("media.meta")
+	if err != nil {
+		return nil, err
+	}
 	// migrate the db to ensure it has an up-to-date schema
 	if err := migrations.Run(index.DB); err != nil {
+		index.Close()
 		return nil, err
 	}
 	return &Index{index}, nil
@@ -297,7 +302,10 @@ func (i *Index) PerformerRecordings(performerIdentifier *IdentifierRecord) ([]*P
 	defer rows.Close()
 	var records []*PerformerRecordingRecord
 	for rows.Next() {
-		var record PerformerRecordingRecord
+		record := PerformerRecordingRecord{
+			Performer: &IdentifierRecord{},
+			Recording: &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Performer.ID,
@@ -330,7 +338,10 @@ func (i *Index) RecordingPerformers(recordingIdentifier *IdentifierRecord) ([]*P
 	defer rows.Close()
 	var records []*PerformerRecordingRecord
 	for rows.Next() {
-		var record PerformerRecordingRecord
+		record := PerformerRecordingRecord{
+			Performer: &IdentifierRecord{},
+			Recording: &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Performer.ID,
@@ -363,7 +374,10 @@ func (i *Index) ComposerWorks(composerIdentifier *IdentifierRecord) ([]*Composer
 	defer rows.Close()
 	var records []*ComposerWorkRecord
 	for rows.Next() {
-		var record ComposerWorkRecord
+		record := ComposerWorkRecord{
+			Composer: &IdentifierRecord{},
+			Work:     &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Composer.ID,
@@ -396,7 +410,10 @@ func (i *Index) WorkComposers(workIdentifier *IdentifierRecord) ([]*ComposerWork
 	defer rows.Close()
 	var records []*ComposerWorkRecord
 	for rows.Next() {
-		var record ComposerWorkRecord
+		record := ComposerWorkRecord{
+			Composer: &IdentifierRecord{},
+			Work:     &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Composer.ID,
@@ -557,7 +574,10 @@ func (i *Index) PublisherWorks(publisherIdentifier *IdentifierRecord) ([]*Publis
 	defer rows.Close()
 	var records []*PublisherWorkRecord
 	for rows.Next() {
-		var record PublisherWorkRecord
+		record := PublisherWorkRecord{
+			Publisher: &IdentifierRecord{},
+			Work:      &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Publisher.ID,
@@ -589,7 +609,10 @@ func (i *Index) WorkPublishers(workIdentifier *IdentifierRecord) ([]*PublisherWo
 	defer rows.Close()
 	var records []*PublisherWorkRecord
 	for rows.Next() {
-		var record PublisherWorkRecord
+		record := PublisherWorkRecord{
+			Publisher: &IdentifierRecord{},
+			Work:      &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Publisher.ID,
@@ -621,7 +644,10 @@ func (i *Index) SongRecordings(songIdentifier *IdentifierRecord) ([]*SongRecordi
 	defer rows.Close()
 	var records []*SongRecordingRecord
 	for rows.Next() {
-		var record SongRecordingRecord
+		record := SongRecordingRecord{
+			Song:      &IdentifierRecord{},
+			Recording: &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Song.ID,
@@ -653,7 +679,10 @@ func (i *Index) RecordingSongs(recordingIdentifier *IdentifierRecord) ([]*SongRe
 	defer rows.Close()
 	var records []*SongRecordingRecord
 	for rows.Next() {
-		var record SongRecordingRecord
+		record := SongRecordingRecord{
+			Song:      &IdentifierRecord{},
+			Recording: &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Song.ID,
@@ -685,7 +714,10 @@ func (i *Index) ReleaseRecordings(releaseIdentifier *IdentifierRecord) ([]*Relea
 	defer rows.Close()
 	var records []*ReleaseRecordingRecord
 	for rows.Next() {
-		var record ReleaseRecordingRecord
+		record := ReleaseRecordingRecord{
+			Release:   &IdentifierRecord{},
+			Recording: &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Release.ID,
@@ -717,7 +749,10 @@ func (i *Index) RecordingReleases(recordingIdentifier *IdentifierRecord) ([]*Rel
 	defer rows.Close()
 	var records []*ReleaseRecordingRecord
 	for rows.Next() {
-		var record ReleaseRecordingRecord
+		record := ReleaseRecordingRecord{
+			Release:   &IdentifierRecord{},
+			Recording: &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Release.ID,
@@ -749,7 +784,10 @@ func (i *Index) RecordingWorks(recordingIdentifier *IdentifierRecord) ([]*Record
 	defer rows.Close()
 	var records []*RecordingWorkRecord
 	for rows.Next() {
-		var record RecordingWorkRecord
+		record := RecordingWorkRecord{
+			Recording: &IdentifierRecord{},
+			Work:      &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Recording.ID,
@@ -781,7 +819,10 @@ func (i *Index) WorkRecordings(workIdentifier *IdentifierRecord) ([]*RecordingWo
 	defer rows.Close()
 	var records []*RecordingWorkRecord
 	for rows.Next() {
-		var record RecordingWorkRecord
+		record := RecordingWorkRecord{
+			Recording: &IdentifierRecord{},
+			Work:      &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Recording.ID,
@@ -813,7 +854,10 @@ func (i *Index) ReleaseSongs(releaseIdentifier *IdentifierRecord) ([]*ReleaseSon
 	defer rows.Close()
 	var records []*ReleaseSongRecord
 	for rows.Next() {
-		var record ReleaseSongRecord
+		record := ReleaseSongRecord{
+			Release: &IdentifierRecord{},
+			Song:    &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Release.ID,
@@ -845,7 +889,10 @@ func (i *Index) SongReleases(songIdentifier *IdentifierRecord) ([]*ReleaseSongRe
 	defer rows.Close()
 	var records []*ReleaseSongRecord
 	for rows.Next() {
-		var record ReleaseSongRecord
+		record := ReleaseSongRecord{
+			Release: &IdentifierRecord{},
+			Song:    &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.Release.ID,
