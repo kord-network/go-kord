@@ -20,11 +20,14 @@
 package ern
 
 import (
+	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/meta-network/go-meta/media"
 )
 
@@ -37,15 +40,15 @@ func NewImporter(client *media.Client) *Importer {
 }
 
 type importContext struct {
-	resourceRefs map[string]*media.Identifier
-	recordLabel  *media.Identifier
-	mainRelease  *media.Identifier
-	songs        []*media.Identifier
+	soundRecordings map[string]*media.Identifier
+	recordLabel     *media.Identifier
+	mainRelease     *media.Identifier
+	songs           []*media.Identifier
 }
 
 func newImportContext() *importContext {
 	return &importContext{
-		resourceRefs: make(map[string]*media.Identifier),
+		soundRecordings: make(map[string]*media.Identifier),
 	}
 }
 
@@ -94,9 +97,32 @@ func (i *Importer) ImportERN(src io.Reader) error {
 		}
 	}
 
-	// TODO: create ReleaseSong links
-	// TODO: create RecordLabelSong links
-	// TODO: create RecordLabelRelease links
+	if ctx.mainRelease != nil {
+		if err := i.client.CreateRecordLabelReleaseLink(&media.RecordLabelReleaseLink{
+			RecordLabel: *recordLabel,
+			Release:     *ctx.mainRelease,
+		}); err != nil {
+			return err
+		}
+		for _, song := range ctx.songs {
+			if err := i.client.CreateReleaseSongLink(&media.ReleaseSongLink{
+				Release: *ctx.mainRelease,
+				Song:    *song,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, song := range ctx.songs {
+		if err := i.client.CreateRecordLabelSongLink(&media.RecordLabelSongLink{
+			RecordLabel: *recordLabel,
+			Song:        *song,
+		}); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -105,19 +131,14 @@ func (i *Importer) importRecordLabel(ctx *importContext, sender *MessagingParty)
 	if v := sender.PartyName; v != nil {
 		recordLabel.Name = v.FullName.Value
 	}
-	var identifier media.Identifier
-	if v := sender.PartyId; v != nil {
-		identifier.Value = i.joinNamespace(v.Namespace, v.Value)
-		if v.IsISNI {
-			identifier.Type = "isni"
-		} else {
-			identifier.Type = "dpid"
-		}
-	}
-	if err := i.client.CreateRecordLabel(&recordLabel, &identifier); err != nil {
+	identifier, err := i.partyIdentifier(sender.PartyId, sender)
+	if err != nil {
 		return nil, err
 	}
-	return &identifier, nil
+	if err := i.client.CreateRecordLabel(&recordLabel, identifier); err != nil {
+		return nil, err
+	}
+	return identifier, nil
 }
 
 func (i *Importer) importMusicalWork(ctx *importContext, musicalWork *MusicalWork) error {
@@ -151,7 +172,7 @@ func (i *Importer) importSoundRecording(ctx *importContext, soundRecording *Soun
 	if err := i.client.CreateRecording(recording, &identifier); err != nil {
 		return err
 	}
-	ctx.resourceRefs[soundRecording.ResourceReference] = &identifier
+	ctx.soundRecordings[soundRecording.ResourceReference] = &identifier
 	for _, details := range soundRecording.SoundRecordingDetailsByTerritory {
 		for _, artist := range details.DisplayArtist {
 			if err := i.importArtist(ctx, artist, &identifier); err != nil {
@@ -173,6 +194,11 @@ func (i *Importer) importSoundRecording(ctx *importContext, soundRecording *Soun
 }
 
 func (i *Importer) importRelease(ctx *importContext, release *Release) error {
+	// only index releases which have sound recordings
+	if len(ctx.soundRecordings) == 0 {
+		return nil
+	}
+
 	var identifier media.Identifier
 	if id := release.ReleaseId; id != nil {
 		switch {
@@ -200,9 +226,7 @@ func (i *Importer) importRelease(ctx *importContext, release *Release) error {
 		releaseType = v.Value
 	}
 
-	switch {
-
-	case release.IsMainRelease && (releaseType == "Single" || releaseType == "Album"):
+	if release.IsMainRelease {
 		mediaRelease := &media.Release{
 			Type:  releaseType,
 			Title: title,
@@ -218,7 +242,7 @@ func (i *Importer) importRelease(ctx *importContext, release *Release) error {
 		ctx.mainRelease = &identifier
 		if list := release.ReleaseResourceReferenceList; list != nil {
 			for _, ref := range list.ReleaseResourceReference {
-				recording, ok := ctx.resourceRefs[ref.Value]
+				recording, ok := ctx.soundRecordings[ref.Value]
 				if !ok {
 					continue
 				}
@@ -231,8 +255,7 @@ func (i *Importer) importRelease(ctx *importContext, release *Release) error {
 				}
 			}
 		}
-
-	case !release.IsMainRelease && releaseType == "TrackRelease":
+	} else if releaseType == "TrackRelease" {
 		song := &media.Song{
 			Title:    title,
 			Duration: release.Duration,
@@ -243,7 +266,7 @@ func (i *Importer) importRelease(ctx *importContext, release *Release) error {
 		ctx.songs = append(ctx.songs, &identifier)
 		if list := release.ReleaseResourceReferenceList; list != nil {
 			for _, ref := range list.ReleaseResourceReference {
-				recording, ok := ctx.resourceRefs[ref.Value]
+				recording, ok := ctx.soundRecordings[ref.Value]
 				if !ok {
 					continue
 				}
@@ -267,22 +290,17 @@ func (i *Importer) importArtist(ctx *importContext, artist *Artist, recording *m
 		performer.Name = v.FullName.Value
 	}
 
-	var identifier media.Identifier
-	if v := artist.PartyId; v != nil {
-		identifier.Value = i.joinNamespace(v.Namespace, v.Value)
-		if v.IsISNI {
-			identifier.Type = "isni"
-		} else {
-			identifier.Type = "dpid"
-		}
+	identifier, err := i.partyIdentifier(artist.PartyId, artist)
+	if err != nil {
+		return err
 	}
 
-	if err := i.client.CreatePerformer(&performer, &identifier); err != nil {
+	if err := i.client.CreatePerformer(&performer, identifier); err != nil {
 		return err
 	}
 
 	link := &media.PerformerRecordingLink{
-		Performer: identifier,
+		Performer: *identifier,
 		Recording: *recording,
 	}
 	if v := artist.ArtistRole; v != nil {
@@ -301,23 +319,18 @@ func (i *Importer) importContributor(ctx *importContext, contributor *DetailedRe
 		performer.Name = v.FullName.Value
 	}
 
-	var identifier media.Identifier
-	if v := contributor.PartyId; v != nil {
-		identifier.Value = i.joinNamespace(v.Namespace, v.Value)
-		if v.IsISNI {
-			identifier.Type = "isni"
-		} else {
-			identifier.Type = "dpid"
-		}
+	identifier, err := i.partyIdentifier(contributor.PartyId, contributor)
+	if err != nil {
+		return err
 	}
 
-	if err := i.client.CreatePerformer(&performer, &identifier); err != nil {
+	if err := i.client.CreatePerformer(&performer, identifier); err != nil {
 		return err
 	}
 
 	for _, v := range contributor.ResourceContributorRole {
 		link := &media.PerformerRecordingLink{
-			Performer: identifier,
+			Performer: *identifier,
 			Recording: *recording,
 		}
 		if v.Value == "UserDefined" {
@@ -338,23 +351,18 @@ func (i *Importer) importIndirectContributor(ctx *importContext, contributor *In
 		performer.Name = v.FullName.Value
 	}
 
-	var identifier media.Identifier
-	if v := contributor.PartyId; v != nil {
-		identifier.Value = i.joinNamespace(v.Namespace, v.Value)
-		if v.IsISNI {
-			identifier.Type = "isni"
-		} else {
-			identifier.Type = "dpid"
-		}
+	identifier, err := i.partyIdentifier(contributor.PartyId, contributor)
+	if err != nil {
+		return err
 	}
 
-	if err := i.client.CreatePerformer(&performer, &identifier); err != nil {
+	if err := i.client.CreatePerformer(&performer, identifier); err != nil {
 		return err
 	}
 
 	for _, v := range contributor.IndirectResourceContributorRole {
 		link := &media.PerformerRecordingLink{
-			Performer: identifier,
+			Performer: *identifier,
 			Recording: *recording,
 		}
 		if v.Value == "UserDefined" {
@@ -374,4 +382,25 @@ func (i *Importer) joinNamespace(namespace, value string) string {
 		return value
 	}
 	return namespace + "|" + value
+}
+
+func (i *Importer) partyIdentifier(partyID *PartyId, v interface{}) (*media.Identifier, error) {
+	if partyID != nil {
+		var identifier media.Identifier
+		if partyID.IsISNI {
+			identifier.Type = "isni"
+		} else {
+			identifier.Type = "dpid"
+		}
+		identifier.Value = i.joinNamespace(partyID.Namespace, partyID.Value)
+		return &identifier, nil
+	}
+	data, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return &media.Identifier{
+		Type:  "sha3",
+		Value: hexutil.Encode(crypto.Keccak256(data)),
+	}, nil
 }

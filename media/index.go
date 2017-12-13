@@ -23,6 +23,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	sqlite3 "github.com/mattn/go-sqlite3"
 	meta "github.com/meta-network/go-meta"
 )
 
@@ -446,7 +447,10 @@ func (i *Index) RecordLabelSongs(recordLabelIdentifier *IdentifierRecord) ([]*Re
 	defer rows.Close()
 	var records []*RecordLabelSongRecord
 	for rows.Next() {
-		var record RecordLabelSongRecord
+		record := RecordLabelSongRecord{
+			RecordLabel: &IdentifierRecord{},
+			Song:        &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.RecordLabel.ID,
@@ -478,7 +482,10 @@ func (i *Index) SongRecordLabels(songIdentifier *IdentifierRecord) ([]*RecordLab
 	defer rows.Close()
 	var records []*RecordLabelSongRecord
 	for rows.Next() {
-		var record RecordLabelSongRecord
+		record := RecordLabelSongRecord{
+			RecordLabel: &IdentifierRecord{},
+			Song:        &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.RecordLabel.ID,
@@ -510,7 +517,10 @@ func (i *Index) RecordLabelReleases(recordLabelIdentifier *IdentifierRecord) ([]
 	defer rows.Close()
 	var records []*RecordLabelReleaseRecord
 	for rows.Next() {
-		var record RecordLabelReleaseRecord
+		record := RecordLabelReleaseRecord{
+			RecordLabel: &IdentifierRecord{},
+			Release:     &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.RecordLabel.ID,
@@ -542,7 +552,10 @@ func (i *Index) ReleaseRecordLabels(releaseIdentifier *IdentifierRecord) ([]*Rec
 	defer rows.Close()
 	var records []*RecordLabelReleaseRecord
 	for rows.Next() {
-		var record RecordLabelReleaseRecord
+		record := RecordLabelReleaseRecord{
+			RecordLabel: &IdentifierRecord{},
+			Release:     &IdentifierRecord{},
+		}
 		if err := rows.Scan(
 			&record.ID,
 			&record.RecordLabel.ID,
@@ -927,63 +940,103 @@ func (i *Index) CreateRecord(record interface{}, identifier *Identifier, source 
 		if err != nil {
 			return err
 		}
-		var res sql.Result
 		var recordType string
+		var insertStmt []interface{}
+		var selectStmt []interface{}
 		switch v := record.(type) {
 		case *Performer:
 			recordType = "performer"
-			res, err = tx.Exec(
+			insertStmt = []interface{}{
 				"INSERT INTO performer (name, source) VALUES ($1, $2)",
 				v.Name, source.ID,
-			)
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM performer WHERE name = $1 AND source = $2",
+				v.Name, source.ID,
+			}
 		case *Composer:
 			recordType = "composer"
-			res, err = tx.Exec(
+			insertStmt = []interface{}{
 				"INSERT INTO composer (first_name, last_name, source) VALUES ($1, $2, $3)",
 				v.FirstName, v.LastName, source.ID,
-			)
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM composer WHERE first_name = $1 AND last_name = $2 AND source = $3",
+				v.FirstName, v.LastName, source.ID,
+			}
 		case *RecordLabel:
 			recordType = "record_label"
-			res, err = tx.Exec(
+			insertStmt = []interface{}{
 				"INSERT INTO record_label (name, source) VALUES ($1, $2)",
 				v.Name, source.ID,
-			)
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM record_label WHERE name = $1 AND source = $2",
+				v.Name, source.ID,
+			}
 		case *Publisher:
 			recordType = "publisher"
-			res, err = tx.Exec(
+			insertStmt = []interface{}{
 				"INSERT INTO publisher (name, source) VALUES ($1, $2)",
 				v.Name, source.ID,
-			)
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM publisher WHERE name = $1 AND source = $2",
+				v.Name, source.ID,
+			}
 		case *Recording:
 			recordType = "recording"
-			res, err = tx.Exec(
+			insertStmt = []interface{}{
 				"INSERT INTO recording (title, duration, source) VALUES ($1, $2, $3)",
 				v.Title, v.Duration, source.ID,
-			)
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM recording WHERE title = $1 AND duration = $2 AND source = $3",
+				v.Title, v.Duration, source.ID,
+			}
 		case *Work:
 			recordType = "work"
-			res, err = tx.Exec(
+			insertStmt = []interface{}{
 				"INSERT INTO work (title, source) VALUES ($1, $2)",
 				v.Title, source.ID,
-			)
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM work WHERE title = $1 AND source = $2",
+				v.Title, source.ID,
+			}
 		case *Song:
 			recordType = "song"
-			res, err = tx.Exec(
+			insertStmt = []interface{}{
 				"INSERT INTO song (title, duration, source) VALUES ($1, $2, $3)",
 				v.Title, v.Duration, source.ID,
-			)
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM song WHERE title = $1 AND duration = $2 AND source = $3",
+				v.Title, v.Duration, source.ID,
+			}
 		case *Release:
 			recordType = "release"
-			res, err = tx.Exec(
+			insertStmt = []interface{}{
 				"INSERT INTO release (type, title, date, source) VALUES ($1, $2, $3, $4)",
 				v.Type, v.Title, v.Date, source.ID,
-			)
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM release WHERE type = $1 AND title = $2 AND date = $3 AND source = $4",
+				v.Type, v.Title, v.Date, source.ID,
+			}
 		}
-		if err != nil {
-			return err
-		}
-		id, err := res.LastInsertId()
-		if err != nil {
+		var id int64
+		res, err := tx.Exec(insertStmt[0].(string), insertStmt[1:]...)
+		if err == nil {
+			id, err = res.LastInsertId()
+			if err != nil {
+				return err
+			}
+		} else if isUniqueErr(err) {
+			if err := tx.QueryRow(selectStmt[0].(string), selectStmt[1:]...).Scan(&id); err != nil {
+				return err
+			}
+		} else {
 			return err
 		}
 		if _, err := tx.Exec(
@@ -993,7 +1046,7 @@ func (i *Index) CreateRecord(record interface{}, identifier *Identifier, source 
 			return err
 		}
 		_, err = tx.Exec(
-			"INSERT INTO identifier_assignment (identifier_id, record_type, record_id, source) VALUES ((SELECT id FROM identifier WHERE type = $1 AND value = $2), $3, $4, $5)",
+			"INSERT OR IGNORE INTO identifier_assignment (identifier_id, record_type, record_id, source) VALUES ((SELECT id FROM identifier WHERE type = $1 AND value = $2), $3, $4, $5)",
 			identifier.Type, identifier.Value, recordType, id, source.ID,
 		)
 		return err
@@ -1028,15 +1081,20 @@ func (i *Index) CreatePerformerRecording(link *PerformerRecordingLink, source *S
 			"INSERT INTO performer_recording (performer_identifier, recording_identifier, role, source) VALUES ($1, $2, $3, $4)",
 			performer.ID, recording.ID, record.Role, record.Source,
 		)
-		if err != nil {
-			return err
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM performer_recording WHERE performer_identifier = $1 AND recording_identifier = $2 AND role = $3 AND source = $4",
+				performer.ID, recording.ID, record.Role, record.Source,
+			).Scan(&record.ID)
 		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		record.ID = id
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -1068,15 +1126,20 @@ func (i *Index) CreateComposerWork(link *ComposerWorkLink, source *Source) (*Com
 			"INSERT INTO composer_work (composer_identifier, work_identifier, role, source) VALUES ($1, $2, $3, $4)",
 			composer.ID, work.ID, record.Role, record.Source,
 		)
-		if err != nil {
-			return err
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM composer_work WHERE composer_identifier = $1 AND work_identifier = $2 AND role = $3 AND source = $4",
+				composer.ID, work.ID, record.Role, record.Source,
+			).Scan(&record.ID)
 		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		record.ID = id
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -1107,15 +1170,20 @@ func (i *Index) CreateRecordLabelSong(link *RecordLabelSongLink, source *Source)
 			"INSERT INTO record_label_song (record_label_identifier, song_identifier, source) VALUES ($1, $2, $3)",
 			recordLabel.ID, song.ID, record.Source,
 		)
-		if err != nil {
-			return err
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM record_label_song WHERE record_label_identifier = $1 AND song_identifier = $2 AND source = $3",
+				recordLabel.ID, song.ID, record.Source,
+			).Scan(&record.ID)
 		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		record.ID = id
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -1146,15 +1214,20 @@ func (i *Index) CreateRecordLabelRelease(link *RecordLabelReleaseLink, source *S
 			"INSERT INTO record_label_release (record_label_identifier, release_identifier, source) VALUES ($1, $2, $3)",
 			recordLabel.ID, release.ID, record.Source,
 		)
-		if err != nil {
-			return err
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM record_label_release WHERE record_label_identifier = $1 AND release_identifier = $2 AND source = $3",
+				recordLabel.ID, release.ID, record.Source,
+			).Scan(&record.ID)
 		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		record.ID = id
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -1185,15 +1258,20 @@ func (i *Index) CreatePublisherWork(link *PublisherWorkLink, source *Source) (*P
 			"INSERT INTO publisher_work (publisher_identifier, work_identifier, source) VALUES ($1, $2, $3)",
 			publisher.ID, work.ID, record.Source,
 		)
-		if err != nil {
-			return err
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM publisher_work WHERE publisher_identifier = $1 AND work_identifier = $2 AND source = $3",
+				publisher.ID, work.ID, record.Source,
+			).Scan(&record.ID)
 		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		record.ID = id
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -1224,15 +1302,20 @@ func (i *Index) CreateSongRecording(link *SongRecordingLink, source *Source) (*S
 			"INSERT INTO song_recording (song_identifier, recording_identifier, source) VALUES ($1, $2, $3)",
 			song.ID, recording.ID, record.Source,
 		)
-		if err != nil {
-			return err
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM song_recording WHERE song_identifier = $1 AND recording_identifier = $2 AND source = $3",
+				song.ID, recording.ID, record.Source,
+			).Scan(&record.ID)
 		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		record.ID = id
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -1263,15 +1346,20 @@ func (i *Index) CreateReleaseRecording(link *ReleaseRecordingLink, source *Sourc
 			"INSERT INTO release_recording (release_identifier, recording_identifier, source) VALUES ($1, $2, $3)",
 			release.ID, recording.ID, record.Source,
 		)
-		if err != nil {
-			return err
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM release_recording WHERE release_identifier = $1 AND recording_identifier = $2 AND source = $3",
+				release.ID, recording.ID, record.Source,
+			).Scan(&record.ID)
 		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		record.ID = id
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -1302,15 +1390,20 @@ func (i *Index) CreateRecordingWork(link *RecordingWorkLink, source *Source) (*R
 			"INSERT INTO recording_work (recording_identifier, work_identifier, source) VALUES ($1, $2, $3)",
 			recording.ID, work.ID, record.Source,
 		)
-		if err != nil {
-			return err
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM recording_work WHERE recording_identifier = $1 AND work_identifier = $2 AND source = $3",
+				recording.ID, work.ID, record.Source,
+			).Scan(&record.ID)
 		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		record.ID = id
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -1341,15 +1434,20 @@ func (i *Index) CreateReleaseSong(link *ReleaseSongLink, source *Source) (*Relea
 			"INSERT INTO release_song (release_identifier, song_identifier, source) VALUES ($1, $2, $3)",
 			release.ID, song.ID, record.Source,
 		)
-		if err != nil {
-			return err
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM release_song WHERE release_identifier = $1 AND song_identifier = $2 AND source = $3",
+				release.ID, song.ID, record.Source,
+			).Scan(&record.ID)
 		}
-		id, err := res.LastInsertId()
-		if err != nil {
-			return err
-		}
-		record.ID = id
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -1366,4 +1464,13 @@ func (i *Index) createSource(tx *sql.Tx, source *Source) (*SourceRecord, error) 
 		return nil, err
 	}
 	return record, nil
+}
+
+// isUniqueErr determines whether an error is a SQLite3 uniqueness error.
+func isUniqueErr(err error) bool {
+	e, ok := err.(sqlite3.Error)
+	if !ok {
+		return false
+	}
+	return e.Code == sqlite3.ErrConstraint && e.ExtendedCode == sqlite3.ErrConstraintUnique
 }

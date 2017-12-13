@@ -38,6 +38,17 @@ func NewClient(url string, source *Source) *Client {
 	return &Client{url, source}
 }
 
+func (c *Client) Query(query string, variables Variables, out interface{}) error {
+	res, err := c.perform(&graphqlQuery{
+		Query:     query,
+		Variables: variables,
+	})
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(res, out)
+}
+
 func (c *Client) Performer(identifier *Identifier) (*Performer, error) {
 	res, err := c.perform(&graphqlQuery{
 		Query:     getPerformerQuery,

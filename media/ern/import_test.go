@@ -72,37 +72,201 @@ func TestImport(t *testing.T) {
 	}
 
 	// check record label
-	recordLabel, err := client.RecordLabel(&media.Identifier{
+	identifier := &media.Identifier{
 		Type:  "dpid",
 		Value: "DPID_OF_THE_SENDER",
-	})
-	if err != nil {
+	}
+	query := `
+query GetRecordLabel($identifier: IdentifierInput!) {
+  record_label(identifier: $identifier) {
+    name {
+      value
+    }
+    songs {
+      song {
+	title {
+	  value
+	}
+      }
+    }
+    releases {
+      release {
+	title {
+	  value
+	}
+      }
+    }
+  }
+}
+`
+	var v struct {
+		RecordLabel struct {
+			Name struct {
+				Value string `json:"value"`
+			} `json:"name"`
+			Songs []struct {
+				Song struct {
+					Title struct {
+						Value string `json:"value"`
+					} `json:"title"`
+				} `json:"song"`
+			} `json:"songs"`
+			Releases []struct {
+				Release struct {
+					Title struct {
+						Value string `json:"value"`
+					} `json:"title"`
+				} `json:"release"`
+			} `json:"releases"`
+		} `json:"record_label"`
+	}
+	if err := client.Query(query, media.Variables{"identifier": identifier}, &v); err != nil {
 		t.Fatal(err)
 	}
-	if recordLabel.Name != "NAME_OF_THE_SENDER" {
-		t.Fatalf("expected record label to have name %q, got %q", "NAME_OF_THE_SENDER", recordLabel.Name)
+	if v.RecordLabel.Name.Value != "NAME_OF_THE_SENDER" {
+		t.Fatalf("expected record label to have name %q, got %q", "NAME_OF_THE_SENDER", v.RecordLabel.Name.Value)
+	}
+	if len(v.RecordLabel.Releases) != 3 {
+		t.Fatalf("expected record label to have 3 releases, got %d", len(v.RecordLabel.Releases))
+	}
+	if len(v.RecordLabel.Songs) != 8 {
+		t.Fatalf("expected record label to have 8 songs, got %d", len(v.RecordLabel.Songs))
 	}
 
 	// check sound recordings
-	for isrc, title := range map[string]string{
-		"CASE01000001": "Can you feel ...the Monkey Claw!",
-		"CASE01000002": "Red top mountain, blown sky high",
-		"CASE01000003": "Seige of Antioch",
-		"CASE01000004": "Warhammer",
-		"CASE01000005": "Iron Horse",
-		"CASE01000006": "Yes... I can feel the Monkey Claw!",
-		"CASE02000001": "Can you feel ...the Monkey Claw!",
-		"CASE03000001": "Can you feel ...the Monkey Claw!",
+	type soundRecording struct {
+		isrc       string
+		title      string
+		performers map[string]string
+	}
+	for _, x := range []soundRecording{
+		{
+			isrc:  "CASE01000001",
+			title: "Can you feel ...the Monkey Claw!",
+			performers: map[string]string{
+				"MainArtist": "Monkey Claw",
+				"Producer":   "Steve Albino",
+				"Composer":   "Bob Black",
+			},
+		},
+		{
+			isrc:  "CASE01000002",
+			title: "Red top mountain, blown sky high",
+			performers: map[string]string{
+				"MainArtist": "Monkey Claw",
+				"Producer":   "Steve Albino",
+				"Composer":   "Bob Black",
+			},
+		},
+		{
+			isrc:  "CASE01000003",
+			title: "Seige of Antioch",
+			performers: map[string]string{
+				"MainArtist": "Monkey Claw",
+				"Producer":   "Steve Albino",
+				"Composer":   "Bob Black",
+			},
+		},
+		{
+			isrc:  "CASE01000004",
+			title: "Warhammer",
+			performers: map[string]string{
+				"MainArtist": "Monkey Claw",
+				"Producer":   "Steve Albino",
+				"Composer":   "Bob Black",
+			},
+		},
+		{
+			isrc:  "CASE01000005",
+			title: "Iron Horse",
+			performers: map[string]string{
+				"MainArtist": "Monkey Claw",
+				"Producer":   "Steve Albino",
+				"Composer":   "Bob Black",
+			},
+		},
+		{
+			isrc:  "CASE01000006",
+			title: "Yes... I can feel the Monkey Claw!",
+			performers: map[string]string{
+				"MainArtist": "Monkey Claw",
+				"Producer":   "Steve Albino",
+				"Composer":   "Bob Black",
+			},
+		},
+		{
+			isrc:  "CASE02000001",
+			title: "Can you feel ...the Monkey Claw!",
+			performers: map[string]string{
+				"MainArtist":     "Monkey Claw",
+				"FeaturedArtist": "Monkey Claw",
+				"Producer":       "Steve Albino",
+				"Composer":       "Bob Black",
+			},
+		},
+		{
+			isrc:  "CASE03000001",
+			title: "Can you feel ...the Monkey Claw!",
+			performers: map[string]string{
+				"MainArtist": "Monkey Claw",
+				"Producer":   "Steve Albino",
+				"Composer":   "Bob Black",
+			},
+		},
 	} {
-		recording, err := client.Recording(&media.Identifier{
+		identifier := &media.Identifier{
 			Type:  "isrc",
-			Value: isrc,
-		})
-		if err != nil {
+			Value: x.isrc,
+		}
+		query = `
+query GetRecording($identifier: IdentifierInput!) {
+  recording(identifier: $identifier) {
+    title {
+      value
+    }
+    performers {
+      performer {
+	name {
+	  value
+	}
+      }
+      role
+    }
+  }
+}
+		`
+		var v struct {
+			Recording struct {
+				Title struct {
+					Value string `json:"value"`
+				} `json:"title"`
+				Performers []struct {
+					Performer struct {
+						Name struct {
+							Value string `json:"value"`
+						} `json:"name"`
+					} `json:"performer"`
+					Role string `json:"role"`
+				} `json:"performers"`
+			} `json:"recording"`
+		}
+		if err := client.Query(query, media.Variables{"identifier": identifier}, &v); err != nil {
 			t.Fatal(err)
 		}
-		if recording.Title != title {
-			t.Fatalf("expected sound recording %s to have title %q, got %q", isrc, title, recording.Title)
+		if v.Recording.Title.Value != x.title {
+			t.Fatalf("expected sound recording %s to have title %q, got %q", x.isrc, x.title, v.Recording.Title.Value)
+		}
+		if len(v.Recording.Performers) != len(x.performers) {
+			t.Fatalf("expected sound recording %s to have %d performers, got %d", x.isrc, len(x.performers), len(v.Recording.Performers))
+		}
+		for _, p := range v.Recording.Performers {
+			name, ok := x.performers[p.Role]
+			if !ok {
+				t.Fatalf("unexpected performer role: %q", p.Role)
+			}
+			if p.Performer.Name.Value != name {
+				t.Fatalf("expected %s performer to have name %q, got %q", p.Role, name, p.Performer.Name.Value)
+			}
 		}
 	}
 

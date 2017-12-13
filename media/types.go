@@ -19,6 +19,8 @@
 
 package media
 
+type Variables map[string]interface{}
+
 type Performer struct {
 	Name string `json:"name"`
 }
