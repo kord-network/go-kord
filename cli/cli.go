@@ -85,7 +85,7 @@ func RunMediaImport(ctx context.Context, args Args) error {
 	}
 
 	client := media.NewClient(
-		args.String("--url")+"/media",
+		args.String("--url")+"/media/graphql",
 		&media.Source{Name: source},
 	)
 

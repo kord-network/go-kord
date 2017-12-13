@@ -131,7 +131,7 @@ func (i *Importer) importRecordLabel(ctx *importContext, sender *MessagingParty)
 	if v := sender.PartyName; v != nil {
 		recordLabel.Name = v.FullName.Value
 	}
-	identifier, err := i.partyIdentifier(sender.PartyId, sender)
+	identifier, err := i.partyIdentifier(sender.PartyId, sender.PartyName)
 	if err != nil {
 		return nil, err
 	}
@@ -290,7 +290,7 @@ func (i *Importer) importArtist(ctx *importContext, artist *Artist, recording *m
 		performer.Name = v.FullName.Value
 	}
 
-	identifier, err := i.partyIdentifier(artist.PartyId, artist)
+	identifier, err := i.partyIdentifier(artist.PartyId, artist.PartyName)
 	if err != nil {
 		return err
 	}
@@ -319,7 +319,7 @@ func (i *Importer) importContributor(ctx *importContext, contributor *DetailedRe
 		performer.Name = v.FullName.Value
 	}
 
-	identifier, err := i.partyIdentifier(contributor.PartyId, contributor)
+	identifier, err := i.partyIdentifier(contributor.PartyId, contributor.PartyName)
 	if err != nil {
 		return err
 	}
@@ -351,7 +351,7 @@ func (i *Importer) importIndirectContributor(ctx *importContext, contributor *In
 		performer.Name = v.FullName.Value
 	}
 
-	identifier, err := i.partyIdentifier(contributor.PartyId, contributor)
+	identifier, err := i.partyIdentifier(contributor.PartyId, contributor.PartyName)
 	if err != nil {
 		return err
 	}
@@ -384,7 +384,7 @@ func (i *Importer) joinNamespace(namespace, value string) string {
 	return namespace + "|" + value
 }
 
-func (i *Importer) partyIdentifier(partyID *PartyId, v interface{}) (*media.Identifier, error) {
+func (i *Importer) partyIdentifier(partyID *PartyId, partyName *PartyName) (*media.Identifier, error) {
 	if partyID != nil {
 		var identifier media.Identifier
 		if partyID.IsISNI {
@@ -395,7 +395,7 @@ func (i *Importer) partyIdentifier(partyID *PartyId, v interface{}) (*media.Iden
 		identifier.Value = i.joinNamespace(partyID.Namespace, partyID.Value)
 		return &identifier, nil
 	}
-	data, err := json.Marshal(v)
+	data, err := json.Marshal(partyName)
 	if err != nil {
 		return nil, err
 	}

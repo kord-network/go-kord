@@ -57,11 +57,11 @@ func isIdentifierNotFound(err error) bool {
 	return ok
 }
 
-func (i *Index) Identifier(identifier *Identifier) (*IdentifierRecord, error) {
+func (i *Index) Identifier(recordType string, identifier *Identifier) (*IdentifierRecord, error) {
 	record := &IdentifierRecord{Identifier: *identifier}
 	err := i.QueryRow(
-		"SELECT id FROM identifier WHERE type = $1 AND value = $2",
-		identifier.Type, identifier.Value,
+		"SELECT identifier.id FROM identifier JOIN identifier_assignment ON identifier_assignment.identifier_id = identifier.id AND identifier_assignment.record_type = $1 WHERE identifier.type = $2 AND identifier.value = $3",
+		recordType, identifier.Type, identifier.Value,
 	).Scan(&record.ID)
 	if err == sql.ErrNoRows {
 		return nil, errIdentifierNotFound{identifier}
@@ -935,12 +935,12 @@ func (i *Index) Source(id int64) (*SourceRecord, error) {
 }
 
 func (i *Index) CreateRecord(record interface{}, identifier *Identifier, source *Source) (*IdentifierRecord, error) {
+	var recordType string
 	err := i.Update(func(tx *sql.Tx) error {
 		source, err := i.createSource(tx, source)
 		if err != nil {
 			return err
 		}
-		var recordType string
 		var insertStmt []interface{}
 		var selectStmt []interface{}
 		switch v := record.(type) {
@@ -1054,15 +1054,15 @@ func (i *Index) CreateRecord(record interface{}, identifier *Identifier, source 
 	if err != nil {
 		return nil, err
 	}
-	return i.Identifier(identifier)
+	return i.Identifier(recordType, identifier)
 }
 
 func (i *Index) CreatePerformerRecording(link *PerformerRecordingLink, source *Source) (*PerformerRecordingRecord, error) {
-	performer, err := i.Identifier(&link.Performer)
+	performer, err := i.Identifier("performer", &link.Performer)
 	if err != nil {
 		return nil, err
 	}
-	recording, err := i.Identifier(&link.Recording)
+	recording, err := i.Identifier("recording", &link.Recording)
 	if err != nil {
 		return nil, err
 	}
@@ -1103,11 +1103,11 @@ func (i *Index) CreatePerformerRecording(link *PerformerRecordingLink, source *S
 }
 
 func (i *Index) CreateComposerWork(link *ComposerWorkLink, source *Source) (*ComposerWorkRecord, error) {
-	composer, err := i.Identifier(&link.Composer)
+	composer, err := i.Identifier("composer", &link.Composer)
 	if err != nil {
 		return nil, err
 	}
-	work, err := i.Identifier(&link.Work)
+	work, err := i.Identifier("work", &link.Work)
 	if err != nil {
 		return nil, err
 	}
@@ -1148,11 +1148,11 @@ func (i *Index) CreateComposerWork(link *ComposerWorkLink, source *Source) (*Com
 }
 
 func (i *Index) CreateRecordLabelSong(link *RecordLabelSongLink, source *Source) (*RecordLabelSongRecord, error) {
-	recordLabel, err := i.Identifier(&link.RecordLabel)
+	recordLabel, err := i.Identifier("record_label", &link.RecordLabel)
 	if err != nil {
 		return nil, err
 	}
-	song, err := i.Identifier(&link.Song)
+	song, err := i.Identifier("song", &link.Song)
 	if err != nil {
 		return nil, err
 	}
@@ -1192,11 +1192,11 @@ func (i *Index) CreateRecordLabelSong(link *RecordLabelSongLink, source *Source)
 }
 
 func (i *Index) CreateRecordLabelRelease(link *RecordLabelReleaseLink, source *Source) (*RecordLabelReleaseRecord, error) {
-	recordLabel, err := i.Identifier(&link.RecordLabel)
+	recordLabel, err := i.Identifier("record_label", &link.RecordLabel)
 	if err != nil {
 		return nil, err
 	}
-	release, err := i.Identifier(&link.Release)
+	release, err := i.Identifier("release", &link.Release)
 	if err != nil {
 		return nil, err
 	}
@@ -1236,11 +1236,11 @@ func (i *Index) CreateRecordLabelRelease(link *RecordLabelReleaseLink, source *S
 }
 
 func (i *Index) CreatePublisherWork(link *PublisherWorkLink, source *Source) (*PublisherWorkRecord, error) {
-	publisher, err := i.Identifier(&link.Publisher)
+	publisher, err := i.Identifier("publisher", &link.Publisher)
 	if err != nil {
 		return nil, err
 	}
-	work, err := i.Identifier(&link.Work)
+	work, err := i.Identifier("work", &link.Work)
 	if err != nil {
 		return nil, err
 	}
@@ -1280,11 +1280,11 @@ func (i *Index) CreatePublisherWork(link *PublisherWorkLink, source *Source) (*P
 }
 
 func (i *Index) CreateSongRecording(link *SongRecordingLink, source *Source) (*SongRecordingRecord, error) {
-	song, err := i.Identifier(&link.Song)
+	song, err := i.Identifier("song", &link.Song)
 	if err != nil {
 		return nil, err
 	}
-	recording, err := i.Identifier(&link.Recording)
+	recording, err := i.Identifier("recording", &link.Recording)
 	if err != nil {
 		return nil, err
 	}
@@ -1324,11 +1324,11 @@ func (i *Index) CreateSongRecording(link *SongRecordingLink, source *Source) (*S
 }
 
 func (i *Index) CreateReleaseRecording(link *ReleaseRecordingLink, source *Source) (*ReleaseRecordingRecord, error) {
-	release, err := i.Identifier(&link.Release)
+	release, err := i.Identifier("release", &link.Release)
 	if err != nil {
 		return nil, err
 	}
-	recording, err := i.Identifier(&link.Recording)
+	recording, err := i.Identifier("recording", &link.Recording)
 	if err != nil {
 		return nil, err
 	}
@@ -1368,11 +1368,11 @@ func (i *Index) CreateReleaseRecording(link *ReleaseRecordingLink, source *Sourc
 }
 
 func (i *Index) CreateRecordingWork(link *RecordingWorkLink, source *Source) (*RecordingWorkRecord, error) {
-	recording, err := i.Identifier(&link.Recording)
+	recording, err := i.Identifier("recording", &link.Recording)
 	if err != nil {
 		return nil, err
 	}
-	work, err := i.Identifier(&link.Work)
+	work, err := i.Identifier("work", &link.Work)
 	if err != nil {
 		return nil, err
 	}
@@ -1412,11 +1412,11 @@ func (i *Index) CreateRecordingWork(link *RecordingWorkLink, source *Source) (*R
 }
 
 func (i *Index) CreateReleaseSong(link *ReleaseSongLink, source *Source) (*ReleaseSongRecord, error) {
-	release, err := i.Identifier(&link.Release)
+	release, err := i.Identifier("release", &link.Release)
 	if err != nil {
 		return nil, err
 	}
-	song, err := i.Identifier(&link.Song)
+	song, err := i.Identifier("song", &link.Song)
 	if err != nil {
 		return nil, err
 	}

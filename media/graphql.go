@@ -448,7 +448,7 @@ func (a *AccountResolver) Performers() ([]*PerformerResolver, error) {
 	}
 	resolvers := make([]*PerformerResolver, 0, len(identifiers))
 	for _, id := range identifiers {
-		identifier, err := a.resolver.mediaIndex.Identifier(id)
+		identifier, err := a.resolver.mediaIndex.Identifier("performer", id)
 		if err == nil {
 			resolvers = append(resolvers, &PerformerResolver{a.resolver, identifier})
 		} else if !isIdentifierNotFound(err) {
@@ -465,7 +465,7 @@ func (a *AccountResolver) RecordLabels() ([]*RecordLabelResolver, error) {
 	}
 	resolvers := make([]*RecordLabelResolver, 0, len(identifiers))
 	for _, id := range identifiers {
-		identifier, err := a.resolver.mediaIndex.Identifier(id)
+		identifier, err := a.resolver.mediaIndex.Identifier("record_label", id)
 		if err == nil {
 			resolvers = append(resolvers, &RecordLabelResolver{a.resolver, identifier})
 		} else if !isIdentifierNotFound(err) {
@@ -482,7 +482,7 @@ func (a *AccountResolver) Composers() ([]*ComposerResolver, error) {
 	}
 	resolvers := make([]*ComposerResolver, 0, len(identifiers))
 	for _, id := range identifiers {
-		identifier, err := a.resolver.mediaIndex.Identifier(id)
+		identifier, err := a.resolver.mediaIndex.Identifier("composer", id)
 		if err == nil {
 			resolvers = append(resolvers, &ComposerResolver{a.resolver, identifier})
 		} else if !isIdentifierNotFound(err) {
@@ -538,7 +538,7 @@ func (r *Resolver) CreatePerformer(args createPerformerArgs) (*PerformerResolver
 }
 
 func (r *Resolver) Performer(args IdentifierArgs) (*PerformerResolver, error) {
-	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	identifier, err := r.mediaIndex.Identifier("performer", &args.Identifier)
 	if err != nil {
 		return nil, err
 	}
@@ -608,7 +608,7 @@ func (r *Resolver) CreateComposer(args createComposerArgs) (*ComposerResolver, e
 }
 
 func (r *Resolver) Composer(args IdentifierArgs) (*ComposerResolver, error) {
-	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	identifier, err := r.mediaIndex.Identifier("composer", &args.Identifier)
 	if err != nil {
 		return nil, err
 	}
@@ -695,7 +695,7 @@ func (r *Resolver) CreateRecordLabel(args createRecordLabelArgs) (*RecordLabelRe
 }
 
 func (r *Resolver) RecordLabel(args IdentifierArgs) (*RecordLabelResolver, error) {
-	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	identifier, err := r.mediaIndex.Identifier("record_label", &args.Identifier)
 	if err != nil {
 		return nil, err
 	}
@@ -780,7 +780,7 @@ func (r *Resolver) CreatePublisher(args createPublisherArgs) (*PublisherResolver
 }
 
 func (r *Resolver) Publisher(args IdentifierArgs) (*PublisherResolver, error) {
-	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	identifier, err := r.mediaIndex.Identifier("publisher", &args.Identifier)
 	if err != nil {
 		return nil, err
 	}
@@ -850,7 +850,7 @@ func (r *Resolver) CreateRecording(args createRecordingArgs) (*RecordingResolver
 }
 
 func (r *Resolver) Recording(args IdentifierArgs) (*RecordingResolver, error) {
-	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	identifier, err := r.mediaIndex.Identifier("recording", &args.Identifier)
 	if err != nil {
 		return nil, err
 	}
@@ -982,7 +982,7 @@ func (r *Resolver) CreateWork(args createWorkArgs) (*WorkResolver, error) {
 }
 
 func (r *Resolver) Work(args IdentifierArgs) (*WorkResolver, error) {
-	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	identifier, err := r.mediaIndex.Identifier("work", &args.Identifier)
 	if err != nil {
 		return nil, err
 	}
@@ -1082,7 +1082,7 @@ func (r *Resolver) CreateSong(args createSongArgs) (*SongResolver, error) {
 }
 
 func (r *Resolver) Song(args IdentifierArgs) (*SongResolver, error) {
-	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	identifier, err := r.mediaIndex.Identifier("song", &args.Identifier)
 	if err != nil {
 		return nil, err
 	}
@@ -1199,7 +1199,7 @@ func (r *Resolver) CreateRelease(args createReleaseArgs) (*ReleaseResolver, erro
 }
 
 func (r *Resolver) Release(args IdentifierArgs) (*ReleaseResolver, error) {
-	identifier, err := r.mediaIndex.Identifier(&args.Identifier)
+	identifier, err := r.mediaIndex.Identifier("release", &args.Identifier)
 	if err != nil {
 		return nil, err
 	}
