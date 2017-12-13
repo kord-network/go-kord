@@ -20,43 +20,24 @@
 package media
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"net/http"
-
-	graphql "github.com/neelance/graphql-go"
+	"github.com/meta-network/go-meta/graphql"
 )
 
 type Client struct {
-	url    string
+	*graphql.Client
+
 	source *Source
 }
 
 func NewClient(url string, source *Source) *Client {
-	return &Client{url, source}
+	return &Client{graphql.NewClient(url), source}
 }
 
-func (c *Client) Query(query string, variables Variables, out interface{}) error {
-	res, err := c.perform(&graphqlQuery{
-		Query:     query,
-		Variables: variables,
-	})
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(res, out)
+func (c *Client) Query(query string, variables graphql.Variables, out interface{}) error {
+	return c.Do(query, variables, out)
 }
 
 func (c *Client) Performer(identifier *Identifier) (*Performer, error) {
-	res, err := c.perform(&graphqlQuery{
-		Query:     getPerformerQuery,
-		Variables: map[string]interface{}{"identifier": identifier},
-	})
-	if err != nil {
-		return nil, err
-	}
 	var v struct {
 		Performer struct {
 			Name struct {
@@ -64,20 +45,17 @@ func (c *Client) Performer(identifier *Identifier) (*Performer, error) {
 			} `json:"name"`
 		} `json:"performer"`
 	}
-	if err := json.Unmarshal(res, &v); err != nil {
+	if err := c.Query(
+		getPerformerQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
 		return nil, err
 	}
 	return &Performer{Name: v.Performer.Name.Value}, nil
 }
 
 func (c *Client) Composer(identifier *Identifier) (*Composer, error) {
-	res, err := c.perform(&graphqlQuery{
-		Query:     getComposerQuery,
-		Variables: map[string]interface{}{"identifier": identifier},
-	})
-	if err != nil {
-		return nil, err
-	}
 	var v struct {
 		Composer struct {
 			FirstName struct {
@@ -88,7 +66,11 @@ func (c *Client) Composer(identifier *Identifier) (*Composer, error) {
 			} `json:"last_name"`
 		} `json:"composer"`
 	}
-	if err := json.Unmarshal(res, &v); err != nil {
+	if err := c.Query(
+		getComposerQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
 		return nil, err
 	}
 	return &Composer{
@@ -98,13 +80,6 @@ func (c *Client) Composer(identifier *Identifier) (*Composer, error) {
 }
 
 func (c *Client) RecordLabel(identifier *Identifier) (*RecordLabel, error) {
-	res, err := c.perform(&graphqlQuery{
-		Query:     getRecordLabelQuery,
-		Variables: map[string]interface{}{"identifier": identifier},
-	})
-	if err != nil {
-		return nil, err
-	}
 	var v struct {
 		RecordLabel struct {
 			Name struct {
@@ -112,20 +87,17 @@ func (c *Client) RecordLabel(identifier *Identifier) (*RecordLabel, error) {
 			} `json:"name"`
 		} `json:"record_label"`
 	}
-	if err := json.Unmarshal(res, &v); err != nil {
+	if err := c.Query(
+		getRecordLabelQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
 		return nil, err
 	}
 	return &RecordLabel{Name: v.RecordLabel.Name.Value}, nil
 }
 
 func (c *Client) Publisher(identifier *Identifier) (*Publisher, error) {
-	res, err := c.perform(&graphqlQuery{
-		Query:     getPublisherQuery,
-		Variables: map[string]interface{}{"identifier": identifier},
-	})
-	if err != nil {
-		return nil, err
-	}
 	var v struct {
 		Publisher struct {
 			Name struct {
@@ -133,20 +105,17 @@ func (c *Client) Publisher(identifier *Identifier) (*Publisher, error) {
 			} `json:"name"`
 		} `json:"publisher"`
 	}
-	if err := json.Unmarshal(res, &v); err != nil {
+	if err := c.Query(
+		getPublisherQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
 		return nil, err
 	}
 	return &Publisher{Name: v.Publisher.Name.Value}, nil
 }
 
 func (c *Client) Recording(identifier *Identifier) (*Recording, error) {
-	res, err := c.perform(&graphqlQuery{
-		Query:     getRecordingQuery,
-		Variables: map[string]interface{}{"identifier": identifier},
-	})
-	if err != nil {
-		return nil, err
-	}
 	var v struct {
 		Recording struct {
 			Title struct {
@@ -157,7 +126,11 @@ func (c *Client) Recording(identifier *Identifier) (*Recording, error) {
 			} `json:"duration"`
 		} `json:"recording"`
 	}
-	if err := json.Unmarshal(res, &v); err != nil {
+	if err := c.Query(
+		getRecordingQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
 		return nil, err
 	}
 	return &Recording{
@@ -167,13 +140,6 @@ func (c *Client) Recording(identifier *Identifier) (*Recording, error) {
 }
 
 func (c *Client) Work(identifier *Identifier) (*Work, error) {
-	res, err := c.perform(&graphqlQuery{
-		Query:     getWorkQuery,
-		Variables: map[string]interface{}{"identifier": identifier},
-	})
-	if err != nil {
-		return nil, err
-	}
 	var v struct {
 		Work struct {
 			Title struct {
@@ -181,20 +147,17 @@ func (c *Client) Work(identifier *Identifier) (*Work, error) {
 			} `json:"title"`
 		} `json:"work"`
 	}
-	if err := json.Unmarshal(res, &v); err != nil {
+	if err := c.Query(
+		getWorkQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
 		return nil, err
 	}
 	return &Work{Title: v.Work.Title.Value}, nil
 }
 
 func (c *Client) Song(identifier *Identifier) (*Song, error) {
-	res, err := c.perform(&graphqlQuery{
-		Query:     getSongQuery,
-		Variables: map[string]interface{}{"identifier": identifier},
-	})
-	if err != nil {
-		return nil, err
-	}
 	var v struct {
 		Song struct {
 			Title struct {
@@ -205,7 +168,11 @@ func (c *Client) Song(identifier *Identifier) (*Song, error) {
 			} `json:"duration"`
 		} `json:"song"`
 	}
-	if err := json.Unmarshal(res, &v); err != nil {
+	if err := c.Query(
+		getSongQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
 		return nil, err
 	}
 	return &Song{
@@ -215,13 +182,6 @@ func (c *Client) Song(identifier *Identifier) (*Song, error) {
 }
 
 func (c *Client) Release(identifier *Identifier) (*Release, error) {
-	res, err := c.perform(&graphqlQuery{
-		Query:     getReleaseQuery,
-		Variables: map[string]interface{}{"identifier": identifier},
-	})
-	if err != nil {
-		return nil, err
-	}
 	var v struct {
 		Recording struct {
 			Type struct {
@@ -235,7 +195,11 @@ func (c *Client) Release(identifier *Identifier) (*Release, error) {
 			} `json:"date"`
 		} `json:"release"`
 	}
-	if err := json.Unmarshal(res, &v); err != nil {
+	if err := c.Query(
+		getReleaseQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
 		return nil, err
 	}
 	return &Release{
@@ -249,7 +213,7 @@ func (c *Client) CreatePerformer(performer *Performer, identifier *Identifier) e
 	return c.createResource(
 		"performer",
 		createPerformerQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"identifier": identifier,
 			"name":       performer.Name,
 			"source":     c.source,
@@ -261,7 +225,7 @@ func (c *Client) CreateComposer(composer *Composer, identifier *Identifier) erro
 	return c.createResource(
 		"composer",
 		createComposerQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"identifier": identifier,
 			"firstName":  composer.FirstName,
 			"lastName":   composer.LastName,
@@ -274,7 +238,7 @@ func (c *Client) CreateRecordLabel(recordLabel *RecordLabel, identifier *Identif
 	return c.createResource(
 		"record_label",
 		createRecordLabelQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"identifier": identifier,
 			"name":       recordLabel.Name,
 			"source":     c.source,
@@ -286,7 +250,7 @@ func (c *Client) CreatePublisher(publisher *Publisher, identifier *Identifier) e
 	return c.createResource(
 		"publisher",
 		createPublisherQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"identifier": identifier,
 			"name":       publisher.Name,
 			"source":     c.source,
@@ -298,7 +262,7 @@ func (c *Client) CreateRecording(recording *Recording, identifier *Identifier) e
 	return c.createResource(
 		"recording",
 		createRecordingQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"identifier": identifier,
 			"title":      recording.Title,
 			"duration":   recording.Duration,
@@ -311,7 +275,7 @@ func (c *Client) CreateWork(work *Work, identifier *Identifier) error {
 	return c.createResource(
 		"work",
 		createWorkQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"identifier": identifier,
 			"title":      work.Title,
 			"source":     c.source,
@@ -323,7 +287,7 @@ func (c *Client) CreateSong(song *Song, identifier *Identifier) error {
 	return c.createResource(
 		"song",
 		createSongQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"identifier": identifier,
 			"title":      song.Title,
 			"duration":   song.Duration,
@@ -336,7 +300,7 @@ func (c *Client) CreateRelease(release *Release, identifier *Identifier) error {
 	return c.createResource(
 		"release",
 		createReleaseQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"identifier": identifier,
 			"type":       release.Type,
 			"title":      release.Title,
@@ -350,7 +314,7 @@ func (c *Client) CreatePerformerRecordingLink(link *PerformerRecordingLink) erro
 	return c.createResource(
 		"link",
 		createPerformerRecordingLinkQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"performer_id": link.Performer,
 			"recording_id": link.Recording,
 			"role":         link.Role,
@@ -363,7 +327,7 @@ func (c *Client) CreateComposerWorkLink(link *ComposerWorkLink) error {
 	return c.createResource(
 		"link",
 		createComposerWorkLinkQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"composer_id": link.Composer,
 			"work_id":     link.Work,
 			"role":        link.Role,
@@ -376,7 +340,7 @@ func (c *Client) CreateRecordLabelSongLink(link *RecordLabelSongLink) error {
 	return c.createResource(
 		"link",
 		createRecordLabelSongLinkQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"record_label_id": link.RecordLabel,
 			"song_id":         link.Song,
 			"source":          c.source,
@@ -388,7 +352,7 @@ func (c *Client) CreateRecordLabelReleaseLink(link *RecordLabelReleaseLink) erro
 	return c.createResource(
 		"link",
 		createRecordLabelReleaseLinkQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"record_label_id": link.RecordLabel,
 			"release_id":      link.Release,
 			"source":          c.source,
@@ -400,7 +364,7 @@ func (c *Client) CreatePublisherWorkLink(link *PublisherWorkLink) error {
 	return c.createResource(
 		"link",
 		createPublisherWorkLinkQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"publisher_id": link.Publisher,
 			"work_id":      link.Work,
 			"source":       c.source,
@@ -412,7 +376,7 @@ func (c *Client) CreateSongRecordingLink(link *SongRecordingLink) error {
 	return c.createResource(
 		"link",
 		createSongRecordingLinkQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"song_id":      link.Song,
 			"recording_id": link.Recording,
 			"source":       c.source,
@@ -424,7 +388,7 @@ func (c *Client) CreateReleaseRecordingLink(link *ReleaseRecordingLink) error {
 	return c.createResource(
 		"link",
 		createReleaseRecordingLinkQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"release_id":   link.Release,
 			"recording_id": link.Recording,
 			"source":       c.source,
@@ -436,7 +400,7 @@ func (c *Client) CreateRecordingWorkLink(link *RecordingWorkLink) error {
 	return c.createResource(
 		"link",
 		createRecordingWorkLinkQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"recording_id": link.Recording,
 			"work_id":      link.Work,
 			"source":       c.source,
@@ -448,7 +412,7 @@ func (c *Client) CreateReleaseSongLink(link *ReleaseSongLink) error {
 	return c.createResource(
 		"link",
 		createReleaseSongLinkQuery,
-		map[string]interface{}{
+		graphql.Variables{
 			"release_id": link.Release,
 			"song_id":    link.Song,
 			"source":     c.source,
@@ -456,41 +420,6 @@ func (c *Client) CreateReleaseSongLink(link *ReleaseSongLink) error {
 	)
 }
 
-func (c *Client) createResource(name, query string, vars map[string]interface{}) error {
-	_, err := c.perform(&graphqlQuery{
-		Query:     query,
-		Variables: map[string]interface{}{name: vars},
-	})
-	return err
-}
-
-type graphqlQuery struct {
-	Query     string                 `json:"query"`
-	Variables map[string]interface{} `json:"variables"`
-}
-
-func (c *Client) perform(query *graphqlQuery) (json.RawMessage, error) {
-	data, _ := json.Marshal(query)
-	req, err := http.NewRequest("POST", c.url+"/graphql", bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		body, _ := ioutil.ReadAll(res.Body)
-		return nil, fmt.Errorf("unexpected HTTP response: %s: %s", res.Status, body)
-	}
-	var r graphql.Response
-	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
-		return nil, fmt.Errorf("error decoding GraphQL response: %s", err)
-	}
-	if len(r.Errors) > 0 {
-		return nil, fmt.Errorf("unexpected errors in GraphQL response: %v", r.Errors)
-	}
-	return r.Data, nil
+func (c *Client) createResource(name, query string, variables graphql.Variables) error {
+	return c.Do(query, graphql.Variables{name: variables}, nil)
 }

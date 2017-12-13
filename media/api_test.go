@@ -53,7 +53,7 @@ func TestResolver(t *testing.T) {
 	}
 	srv := httptest.NewServer(api)
 	defer srv.Close()
-	client := media.NewClient(srv.URL, &media.Source{Name: "test"})
+	client := media.NewClient(srv.URL+"/graphql", &media.Source{Name: "test"})
 	importer := ern.NewImporter(client)
 	erns := []string{
 		"Profile_AudioAlbumMusicOnly.xml",

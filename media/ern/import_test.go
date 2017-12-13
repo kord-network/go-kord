@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/meta-network/go-meta/graphql"
 	"github.com/meta-network/go-meta/identity"
 	"github.com/meta-network/go-meta/media"
 	"github.com/meta-network/go-meta/testutil"
@@ -53,7 +54,7 @@ func TestImport(t *testing.T) {
 
 	// import ERNs
 	source := &media.Source{Name: "test"}
-	client := media.NewClient(srv.URL, source)
+	client := media.NewClient(srv.URL+"/graphql", source)
 	importer := NewImporter(client)
 	erns := []string{
 		"Profile_AudioAlbumMusicOnly.xml",
@@ -120,7 +121,7 @@ query GetRecordLabel($identifier: IdentifierInput!) {
 			} `json:"releases"`
 		} `json:"record_label"`
 	}
-	if err := client.Query(query, media.Variables{"identifier": identifier}, &v); err != nil {
+	if err := client.Query(query, graphql.Variables{"identifier": identifier}, &v); err != nil {
 		t.Fatal(err)
 	}
 	if v.RecordLabel.Name.Value != "NAME_OF_THE_SENDER" {
@@ -250,7 +251,7 @@ query GetRecording($identifier: IdentifierInput!) {
 				} `json:"performers"`
 			} `json:"recording"`
 		}
-		if err := client.Query(query, media.Variables{"identifier": identifier}, &v); err != nil {
+		if err := client.Query(query, graphql.Variables{"identifier": identifier}, &v); err != nil {
 			t.Fatal(err)
 		}
 		if v.Recording.Title.Value != x.title {

@@ -164,6 +164,7 @@ type Recording {
   duration: StringValue
 
   performers: [PerformerRecordingLink]!
+  songs:      [SongRecordingLink]!
   releases:   [ReleaseRecordingLink]!
   works:      [RecordingWorkLink]!
 }
@@ -914,6 +915,21 @@ func (r *RecordingResolver) Performers() ([]*performerRecordingLinkResolver, err
 	return resolvers, nil
 }
 
+func (r *RecordingResolver) Songs() ([]*songRecordingLinkResolver, error) {
+	records, err := r.resolver.mediaIndex.RecordingSongs(r.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*songRecordingLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &songRecordingLinkResolver{
+			resolver: r.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
 func (r *RecordingResolver) Releases() ([]*releaseRecordingLinkResolver, error) {
 	records, err := r.resolver.mediaIndex.RecordingReleases(r.identifier)
 	if err != nil {
@@ -1117,7 +1133,7 @@ func (s *SongResolver) Duration() (*stringValueResolver, error) {
 }
 
 func (s *SongResolver) Recordings() ([]*songRecordingLinkResolver, error) {
-	records, err := s.resolver.mediaIndex.RecordingSongs(s.identifier)
+	records, err := s.resolver.mediaIndex.SongRecordings(s.identifier)
 	if err != nil {
 		return nil, err
 	}
