@@ -98,6 +98,33 @@ func (i *Index) Performers(identifier *IdentifierRecord) ([]*PerformerRecord, er
 	return performers, nil
 }
 
+func (i *Index) Contributors(identifier *IdentifierRecord) ([]*ContributorRecord, error) {
+	rows, err := i.Query(
+		"SELECT id, name, source FROM contributor WHERE id IN (SELECT record_id FROM identifier_assignment WHERE record_type = 'contributor' AND identifier_id = $1)",
+		identifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var contributors []*ContributorRecord
+	for rows.Next() {
+		var contributor ContributorRecord
+		if err := rows.Scan(
+			&contributor.ID,
+			&contributor.Name,
+			&contributor.Source,
+		); err != nil {
+			return nil, err
+		}
+		contributors = append(contributors, &contributor)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return contributors, nil
+}
+
 func (i *Index) Composers(identifier *IdentifierRecord) ([]*ComposerRecord, error) {
 	rows, err := i.Query(
 		"SELECT id, first_name, last_name, source FROM composer WHERE id IN (SELECT record_id FROM identifier_assignment WHERE record_type = 'composer' AND identifier_id = $1)",
@@ -364,6 +391,222 @@ func (i *Index) RecordingPerformers(recordingIdentifier *IdentifierRecord) ([]*P
 	return records, nil
 }
 
+func (i *Index) PerformerSongs(performerIdentifier *IdentifierRecord) ([]*PerformerSongRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM performer_song AS a JOIN identifier AS b ON b.id = a.performer_identifier JOIN identifier AS c ON c.id = a.song_identifier WHERE a.performer_identifier = $1",
+		performerIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*PerformerSongRecord
+	for rows.Next() {
+		record := PerformerSongRecord{
+			Performer: &IdentifierRecord{},
+			Song:      &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Performer.ID,
+			&record.Performer.Type,
+			&record.Performer.Value,
+			&record.Song.ID,
+			&record.Song.Type,
+			&record.Song.Value,
+			&record.Role,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SongPerformers(songIdentifier *IdentifierRecord) ([]*PerformerSongRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM performer_song AS a JOIN identifier AS b ON b.id = a.performer_identifier JOIN identifier AS c ON c.id = a.song_identifier WHERE a.song_identifier = $1",
+		songIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*PerformerSongRecord
+	for rows.Next() {
+		record := PerformerSongRecord{
+			Performer: &IdentifierRecord{},
+			Song:      &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Performer.ID,
+			&record.Performer.Type,
+			&record.Performer.Value,
+			&record.Song.ID,
+			&record.Song.Type,
+			&record.Song.Value,
+			&record.Role,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) PerformerReleases(performerIdentifier *IdentifierRecord) ([]*PerformerReleaseRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM performer_release AS a JOIN identifier AS b ON b.id = a.performer_identifier JOIN identifier AS c ON c.id = a.release_identifier WHERE a.performer_identifier = $1",
+		performerIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*PerformerReleaseRecord
+	for rows.Next() {
+		record := PerformerReleaseRecord{
+			Performer: &IdentifierRecord{},
+			Release:   &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Performer.ID,
+			&record.Performer.Type,
+			&record.Performer.Value,
+			&record.Release.ID,
+			&record.Release.Type,
+			&record.Release.Value,
+			&record.Role,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) ReleasePerformers(releaseIdentifier *IdentifierRecord) ([]*PerformerReleaseRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM performer_release AS a JOIN identifier AS b ON b.id = a.performer_identifier JOIN identifier AS c ON c.id = a.release_identifier WHERE a.release_identifier = $1",
+		releaseIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*PerformerReleaseRecord
+	for rows.Next() {
+		record := PerformerReleaseRecord{
+			Performer: &IdentifierRecord{},
+			Release:   &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Performer.ID,
+			&record.Performer.Type,
+			&record.Performer.Value,
+			&record.Release.ID,
+			&record.Release.Type,
+			&record.Release.Value,
+			&record.Role,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) ContributorRecordings(contributorIdentifier *IdentifierRecord) ([]*ContributorRecordingRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM contributor_recording AS a JOIN identifier AS b ON b.id = a.contributor_identifier JOIN identifier AS c ON c.id = a.recording_identifier WHERE a.contributor_identifier = $1",
+		contributorIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*ContributorRecordingRecord
+	for rows.Next() {
+		record := ContributorRecordingRecord{
+			Contributor: &IdentifierRecord{},
+			Recording:   &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Contributor.ID,
+			&record.Contributor.Type,
+			&record.Contributor.Value,
+			&record.Recording.ID,
+			&record.Recording.Type,
+			&record.Recording.Value,
+			&record.Role,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) RecordingContributors(recordingIdentifier *IdentifierRecord) ([]*ContributorRecordingRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM contributor_recording AS a JOIN identifier AS b ON b.id = a.contributor_identifier JOIN identifier AS c ON c.id = a.recording_identifier WHERE a.recording_identifier = $1",
+		recordingIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*ContributorRecordingRecord
+	for rows.Next() {
+		record := ContributorRecordingRecord{
+			Contributor: &IdentifierRecord{},
+			Recording:   &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Contributor.ID,
+			&record.Contributor.Type,
+			&record.Contributor.Value,
+			&record.Recording.ID,
+			&record.Recording.Type,
+			&record.Recording.Value,
+			&record.Role,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
 func (i *Index) ComposerWorks(composerIdentifier *IdentifierRecord) ([]*ComposerWorkRecord, error) {
 	rows, err := i.Query(
 		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM composer_work AS a JOIN identifier AS b ON b.id = a.composer_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.composer_identifier = $1",
@@ -424,6 +667,76 @@ func (i *Index) WorkComposers(workIdentifier *IdentifierRecord) ([]*ComposerWork
 			&record.Work.Type,
 			&record.Work.Value,
 			&record.Role,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) RecordLabelRecordings(recordLabelIdentifier *IdentifierRecord) ([]*RecordLabelRecordingRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM record_label_recording AS a JOIN identifier AS b ON b.id = a.record_label_identifier JOIN identifier AS c ON c.id = a.recording_identifier WHERE a.record_label_identifier = $1",
+		recordLabelIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*RecordLabelRecordingRecord
+	for rows.Next() {
+		record := RecordLabelRecordingRecord{
+			RecordLabel: &IdentifierRecord{},
+			Recording:   &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.RecordLabel.ID,
+			&record.RecordLabel.Type,
+			&record.RecordLabel.Value,
+			&record.Recording.ID,
+			&record.Recording.Type,
+			&record.Recording.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) RecordingRecordLabels(recordingIdentifier *IdentifierRecord) ([]*RecordLabelRecordingRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM record_label_recording AS a JOIN identifier AS b ON b.id = a.record_label_identifier JOIN identifier AS c ON c.id = a.recording_identifier WHERE a.recording_identifier = $1",
+		recordingIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*RecordLabelRecordingRecord
+	for rows.Next() {
+		record := RecordLabelRecordingRecord{
+			RecordLabel: &IdentifierRecord{},
+			Recording:   &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.RecordLabel.ID,
+			&record.RecordLabel.Type,
+			&record.RecordLabel.Value,
+			&record.Recording.ID,
+			&record.Recording.Type,
+			&record.Recording.Value,
 			&record.Source,
 		); err != nil {
 			return nil, err
@@ -954,6 +1267,16 @@ func (i *Index) CreateRecord(record interface{}, identifier *Identifier, source 
 				"SELECT id FROM performer WHERE name = $1 AND source = $2",
 				v.Name, source.ID,
 			}
+		case *Contributor:
+			recordType = "contributor"
+			insertStmt = []interface{}{
+				"INSERT INTO contributor (name, source) VALUES ($1, $2)",
+				v.Name, source.ID,
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM contributor WHERE name = $1 AND source = $2",
+				v.Name, source.ID,
+			}
 		case *Composer:
 			recordType = "composer"
 			insertStmt = []interface{}{
@@ -1102,6 +1425,141 @@ func (i *Index) CreatePerformerRecording(link *PerformerRecordingLink, source *S
 	return record, nil
 }
 
+func (i *Index) CreatePerformerSong(link *PerformerSongLink, source *Source) (*PerformerSongRecord, error) {
+	performer, err := i.Identifier("performer", &link.Performer)
+	if err != nil {
+		return nil, err
+	}
+	song, err := i.Identifier("song", &link.Song)
+	if err != nil {
+		return nil, err
+	}
+	record := &PerformerSongRecord{
+		Performer: performer,
+		Song:      song,
+		Role:      link.Role,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO performer_song (performer_identifier, song_identifier, role, source) VALUES ($1, $2, $3, $4)",
+			performer.ID, song.ID, record.Role, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM performer_song WHERE performer_identifier = $1 AND song_identifier = $2 AND role = $3 AND source = $4",
+				performer.ID, song.ID, record.Role, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreatePerformerRelease(link *PerformerReleaseLink, source *Source) (*PerformerReleaseRecord, error) {
+	performer, err := i.Identifier("performer", &link.Performer)
+	if err != nil {
+		return nil, err
+	}
+	release, err := i.Identifier("release", &link.Release)
+	if err != nil {
+		return nil, err
+	}
+	record := &PerformerReleaseRecord{
+		Performer: performer,
+		Release:   release,
+		Role:      link.Role,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO performer_release (performer_identifier, release_identifier, role, source) VALUES ($1, $2, $3, $4)",
+			performer.ID, release.ID, record.Role, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM performer_release WHERE performer_identifier = $1 AND release_identifier = $2 AND role = $3 AND source = $4",
+				performer.ID, release.ID, record.Role, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateContributorRecording(link *ContributorRecordingLink, source *Source) (*ContributorRecordingRecord, error) {
+	contributor, err := i.Identifier("contributor", &link.Contributor)
+	if err != nil {
+		return nil, err
+	}
+	recording, err := i.Identifier("recording", &link.Recording)
+	if err != nil {
+		return nil, err
+	}
+	record := &ContributorRecordingRecord{
+		Contributor: contributor,
+		Recording:   recording,
+		Role:        link.Role,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO contributor_recording (contributor_identifier, recording_identifier, role, source) VALUES ($1, $2, $3, $4)",
+			contributor.ID, recording.ID, record.Role, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM contributor_recording WHERE contributor_identifier = $1 AND recording_identifier = $2 AND role = $3 AND source = $4",
+				contributor.ID, recording.ID, record.Role, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
 func (i *Index) CreateComposerWork(link *ComposerWorkLink, source *Source) (*ComposerWorkRecord, error) {
 	composer, err := i.Identifier("composer", &link.Composer)
 	if err != nil {
@@ -1137,6 +1595,50 @@ func (i *Index) CreateComposerWork(link *ComposerWorkLink, source *Source) (*Com
 			return tx.QueryRow(
 				"SELECT id FROM composer_work WHERE composer_identifier = $1 AND work_identifier = $2 AND role = $3 AND source = $4",
 				composer.ID, work.ID, record.Role, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateRecordLabelRecording(link *RecordLabelRecordingLink, source *Source) (*RecordLabelRecordingRecord, error) {
+	recordLabel, err := i.Identifier("record_label", &link.RecordLabel)
+	if err != nil {
+		return nil, err
+	}
+	recording, err := i.Identifier("recording", &link.Recording)
+	if err != nil {
+		return nil, err
+	}
+	record := &RecordLabelRecordingRecord{
+		RecordLabel: recordLabel,
+		Recording:   recording,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO record_label_recording (record_label_identifier, recording_identifier, source) VALUES ($1, $2, $3)",
+			recordLabel.ID, recording.ID, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM record_label_recording WHERE record_label_identifier = $1 AND recording_identifier = $2 AND source = $3",
+				recordLabel.ID, recording.ID, record.Source,
 			).Scan(&record.ID)
 		}
 		return err

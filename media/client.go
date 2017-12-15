@@ -221,6 +221,18 @@ func (c *Client) CreatePerformer(performer *Performer, identifier *Identifier) e
 	)
 }
 
+func (c *Client) CreateContributor(contributor *Contributor, identifier *Identifier) error {
+	return c.createResource(
+		"contributor",
+		createContributorQuery,
+		graphql.Variables{
+			"identifier": identifier,
+			"name":       contributor.Name,
+			"source":     c.source,
+		},
+	)
+}
+
 func (c *Client) CreateComposer(composer *Composer, identifier *Identifier) error {
 	return c.createResource(
 		"composer",
@@ -323,6 +335,45 @@ func (c *Client) CreatePerformerRecordingLink(link *PerformerRecordingLink) erro
 	)
 }
 
+func (c *Client) CreatePerformerSongLink(link *PerformerSongLink) error {
+	return c.createResource(
+		"link",
+		createPerformerSongLinkQuery,
+		graphql.Variables{
+			"performer_id": link.Performer,
+			"song_id":      link.Song,
+			"role":         link.Role,
+			"source":       c.source,
+		},
+	)
+}
+
+func (c *Client) CreatePerformerReleaseLink(link *PerformerReleaseLink) error {
+	return c.createResource(
+		"link",
+		createPerformerReleaseLinkQuery,
+		graphql.Variables{
+			"performer_id": link.Performer,
+			"release_id":   link.Release,
+			"role":         link.Role,
+			"source":       c.source,
+		},
+	)
+}
+
+func (c *Client) CreateContributorRecordingLink(link *ContributorRecordingLink) error {
+	return c.createResource(
+		"link",
+		createContributorRecordingLinkQuery,
+		graphql.Variables{
+			"contributor_id": link.Contributor,
+			"recording_id":   link.Recording,
+			"role":           link.Role,
+			"source":         c.source,
+		},
+	)
+}
+
 func (c *Client) CreateComposerWorkLink(link *ComposerWorkLink) error {
 	return c.createResource(
 		"link",
@@ -332,6 +383,18 @@ func (c *Client) CreateComposerWorkLink(link *ComposerWorkLink) error {
 			"work_id":     link.Work,
 			"role":        link.Role,
 			"source":      c.source,
+		},
+	)
+}
+
+func (c *Client) CreateRecordLabelRecordingLink(link *RecordLabelRecordingLink) error {
+	return c.createResource(
+		"link",
+		createRecordLabelRecordingLinkQuery,
+		graphql.Variables{
+			"record_label_id": link.RecordLabel,
+			"recording_id":    link.Recording,
+			"source":          c.source,
 		},
 	)
 }

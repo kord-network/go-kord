@@ -83,7 +83,14 @@ func (i *Importer) ImportERN(src io.Reader) error {
 
 	if msg.ResourceList != nil {
 		for _, soundRecording := range msg.ResourceList.SoundRecording {
-			if err := i.importSoundRecording(ctx, soundRecording); err != nil {
+			recording, err := i.importSoundRecording(ctx, soundRecording)
+			if err != nil {
+				return err
+			}
+			if err := i.client.CreateRecordLabelRecordingLink(&media.RecordLabelRecordingLink{
+				RecordLabel: *recordLabel,
+				Recording:   *recording,
+			}); err != nil {
 				return err
 			}
 		}
@@ -157,7 +164,7 @@ func (i *Importer) importMusicalWork(ctx *importContext, musicalWork *MusicalWor
 	return nil
 }
 
-func (i *Importer) importSoundRecording(ctx *importContext, soundRecording *SoundRecording) error {
+func (i *Importer) importSoundRecording(ctx *importContext, soundRecording *SoundRecording) (*media.Identifier, error) {
 	recording := &media.Recording{
 		Duration: soundRecording.Duration,
 	}
@@ -170,27 +177,27 @@ func (i *Importer) importSoundRecording(ctx *importContext, soundRecording *Soun
 		identifier.Value = id.ISRC
 	}
 	if err := i.client.CreateRecording(recording, &identifier); err != nil {
-		return err
+		return nil, err
 	}
 	ctx.soundRecordings[soundRecording.ResourceReference] = &identifier
 	for _, details := range soundRecording.SoundRecordingDetailsByTerritory {
 		for _, artist := range details.DisplayArtist {
 			if err := i.importArtist(ctx, artist, &identifier); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		for _, contributor := range details.ResourceContributor {
 			if err := i.importContributor(ctx, contributor, &identifier); err != nil {
-				return err
+				return nil, err
 			}
 		}
 		for _, contributor := range details.IndirectResourceContributor {
 			if err := i.importIndirectContributor(ctx, contributor, &identifier); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return nil
+	return &identifier, nil
 }
 
 func (i *Importer) importRelease(ctx *importContext, release *Release) error {
@@ -313,64 +320,64 @@ func (i *Importer) importArtist(ctx *importContext, artist *Artist, recording *m
 	return i.client.CreatePerformerRecordingLink(link)
 }
 
-func (i *Importer) importContributor(ctx *importContext, contributor *DetailedResourceContributor, recording *media.Identifier) error {
-	var performer media.Performer
-	if v := contributor.PartyName; v != nil {
-		performer.Name = v.FullName.Value
+func (i *Importer) importContributor(ctx *importContext, resourceContributor *DetailedResourceContributor, recording *media.Identifier) error {
+	var contributor media.Contributor
+	if v := resourceContributor.PartyName; v != nil {
+		contributor.Name = v.FullName.Value
 	}
 
-	identifier, err := i.partyIdentifier(contributor.PartyId, contributor.PartyName)
+	identifier, err := i.partyIdentifier(resourceContributor.PartyId, resourceContributor.PartyName)
 	if err != nil {
 		return err
 	}
 
-	if err := i.client.CreatePerformer(&performer, identifier); err != nil {
+	if err := i.client.CreateContributor(&contributor, identifier); err != nil {
 		return err
 	}
 
-	for _, v := range contributor.ResourceContributorRole {
-		link := &media.PerformerRecordingLink{
-			Performer: *identifier,
-			Recording: *recording,
+	for _, v := range resourceContributor.ResourceContributorRole {
+		link := &media.ContributorRecordingLink{
+			Contributor: *identifier,
+			Recording:   *recording,
 		}
 		if v.Value == "UserDefined" {
 			link.Role = i.joinNamespace(v.Namespace, v.UserDefinedValue)
 		} else {
 			link.Role = i.joinNamespace(v.Namespace, v.Value)
 		}
-		if err := i.client.CreatePerformerRecordingLink(link); err != nil {
+		if err := i.client.CreateContributorRecordingLink(link); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (i *Importer) importIndirectContributor(ctx *importContext, contributor *IndirectResourceContributor, recording *media.Identifier) error {
-	var performer media.Performer
-	if v := contributor.PartyName; v != nil {
-		performer.Name = v.FullName.Value
+func (i *Importer) importIndirectContributor(ctx *importContext, resourceContributor *IndirectResourceContributor, recording *media.Identifier) error {
+	var contributor media.Contributor
+	if v := resourceContributor.PartyName; v != nil {
+		contributor.Name = v.FullName.Value
 	}
 
-	identifier, err := i.partyIdentifier(contributor.PartyId, contributor.PartyName)
+	identifier, err := i.partyIdentifier(resourceContributor.PartyId, resourceContributor.PartyName)
 	if err != nil {
 		return err
 	}
 
-	if err := i.client.CreatePerformer(&performer, identifier); err != nil {
+	if err := i.client.CreateContributor(&contributor, identifier); err != nil {
 		return err
 	}
 
-	for _, v := range contributor.IndirectResourceContributorRole {
-		link := &media.PerformerRecordingLink{
-			Performer: *identifier,
-			Recording: *recording,
+	for _, v := range resourceContributor.IndirectResourceContributorRole {
+		link := &media.ContributorRecordingLink{
+			Contributor: *identifier,
+			Recording:   *recording,
 		}
 		if v.Value == "UserDefined" {
 			link.Role = i.joinNamespace(v.Namespace, v.UserDefinedValue)
 		} else {
 			link.Role = i.joinNamespace(v.Namespace, v.Value)
 		}
-		if err := i.client.CreatePerformerRecordingLink(link); err != nil {
+		if err := i.client.CreateContributorRecordingLink(link); err != nil {
 			return err
 		}
 	}

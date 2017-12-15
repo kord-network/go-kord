@@ -25,6 +25,10 @@ type Performer struct {
 	Name string `json:"name"`
 }
 
+type Contributor struct {
+	Name string `json:"name"`
+}
+
 type Composer struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
@@ -59,6 +63,12 @@ type Release struct {
 }
 
 type PerformerRecord struct {
+	ID     int64
+	Name   string
+	Source int64
+}
+
+type ContributorRecord struct {
 	ID     int64
 	Name   string
 	Source int64
@@ -128,10 +138,33 @@ type PerformerRecordingLink struct {
 	Role      string     `json:"role"`
 }
 
+type PerformerSongLink struct {
+	Performer Identifier `json:"performer"`
+	Song      Identifier `json:"song"`
+	Role      string     `json:"role"`
+}
+
+type PerformerReleaseLink struct {
+	Performer Identifier `json:"performer"`
+	Release   Identifier `json:"release"`
+	Role      string     `json:"role"`
+}
+
+type ContributorRecordingLink struct {
+	Contributor Identifier `json:"contributor"`
+	Recording   Identifier `json:"recording"`
+	Role        string     `json:"role"`
+}
+
 type ComposerWorkLink struct {
 	Composer Identifier `json:"composer"`
 	Work     Identifier `json:"work"`
 	Role     string     `json:"role"`
+}
+
+type RecordLabelRecordingLink struct {
+	RecordLabel Identifier `json:"record_label"`
+	Recording   Identifier `json:"recording"`
 }
 
 type RecordLabelSongLink struct {
@@ -177,12 +210,43 @@ type PerformerRecordingRecord struct {
 	Source    int64
 }
 
+type PerformerSongRecord struct {
+	ID        int64
+	Performer *IdentifierRecord
+	Song      *IdentifierRecord
+	Role      string
+	Source    int64
+}
+
+type PerformerReleaseRecord struct {
+	ID        int64
+	Performer *IdentifierRecord
+	Release   *IdentifierRecord
+	Role      string
+	Source    int64
+}
+
+type ContributorRecordingRecord struct {
+	ID          int64
+	Contributor *IdentifierRecord
+	Recording   *IdentifierRecord
+	Role        string
+	Source      int64
+}
+
 type ComposerWorkRecord struct {
 	ID       int64
 	Composer *IdentifierRecord
 	Work     *IdentifierRecord
 	Role     string
 	Source   int64
+}
+
+type RecordLabelRecordingRecord struct {
+	ID          int64
+	RecordLabel *IdentifierRecord
+	Recording   *IdentifierRecord
+	Source      int64
 }
 
 type RecordLabelSongRecord struct {

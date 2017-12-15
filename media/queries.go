@@ -37,6 +37,24 @@ query GetPerformer($identifier: IdentifierInput!) {
 }
 `
 
+const createContributorQuery = `
+mutation CreateContributor($contributor: ContributorInput!) {
+  createContributor(contributor: $contributor) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
+const getContributorQuery = `
+query GetContributor($identifier: IdentifierInput!) {
+  contributor(identifier: $identifier) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
 const createComposerQuery = `
 mutation CreateComposer($composer: ComposerInput!) {
   createComposer(composer: $composer) {
@@ -174,9 +192,33 @@ mutation CreatePerformerRecordingLink($link: PerformerRecordingLinkInput!) {
 }
 `
 
+const createPerformerSongLinkQuery = `
+mutation CreatePerformerSongLink($link: PerformerSongLinkInput!) {
+  createPerformerSongLink(link: $link) { source { name } }
+}
+`
+
+const createPerformerReleaseLinkQuery = `
+mutation CreatePerformerReleaseLink($link: PerformerReleaseLinkInput!) {
+  createPerformerReleaseLink(link: $link) { source { name } }
+}
+`
+
+const createContributorRecordingLinkQuery = `
+mutation CreateContributorRecordingLink($link: ContributorRecordingLinkInput!) {
+  createContributorRecordingLink(link: $link) { source { name } }
+}
+`
+
 const createComposerWorkLinkQuery = `
 mutation CreateComposerWorkLink($link: ComposerWorkLinkInput!) {
   createComposerWorkLink(link: $link) { source { name } }
+}
+`
+
+const createRecordLabelRecordingLinkQuery = `
+mutation CreateRecordLabelRecordingLink($link: RecordLabelRecordingLinkInput!) {
+  createRecordLabelRecordingLink(link: $link) { source { name } }
 }
 `
 

@@ -44,6 +44,14 @@ CREATE TABLE performer (
 
 CREATE UNIQUE INDEX performer_unique_idx ON performer (name, source);
 
+CREATE TABLE contributor (
+  id     INTEGER PRIMARY KEY,
+  name   TEXT NOT NULL,
+  source INTEGER NOT NULL REFERENCES source (id)
+);
+
+CREATE UNIQUE INDEX contributor_unique_idx ON contributor (name, source);
+
 CREATE TABLE composer (
   id         INTEGER PRIMARY KEY,
   first_name TEXT NOT NULL,
@@ -137,6 +145,42 @@ CREATE INDEX performer_recording_performer_idx ON performer_recording (performer
 CREATE INDEX performer_recording_recording_idx ON performer_recording (recording_identifier);
 CREATE UNIQUE INDEX performer_recording_unique_idx ON performer_recording (performer_identifier, recording_identifier, role, source);
 
+CREATE TABLE performer_song (
+  id                   INTEGER PRIMARY KEY,
+  performer_identifier INTEGER REFERENCES identifier (id),
+  song_identifier      INTEGER REFERENCES identifier (id),
+  role                 TEXT,
+  source               INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX performer_song_performer_idx ON performer_song (performer_identifier);
+CREATE INDEX performer_song_song_idx      ON performer_song (song_identifier);
+CREATE UNIQUE INDEX performer_song_unique_idx ON performer_song (performer_identifier, song_identifier, role, source);
+
+CREATE TABLE performer_release (
+  id                   INTEGER PRIMARY KEY,
+  performer_identifier INTEGER REFERENCES identifier (id),
+  release_identifier   INTEGER REFERENCES identifier (id),
+  role                 TEXT,
+  source               INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX performer_release_performer_idx ON performer_release (performer_identifier);
+CREATE INDEX performer_release_release_idx   ON performer_release (release_identifier);
+CREATE UNIQUE INDEX performer_release_unique_idx ON performer_release (performer_identifier, release_identifier, role, source);
+
+CREATE TABLE contributor_recording (
+  id                     INTEGER PRIMARY KEY,
+  contributor_identifier INTEGER REFERENCES identifier (id),
+  recording_identifier   INTEGER REFERENCES identifier (id),
+  role                   TEXT,
+  source                 INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX contributor_recording_contributor_idx ON contributor_recording (contributor_identifier);
+CREATE INDEX contributor_recording_recording_idx   ON contributor_recording (recording_identifier);
+CREATE UNIQUE INDEX contributor_recording_unique_idx ON contributor_recording (contributor_identifier, recording_identifier, role, source);
+
 CREATE TABLE composer_work (
   id                  INTEGER PRIMARY KEY,
   composer_identifier INTEGER REFERENCES identifier (id),
@@ -148,6 +192,17 @@ CREATE TABLE composer_work (
 CREATE INDEX composer_work_composer_idx ON composer_work (composer_identifier);
 CREATE INDEX composer_work_work_idx     ON composer_work (work_identifier);
 CREATE UNIQUE INDEX composer_work_unique_idx ON composer_work (composer_identifier, work_identifier, role, source);
+
+CREATE TABLE record_label_recording (
+  id                      INTEGER PRIMARY KEY,
+  record_label_identifier INTEGER REFERENCES identifier (id),
+  recording_identifier    INTEGER REFERENCES identifier (id),
+  source                  INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX record_label_recording_record_label_idx ON record_label_recording (record_label_identifier);
+CREATE INDEX record_label_recording_recording_idx    ON record_label_recording (recording_identifier);
+CREATE UNIQUE INDEX record_label_recording_unique_idx ON record_label_recording (record_label_identifier, recording_identifier, source);
 
 CREATE TABLE record_label_song (
   id                      INTEGER PRIMARY KEY,

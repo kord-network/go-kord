@@ -83,6 +83,13 @@ query GetRecordLabel($identifier: IdentifierInput!) {
     name {
       value
     }
+    recordings {
+      recording {
+	title {
+	  value
+	}
+      }
+    }
     songs {
       song {
 	title {
@@ -105,6 +112,13 @@ query GetRecordLabel($identifier: IdentifierInput!) {
 			Name struct {
 				Value string `json:"value"`
 			} `json:"name"`
+			Recordings []struct {
+				Recording struct {
+					Title struct {
+						Value string `json:"value"`
+					} `json:"title"`
+				} `json:"recording"`
+			} `json:"recordings"`
 			Songs []struct {
 				Song struct {
 					Title struct {
@@ -127,18 +141,22 @@ query GetRecordLabel($identifier: IdentifierInput!) {
 	if v.RecordLabel.Name.Value != "NAME_OF_THE_SENDER" {
 		t.Fatalf("expected record label to have name %q, got %q", "NAME_OF_THE_SENDER", v.RecordLabel.Name.Value)
 	}
-	if len(v.RecordLabel.Releases) != 3 {
-		t.Fatalf("expected record label to have 3 releases, got %d", len(v.RecordLabel.Releases))
+	if len(v.RecordLabel.Recordings) != 8 {
+		t.Fatalf("expected record label to have 8 recordings, got %d", len(v.RecordLabel.Recordings))
 	}
 	if len(v.RecordLabel.Songs) != 8 {
 		t.Fatalf("expected record label to have 8 songs, got %d", len(v.RecordLabel.Songs))
 	}
+	if len(v.RecordLabel.Releases) != 3 {
+		t.Fatalf("expected record label to have 3 releases, got %d", len(v.RecordLabel.Releases))
+	}
 
 	// check sound recordings
 	type soundRecording struct {
-		isrc       string
-		title      string
-		performers map[string]string
+		isrc         string
+		title        string
+		performers   map[string]string
+		contributors map[string]string
 	}
 	for _, x := range []soundRecording{
 		{
@@ -146,8 +164,10 @@ query GetRecordLabel($identifier: IdentifierInput!) {
 			title: "Can you feel ...the Monkey Claw!",
 			performers: map[string]string{
 				"MainArtist": "Monkey Claw",
-				"Producer":   "Steve Albino",
-				"Composer":   "Bob Black",
+			},
+			contributors: map[string]string{
+				"Producer": "Steve Albino",
+				"Composer": "Bob Black",
 			},
 		},
 		{
@@ -155,8 +175,10 @@ query GetRecordLabel($identifier: IdentifierInput!) {
 			title: "Red top mountain, blown sky high",
 			performers: map[string]string{
 				"MainArtist": "Monkey Claw",
-				"Producer":   "Steve Albino",
-				"Composer":   "Bob Black",
+			},
+			contributors: map[string]string{
+				"Producer": "Steve Albino",
+				"Composer": "Bob Black",
 			},
 		},
 		{
@@ -164,8 +186,10 @@ query GetRecordLabel($identifier: IdentifierInput!) {
 			title: "Seige of Antioch",
 			performers: map[string]string{
 				"MainArtist": "Monkey Claw",
-				"Producer":   "Steve Albino",
-				"Composer":   "Bob Black",
+			},
+			contributors: map[string]string{
+				"Producer": "Steve Albino",
+				"Composer": "Bob Black",
 			},
 		},
 		{
@@ -173,8 +197,10 @@ query GetRecordLabel($identifier: IdentifierInput!) {
 			title: "Warhammer",
 			performers: map[string]string{
 				"MainArtist": "Monkey Claw",
-				"Producer":   "Steve Albino",
-				"Composer":   "Bob Black",
+			},
+			contributors: map[string]string{
+				"Producer": "Steve Albino",
+				"Composer": "Bob Black",
 			},
 		},
 		{
@@ -182,8 +208,10 @@ query GetRecordLabel($identifier: IdentifierInput!) {
 			title: "Iron Horse",
 			performers: map[string]string{
 				"MainArtist": "Monkey Claw",
-				"Producer":   "Steve Albino",
-				"Composer":   "Bob Black",
+			},
+			contributors: map[string]string{
+				"Producer": "Steve Albino",
+				"Composer": "Bob Black",
 			},
 		},
 		{
@@ -191,8 +219,10 @@ query GetRecordLabel($identifier: IdentifierInput!) {
 			title: "Yes... I can feel the Monkey Claw!",
 			performers: map[string]string{
 				"MainArtist": "Monkey Claw",
-				"Producer":   "Steve Albino",
-				"Composer":   "Bob Black",
+			},
+			contributors: map[string]string{
+				"Producer": "Steve Albino",
+				"Composer": "Bob Black",
 			},
 		},
 		{
@@ -201,8 +231,10 @@ query GetRecordLabel($identifier: IdentifierInput!) {
 			performers: map[string]string{
 				"MainArtist":     "Monkey Claw",
 				"FeaturedArtist": "Monkey Claw",
-				"Producer":       "Steve Albino",
-				"Composer":       "Bob Black",
+			},
+			contributors: map[string]string{
+				"Producer": "Steve Albino",
+				"Composer": "Bob Black",
 			},
 		},
 		{
@@ -210,8 +242,10 @@ query GetRecordLabel($identifier: IdentifierInput!) {
 			title: "Can you feel ...the Monkey Claw!",
 			performers: map[string]string{
 				"MainArtist": "Monkey Claw",
-				"Producer":   "Steve Albino",
-				"Composer":   "Bob Black",
+			},
+			contributors: map[string]string{
+				"Producer": "Steve Albino",
+				"Composer": "Bob Black",
 			},
 		},
 	} {
@@ -227,6 +261,14 @@ query GetRecording($identifier: IdentifierInput!) {
     }
     performers {
       performer {
+	name {
+	  value
+	}
+      }
+      role
+    }
+    contributors {
+      contributor {
 	name {
 	  value
 	}
@@ -249,6 +291,14 @@ query GetRecording($identifier: IdentifierInput!) {
 					} `json:"performer"`
 					Role string `json:"role"`
 				} `json:"performers"`
+				Contributors []struct {
+					Contributor struct {
+						Name struct {
+							Value string `json:"value"`
+						} `json:"name"`
+					} `json:"contributor"`
+					Role string `json:"role"`
+				} `json:"contributors"`
 			} `json:"recording"`
 		}
 		if err := client.Query(query, graphql.Variables{"identifier": identifier}, &v); err != nil {
@@ -267,6 +317,15 @@ query GetRecording($identifier: IdentifierInput!) {
 			}
 			if p.Performer.Name.Value != name {
 				t.Fatalf("expected %s performer to have name %q, got %q", p.Role, name, p.Performer.Name.Value)
+			}
+		}
+		for _, c := range v.Recording.Contributors {
+			name, ok := x.contributors[c.Role]
+			if !ok {
+				t.Fatalf("unexpected contributor role: %q", c.Role)
+			}
+			if c.Contributor.Name.Value != name {
+				t.Fatalf("expected %s contributor to have name %q, got %q", c.Role, name, c.Contributor.Name.Value)
 			}
 		}
 	}
