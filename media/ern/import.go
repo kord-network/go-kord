@@ -182,7 +182,22 @@ func (i *Importer) importSoundRecording(ctx *importContext, soundRecording *Soun
 	ctx.soundRecordings[soundRecording.ResourceReference] = &identifier
 	for _, details := range soundRecording.SoundRecordingDetailsByTerritory {
 		for _, artist := range details.DisplayArtist {
-			if err := i.importArtist(ctx, artist, &identifier); err != nil {
+			performer, err := i.importArtist(ctx, artist)
+			if err != nil {
+				return nil, err
+			}
+			link := &media.PerformerRecordingLink{
+				Performer: *performer,
+				Recording: identifier,
+			}
+			if v := artist.ArtistRole; v != nil {
+				if v.Value == "UserDefined" {
+					link.Role = i.joinNamespace(v.Namespace, v.UserDefinedValue)
+				} else {
+					link.Role = i.joinNamespace(v.Namespace, v.Value)
+				}
+			}
+			if err := i.client.CreatePerformerRecordingLink(link); err != nil {
 				return nil, err
 			}
 		}
@@ -247,6 +262,28 @@ func (i *Importer) importRelease(ctx *importContext, release *Release) error {
 			return err
 		}
 		ctx.mainRelease = &identifier
+		for _, details := range release.ReleaseDetailsByTerritory {
+			for _, artist := range details.DisplayArtist {
+				performer, err := i.importArtist(ctx, artist)
+				if err != nil {
+					return err
+				}
+				link := &media.PerformerReleaseLink{
+					Performer: *performer,
+					Release:   identifier,
+				}
+				if v := artist.ArtistRole; v != nil {
+					if v.Value == "UserDefined" {
+						link.Role = i.joinNamespace(v.Namespace, v.UserDefinedValue)
+					} else {
+						link.Role = i.joinNamespace(v.Namespace, v.Value)
+					}
+				}
+				if err := i.client.CreatePerformerReleaseLink(link); err != nil {
+					return err
+				}
+			}
+		}
 		if list := release.ReleaseResourceReferenceList; list != nil {
 			for _, ref := range list.ReleaseResourceReference {
 				recording, ok := ctx.soundRecordings[ref.Value]
@@ -271,6 +308,28 @@ func (i *Importer) importRelease(ctx *importContext, release *Release) error {
 			return err
 		}
 		ctx.songs = append(ctx.songs, &identifier)
+		for _, details := range release.ReleaseDetailsByTerritory {
+			for _, artist := range details.DisplayArtist {
+				performer, err := i.importArtist(ctx, artist)
+				if err != nil {
+					return err
+				}
+				link := &media.PerformerSongLink{
+					Performer: *performer,
+					Song:      identifier,
+				}
+				if v := artist.ArtistRole; v != nil {
+					if v.Value == "UserDefined" {
+						link.Role = i.joinNamespace(v.Namespace, v.UserDefinedValue)
+					} else {
+						link.Role = i.joinNamespace(v.Namespace, v.Value)
+					}
+				}
+				if err := i.client.CreatePerformerSongLink(link); err != nil {
+					return err
+				}
+			}
+		}
 		if list := release.ReleaseResourceReferenceList; list != nil {
 			for _, ref := range list.ReleaseResourceReference {
 				recording, ok := ctx.soundRecordings[ref.Value]
@@ -291,7 +350,7 @@ func (i *Importer) importRelease(ctx *importContext, release *Release) error {
 	return nil
 }
 
-func (i *Importer) importArtist(ctx *importContext, artist *Artist, recording *media.Identifier) error {
+func (i *Importer) importArtist(ctx *importContext, artist *Artist) (*media.Identifier, error) {
 	var performer media.Performer
 	if v := artist.PartyName; v != nil {
 		performer.Name = v.FullName.Value
@@ -299,25 +358,14 @@ func (i *Importer) importArtist(ctx *importContext, artist *Artist, recording *m
 
 	identifier, err := i.partyIdentifier(artist.PartyId, artist.PartyName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := i.client.CreatePerformer(&performer, identifier); err != nil {
-		return err
+		return nil, err
 	}
 
-	link := &media.PerformerRecordingLink{
-		Performer: *identifier,
-		Recording: *recording,
-	}
-	if v := artist.ArtistRole; v != nil {
-		if v.Value == "UserDefined" {
-			link.Role = i.joinNamespace(v.Namespace, v.UserDefinedValue)
-		} else {
-			link.Role = i.joinNamespace(v.Namespace, v.Value)
-		}
-	}
-	return i.client.CreatePerformerRecordingLink(link)
+	return identifier, nil
 }
 
 func (i *Importer) importContributor(ctx *importContext, resourceContributor *DetailedResourceContributor, recording *media.Identifier) error {
