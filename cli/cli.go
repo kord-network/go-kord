@@ -21,6 +21,7 @@ package cli
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -30,11 +31,13 @@ import (
 
 	"github.com/docopt/docopt-go"
 	"github.com/ethereum/go-ethereum/log"
+	_ "github.com/lib/pq"
 	meta "github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/identity"
 	"github.com/meta-network/go-meta/media"
 	"github.com/meta-network/go-meta/media/cwr"
 	"github.com/meta-network/go-meta/media/ern"
+	"github.com/meta-network/go-meta/media/musicbrainz"
 	"github.com/rs/cors"
 )
 
@@ -149,7 +152,20 @@ func RunMediaImportEIDR(ctx context.Context, client *media.Client, args Args) er
 }
 
 func RunMediaImportMusicBrainz(ctx context.Context, client *media.Client, args Args) error {
-	return nil
+	db, err := sql.Open("postgres", args.String("<postgres-uri>"))
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	importer := musicbrainz.NewImporter(client)
+	switch args.String("<type>") {
+	case "artists":
+		return musicbrainz.LoadArtists(ctx, db, importer.ImportArtist)
+	case "recording-work-links":
+		return musicbrainz.LoadRecordingWorkLinks(ctx, db, importer.ImportRecordingWorkLink)
+	default:
+		return fmt.Errorf("unknown musicbrainz import type: %q", args.String("<type>"))
+	}
 }
 
 func RunServer(ctx context.Context, args Args) error {
