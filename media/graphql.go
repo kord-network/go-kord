@@ -349,6 +349,7 @@ input RecordLabelReleaseLinkInput {
 input PublisherWorkLinkInput {
   publisher_id: IdentifierInput!
   work_id:      IdentifierInput!
+  role:         String!
   source:       SourceInput!
 }
 
@@ -445,6 +446,7 @@ type RecordLabelReleaseLink {
 type PublisherWorkLink {
   publisher: Publisher!
   work:      Work!
+  role:      String!
   source:    Source!
 }
 
@@ -1034,14 +1036,14 @@ func (p *PublisherResolver) Name() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
-func (p *PublisherResolver) Works() ([]*PublisherWorkLinkResolver, error) {
+func (p *PublisherResolver) Works() ([]*publisherWorkLinkResolver, error) {
 	records, err := p.resolver.mediaIndex.PublisherWorks(p.identifier)
 	if err != nil {
 		return nil, err
 	}
-	resolvers := make([]*PublisherWorkLinkResolver, len(records))
+	resolvers := make([]*publisherWorkLinkResolver, len(records))
 	for i, record := range records {
-		resolvers[i] = &PublisherWorkLinkResolver{
+		resolvers[i] = &publisherWorkLinkResolver{
 			resolver: p.resolver,
 			record:   record,
 		}
@@ -1281,14 +1283,14 @@ func (w *WorkResolver) Composers() ([]*composerWorkLinkResolver, error) {
 	return resolvers, nil
 }
 
-func (w *WorkResolver) Publishers() ([]*PublisherWorkLinkResolver, error) {
+func (w *WorkResolver) Publishers() ([]*publisherWorkLinkResolver, error) {
 	records, err := w.resolver.mediaIndex.WorkPublishers(w.identifier)
 	if err != nil {
 		return nil, err
 	}
-	resolvers := make([]*PublisherWorkLinkResolver, len(records))
+	resolvers := make([]*publisherWorkLinkResolver, len(records))
 	for i, record := range records {
-		resolvers[i] = &PublisherWorkLinkResolver{
+		resolvers[i] = &publisherWorkLinkResolver{
 			resolver: w.resolver,
 			record:   record,
 		}
@@ -1922,37 +1924,43 @@ type createPublisherWorkLinkArgs struct {
 	Link struct {
 		PublisherID Identifier
 		WorkID      Identifier
+		Role        string
 		Source      Source
 	}
 }
 
-func (r *Resolver) CreatePublisherWorkLink(args createPublisherWorkLinkArgs) (*PublisherWorkLinkResolver, error) {
+func (r *Resolver) CreatePublisherWorkLink(args createPublisherWorkLinkArgs) (*publisherWorkLinkResolver, error) {
 	link := &PublisherWorkLink{
 		Publisher: args.Link.PublisherID,
 		Work:      args.Link.WorkID,
+		Role:      args.Link.Role,
 	}
 	record, err := r.mediaIndex.CreatePublisherWork(link, &args.Link.Source)
 	if err != nil {
 		return nil, err
 	}
-	return &PublisherWorkLinkResolver{r, record}, nil
+	return &publisherWorkLinkResolver{r, record}, nil
 }
 
-type PublisherWorkLinkResolver struct {
+type publisherWorkLinkResolver struct {
 	resolver *Resolver
 	record   *PublisherWorkRecord
 }
 
-func (p *PublisherWorkLinkResolver) Publisher() *PublisherResolver {
+func (p *publisherWorkLinkResolver) Publisher() *PublisherResolver {
 	return &PublisherResolver{p.resolver, p.record.Publisher}
 }
 
-func (p *PublisherWorkLinkResolver) Work() *WorkResolver {
+func (p *publisherWorkLinkResolver) Work() *WorkResolver {
 	return &WorkResolver{p.resolver, p.record.Work}
 }
 
-func (p *PublisherWorkLinkResolver) Source() *sourceResolver {
+func (p *publisherWorkLinkResolver) Source() *sourceResolver {
 	return &sourceResolver{p.resolver, p.record.Source}
+}
+
+func (p *publisherWorkLinkResolver) Role() string {
+	return p.record.Role
 }
 
 type createSongRecordingLinkArgs struct {

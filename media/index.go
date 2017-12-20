@@ -891,7 +891,7 @@ func (i *Index) ReleaseRecordLabels(releaseIdentifier *IdentifierRecord) ([]*Rec
 
 func (i *Index) PublisherWorks(publisherIdentifier *IdentifierRecord) ([]*PublisherWorkRecord, error) {
 	rows, err := i.Query(
-		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM publisher_work AS a JOIN identifier AS b ON b.id = a.publisher_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.publisher_identifier = $1",
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM publisher_work AS a JOIN identifier AS b ON b.id = a.publisher_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.publisher_identifier = $1",
 		publisherIdentifier.ID,
 	)
 	if err != nil {
@@ -912,6 +912,7 @@ func (i *Index) PublisherWorks(publisherIdentifier *IdentifierRecord) ([]*Publis
 			&record.Work.ID,
 			&record.Work.Type,
 			&record.Work.Value,
+			&record.Role,
 			&record.Source,
 		); err != nil {
 			return nil, err
@@ -926,7 +927,7 @@ func (i *Index) PublisherWorks(publisherIdentifier *IdentifierRecord) ([]*Publis
 
 func (i *Index) WorkPublishers(workIdentifier *IdentifierRecord) ([]*PublisherWorkRecord, error) {
 	rows, err := i.Query(
-		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM publisher_work AS a JOIN identifier AS b ON b.id = a.publisher_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.work_identifier = $1",
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM publisher_work AS a JOIN identifier AS b ON b.id = a.publisher_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.work_identifier = $1",
 		workIdentifier.ID,
 	)
 	if err != nil {
@@ -947,6 +948,7 @@ func (i *Index) WorkPublishers(workIdentifier *IdentifierRecord) ([]*PublisherWo
 			&record.Work.ID,
 			&record.Work.Type,
 			&record.Work.Value,
+			&record.Role,
 			&record.Source,
 		); err != nil {
 			return nil, err
@@ -1749,6 +1751,7 @@ func (i *Index) CreatePublisherWork(link *PublisherWorkLink, source *Source) (*P
 	record := &PublisherWorkRecord{
 		Publisher: publisher,
 		Work:      work,
+		Role:      link.Role,
 	}
 	err = i.Update(func(tx *sql.Tx) error {
 		source, err := i.createSource(tx, source)
@@ -1757,8 +1760,8 @@ func (i *Index) CreatePublisherWork(link *PublisherWorkLink, source *Source) (*P
 		}
 		record.Source = source.ID
 		res, err := tx.Exec(
-			"INSERT INTO publisher_work (publisher_identifier, work_identifier, source) VALUES ($1, $2, $3)",
-			publisher.ID, work.ID, record.Source,
+			"INSERT INTO publisher_work (publisher_identifier, work_identifier, role, source) VALUES ($1, $2, $3, $4)",
+			publisher.ID, work.ID, record.Role, record.Source,
 		)
 		if err == nil {
 			id, err := res.LastInsertId()
@@ -1769,8 +1772,8 @@ func (i *Index) CreatePublisherWork(link *PublisherWorkLink, source *Source) (*P
 			return nil
 		} else if isUniqueErr(err) {
 			return tx.QueryRow(
-				"SELECT id FROM publisher_work WHERE publisher_identifier = $1 AND work_identifier = $2 AND source = $3",
-				publisher.ID, work.ID, record.Source,
+				"SELECT id FROM publisher_work WHERE publisher_identifier = $1 AND work_identifier = $2 AND role = $3 AND source = $4",
+				publisher.ID, work.ID, record.Role, record.Source,
 			).Scan(&record.ID)
 		}
 		return err

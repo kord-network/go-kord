@@ -33,6 +33,7 @@ import (
 	meta "github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/identity"
 	"github.com/meta-network/go-meta/media"
+	"github.com/meta-network/go-meta/media/cwr"
 	"github.com/meta-network/go-meta/media/ern"
 	"github.com/rs/cors"
 )
@@ -124,6 +125,22 @@ func RunMediaImportERN(ctx context.Context, client *media.Client, args Args) err
 }
 
 func RunMediaImportCWR(ctx context.Context, client *media.Client, args Args) error {
+	importer := cwr.NewImporter(client)
+	for _, file := range args.List("<file>") {
+		f, err := os.Open(file)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		info, err := f.Stat()
+		if err != nil {
+			return err
+		}
+		log.Info("importing CWR", "path", file, "size", info.Size())
+		if err := importer.ImportCWR(f); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

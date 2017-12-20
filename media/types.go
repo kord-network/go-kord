@@ -157,9 +157,12 @@ type ContributorRecordingLink struct {
 }
 
 type ComposerWorkLink struct {
-	Composer Identifier `json:"composer"`
-	Work     Identifier `json:"work"`
-	Role     string     `json:"role"`
+	Composer                   Identifier `json:"composer"`
+	Work                       Identifier `json:"work"`
+	Role                       string     `json:"role"`
+	PerformanceRightsShare     string     `json:"performance_rights_share"`
+	MechanicalRightsShare      string     `json:"mechanical_rights_share"`
+	SynchronizationRightsShare string     `json:"synchronization_rights_share"`
 }
 
 type RecordLabelRecordingLink struct {
@@ -178,8 +181,12 @@ type RecordLabelReleaseLink struct {
 }
 
 type PublisherWorkLink struct {
-	Publisher Identifier `json:"publisher"`
-	Work      Identifier `json:"work"`
+	Publisher                  Identifier `json:"publisher"`
+	Work                       Identifier `json:"work"`
+	Role                       string
+	PerformanceRightsShare     string `json:"performance_rights_share"`
+	MechanicalRightsShare      string `json:"mechanical_rights_share"`
+	SynchronizationRightsShare string `json:"synchronization_rights_share"`
 }
 
 type SongRecordingLink struct {
@@ -267,6 +274,7 @@ type PublisherWorkRecord struct {
 	ID        int64
 	Publisher *IdentifierRecord
 	Work      *IdentifierRecord
+	Role      string
 	Source    int64
 }
 

@@ -430,6 +430,7 @@ func (c *Client) CreatePublisherWorkLink(link *PublisherWorkLink) error {
 		graphql.Variables{
 			"publisher_id": link.Publisher,
 			"work_id":      link.Work,
+			"role":         link.Role,
 			"source":       c.source,
 		},
 	)

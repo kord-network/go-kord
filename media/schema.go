@@ -230,12 +230,13 @@ CREATE TABLE publisher_work (
   id                   INTEGER PRIMARY KEY,
   publisher_identifier INTEGER REFERENCES identifier (id),
   work_identifier      INTEGER REFERENCES identifier (id),
+  role                 TEXT,
   source               INTEGER REFERENCES source (id)
 );
 
 CREATE INDEX publisher_work_publisher_idx ON publisher_work (publisher_identifier);
 CREATE INDEX publisher_work_work_idx      ON publisher_work (work_identifier);
-CREATE UNIQUE INDEX publisher_work_unique_idx ON publisher_work (publisher_identifier, work_identifier, source);
+CREATE UNIQUE INDEX publisher_work_unique_idx ON publisher_work (publisher_identifier, work_identifier, role, source);
 
 CREATE TABLE song_recording (
   id                   INTEGER PRIMARY KEY,
