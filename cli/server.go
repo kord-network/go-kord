@@ -58,6 +58,14 @@ func NewServer(store *meta.Store, identityIndex *identity.Index, mediaIndex *med
 	router.Handler("GET", "/media/*path", http.StripPrefix("/media", mediaAPI))
 	router.Handler("POST", "/media/*path", http.StripPrefix("/media", mediaAPI))
 
+	// handle OPTIONS requests
+	router.OPTIONS("/", func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+		w.Header().Set("Allow", "OPTIONS, GET, HEAD, POST")
+		w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET, POST")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.WriteHeader(http.StatusOK)
+	})
+
 	// add the Swarm API at /bzz: and /bzzr:
 	swarmSrv := swarmhttp.NewServer(store.SwarmAPI())
 	mux := http.NewServeMux()
