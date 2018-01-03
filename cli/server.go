@@ -27,6 +27,7 @@ import (
 	meta "github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/identity"
 	"github.com/meta-network/go-meta/media"
+	"github.com/meta-network/go-meta/stream"
 )
 
 type Server struct {
@@ -37,6 +38,11 @@ func NewServer(store *meta.Store, identityIndex *identity.Index, mediaIndex *med
 	srv := &Server{}
 
 	router := httprouter.New()
+
+	// add the stream API at /stream
+	streamAPI := stream.NewAPI(store)
+	router.Handler("GET", "/stream/*path", http.StripPrefix("/stream", streamAPI))
+	router.Handler("POST", "/stream/*path", http.StripPrefix("/stream", streamAPI))
 
 	identityAPI, err := identity.NewAPI(identityIndex)
 	if err != nil {
