@@ -32,8 +32,8 @@ func init() {
 	migrations.Add(1, `
 CREATE TABLE identity (
 	id        text NOT NULL PRIMARY KEY,
-	username  text NOT NULL,
-	owner     text NOT NULL,
+	username  text NOT NULL UNIQUE,
+	owner     text NOT NULL UNIQUE,
 	signature text NOT NULL
 );
 
