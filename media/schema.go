@@ -289,4 +289,13 @@ CREATE TABLE source (
 CREATE UNIQUE INDEX source_unique_idx ON source (name);
 `,
 	)
+
+	migrations.Add(2, `
+ALTER TABLE composer_work ADD COLUMN pr_share TEXT NOT NULL DEFAULT "0";
+ALTER TABLE composer_work ADD COLUMN mr_share TEXT NOT NULL DEFAULT "0";
+ALTER TABLE composer_work ADD COLUMN sr_share TEXT NOT NULL DEFAULT "0";
+ALTER TABLE publisher_work ADD COLUMN pr_share TEXT NOT NULL DEFAULT "0";
+ALTER TABLE publisher_work ADD COLUMN mr_share TEXT NOT NULL DEFAULT "0";
+ALTER TABLE publisher_work ADD COLUMN sr_share TEXT NOT NULL DEFAULT "0";
+	`)
 }

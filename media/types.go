@@ -240,11 +240,14 @@ type ContributorRecordingRecord struct {
 }
 
 type ComposerWorkRecord struct {
-	ID       int64
-	Composer *IdentifierRecord
-	Work     *IdentifierRecord
-	Role     string
-	Source   int64
+	ID                         int64
+	Composer                   *IdentifierRecord
+	Work                       *IdentifierRecord
+	Role                       string
+	PerformanceRightsShare     string
+	MechanicalRightsShare      string
+	SynchronizationRightsShare string
+	Source                     int64
 }
 
 type RecordLabelRecordingRecord struct {
@@ -269,11 +272,14 @@ type RecordLabelReleaseRecord struct {
 }
 
 type PublisherWorkRecord struct {
-	ID        int64
-	Publisher *IdentifierRecord
-	Work      *IdentifierRecord
-	Role      string
-	Source    int64
+	ID                         int64
+	Publisher                  *IdentifierRecord
+	Work                       *IdentifierRecord
+	Role                       string
+	PerformanceRightsShare     string
+	MechanicalRightsShare      string
+	SynchronizationRightsShare string
+	Source                     int64
 }
 
 type SongRecordingRecord struct {

@@ -382,6 +382,9 @@ func (c *Client) CreateComposerWorkLink(link *ComposerWorkLink) error {
 			"composer_id": link.Composer,
 			"work_id":     link.Work,
 			"role":        link.Role,
+			"pr_share":    link.PerformanceRightsShare,
+			"mr_share":    link.MechanicalRightsShare,
+			"sr_share":    link.SynchronizationRightsShare,
 			"source":      c.source,
 		},
 	)
@@ -431,6 +434,9 @@ func (c *Client) CreatePublisherWorkLink(link *PublisherWorkLink) error {
 			"publisher_id": link.Publisher,
 			"work_id":      link.Work,
 			"role":         link.Role,
+			"pr_share":     link.PerformanceRightsShare,
+			"mr_share":     link.MechanicalRightsShare,
+			"sr_share":     link.SynchronizationRightsShare,
 			"source":       c.source,
 		},
 	)

@@ -609,7 +609,7 @@ func (i *Index) RecordingContributors(recordingIdentifier *IdentifierRecord) ([]
 
 func (i *Index) ComposerWorks(composerIdentifier *IdentifierRecord) ([]*ComposerWorkRecord, error) {
 	rows, err := i.Query(
-		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM composer_work AS a JOIN identifier AS b ON b.id = a.composer_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.composer_identifier = $1",
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.pr_share, a.mr_share, a.sr_share, a.source FROM composer_work AS a JOIN identifier AS b ON b.id = a.composer_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.composer_identifier = $1",
 		composerIdentifier.ID,
 	)
 	if err != nil {
@@ -631,6 +631,9 @@ func (i *Index) ComposerWorks(composerIdentifier *IdentifierRecord) ([]*Composer
 			&record.Work.Type,
 			&record.Work.Value,
 			&record.Role,
+			&record.PerformanceRightsShare,
+			&record.MechanicalRightsShare,
+			&record.SynchronizationRightsShare,
 			&record.Source,
 		); err != nil {
 			return nil, err
@@ -645,7 +648,7 @@ func (i *Index) ComposerWorks(composerIdentifier *IdentifierRecord) ([]*Composer
 
 func (i *Index) WorkComposers(workIdentifier *IdentifierRecord) ([]*ComposerWorkRecord, error) {
 	rows, err := i.Query(
-		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM composer_work AS a JOIN identifier AS b ON b.id = a.composer_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.work_identifier = $1",
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.pr_share, a.mr_share, a.sr_share, a.source FROM composer_work AS a JOIN identifier AS b ON b.id = a.composer_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.work_identifier = $1",
 		workIdentifier.ID,
 	)
 	if err != nil {
@@ -667,6 +670,9 @@ func (i *Index) WorkComposers(workIdentifier *IdentifierRecord) ([]*ComposerWork
 			&record.Work.Type,
 			&record.Work.Value,
 			&record.Role,
+			&record.PerformanceRightsShare,
+			&record.MechanicalRightsShare,
+			&record.SynchronizationRightsShare,
 			&record.Source,
 		); err != nil {
 			return nil, err
@@ -891,7 +897,7 @@ func (i *Index) ReleaseRecordLabels(releaseIdentifier *IdentifierRecord) ([]*Rec
 
 func (i *Index) PublisherWorks(publisherIdentifier *IdentifierRecord) ([]*PublisherWorkRecord, error) {
 	rows, err := i.Query(
-		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM publisher_work AS a JOIN identifier AS b ON b.id = a.publisher_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.publisher_identifier = $1",
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.pr_share, a.mr_share, a.sr_share, a.source FROM publisher_work AS a JOIN identifier AS b ON b.id = a.publisher_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.publisher_identifier = $1",
 		publisherIdentifier.ID,
 	)
 	if err != nil {
@@ -913,6 +919,9 @@ func (i *Index) PublisherWorks(publisherIdentifier *IdentifierRecord) ([]*Publis
 			&record.Work.Type,
 			&record.Work.Value,
 			&record.Role,
+			&record.PerformanceRightsShare,
+			&record.MechanicalRightsShare,
+			&record.SynchronizationRightsShare,
 			&record.Source,
 		); err != nil {
 			return nil, err
@@ -927,7 +936,7 @@ func (i *Index) PublisherWorks(publisherIdentifier *IdentifierRecord) ([]*Publis
 
 func (i *Index) WorkPublishers(workIdentifier *IdentifierRecord) ([]*PublisherWorkRecord, error) {
 	rows, err := i.Query(
-		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM publisher_work AS a JOIN identifier AS b ON b.id = a.publisher_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.work_identifier = $1",
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.pr_share, a.mr_share, a.sr_share, a.source FROM publisher_work AS a JOIN identifier AS b ON b.id = a.publisher_identifier JOIN identifier AS c ON c.id = a.work_identifier WHERE a.work_identifier = $1",
 		workIdentifier.ID,
 	)
 	if err != nil {
@@ -949,6 +958,9 @@ func (i *Index) WorkPublishers(workIdentifier *IdentifierRecord) ([]*PublisherWo
 			&record.Work.Type,
 			&record.Work.Value,
 			&record.Role,
+			&record.PerformanceRightsShare,
+			&record.MechanicalRightsShare,
+			&record.SynchronizationRightsShare,
 			&record.Source,
 		); err != nil {
 			return nil, err
@@ -1575,6 +1587,9 @@ func (i *Index) CreateComposerWork(link *ComposerWorkLink, source *Source) (*Com
 		Composer: composer,
 		Work:     work,
 		Role:     link.Role,
+		PerformanceRightsShare:     link.PerformanceRightsShare,
+		MechanicalRightsShare:      link.MechanicalRightsShare,
+		SynchronizationRightsShare: link.SynchronizationRightsShare,
 	}
 	err = i.Update(func(tx *sql.Tx) error {
 		source, err := i.createSource(tx, source)
@@ -1583,8 +1598,8 @@ func (i *Index) CreateComposerWork(link *ComposerWorkLink, source *Source) (*Com
 		}
 		record.Source = source.ID
 		res, err := tx.Exec(
-			"INSERT INTO composer_work (composer_identifier, work_identifier, role, source) VALUES ($1, $2, $3, $4)",
-			composer.ID, work.ID, record.Role, record.Source,
+			"INSERT INTO composer_work (composer_identifier, work_identifier, role, pr_share, mr_share, sr_share, source) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+			composer.ID, work.ID, record.Role, record.PerformanceRightsShare, record.MechanicalRightsShare, record.SynchronizationRightsShare, record.Source,
 		)
 		if err == nil {
 			id, err := res.LastInsertId()
@@ -1594,10 +1609,16 @@ func (i *Index) CreateComposerWork(link *ComposerWorkLink, source *Source) (*Com
 			record.ID = id
 			return nil
 		} else if isUniqueErr(err) {
-			return tx.QueryRow(
+			if err := tx.QueryRow(
 				"SELECT id FROM composer_work WHERE composer_identifier = $1 AND work_identifier = $2 AND role = $3 AND source = $4",
 				composer.ID, work.ID, record.Role, record.Source,
-			).Scan(&record.ID)
+			).Scan(&record.ID); err != nil {
+				return err
+			}
+			_, err = tx.Exec(
+				"UPDATE composer_work SET pr_share = $1, mr_share = $2, sr_share = $3 WHERE id = $4",
+				link.PerformanceRightsShare, link.MechanicalRightsShare, link.SynchronizationRightsShare, record.ID,
+			)
 		}
 		return err
 	})
@@ -1752,6 +1773,9 @@ func (i *Index) CreatePublisherWork(link *PublisherWorkLink, source *Source) (*P
 		Publisher: publisher,
 		Work:      work,
 		Role:      link.Role,
+		PerformanceRightsShare:     link.PerformanceRightsShare,
+		MechanicalRightsShare:      link.MechanicalRightsShare,
+		SynchronizationRightsShare: link.SynchronizationRightsShare,
 	}
 	err = i.Update(func(tx *sql.Tx) error {
 		source, err := i.createSource(tx, source)
@@ -1760,8 +1784,8 @@ func (i *Index) CreatePublisherWork(link *PublisherWorkLink, source *Source) (*P
 		}
 		record.Source = source.ID
 		res, err := tx.Exec(
-			"INSERT INTO publisher_work (publisher_identifier, work_identifier, role, source) VALUES ($1, $2, $3, $4)",
-			publisher.ID, work.ID, record.Role, record.Source,
+			"INSERT INTO publisher_work (publisher_identifier, work_identifier, role, pr_share, mr_share, sr_share, source) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+			publisher.ID, work.ID, record.Role, record.PerformanceRightsShare, record.MechanicalRightsShare, record.SynchronizationRightsShare, record.Source,
 		)
 		if err == nil {
 			id, err := res.LastInsertId()
@@ -1771,10 +1795,16 @@ func (i *Index) CreatePublisherWork(link *PublisherWorkLink, source *Source) (*P
 			record.ID = id
 			return nil
 		} else if isUniqueErr(err) {
-			return tx.QueryRow(
+			if err := tx.QueryRow(
 				"SELECT id FROM publisher_work WHERE publisher_identifier = $1 AND work_identifier = $2 AND role = $3 AND source = $4",
 				publisher.ID, work.ID, record.Role, record.Source,
-			).Scan(&record.ID)
+			).Scan(&record.ID); err != nil {
+				return err
+			}
+			_, err = tx.Exec(
+				"UPDATE publisher_work SET pr_share = $1, mr_share = $2, sr_share = $3 WHERE id = $4",
+				link.PerformanceRightsShare, link.MechanicalRightsShare, link.SynchronizationRightsShare, record.ID,
+			)
 		}
 		return err
 	})

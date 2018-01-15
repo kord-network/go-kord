@@ -325,6 +325,9 @@ input ComposerWorkLinkInput {
   composer_id: IdentifierInput!
   work_id:     IdentifierInput!
   role:        String!
+  pr_share:    String!
+  mr_share:    String!
+  sr_share:    String!
   source:      SourceInput!
 }
 
@@ -350,6 +353,9 @@ input PublisherWorkLinkInput {
   publisher_id: IdentifierInput!
   work_id:      IdentifierInput!
   role:         String!
+  pr_share:     String!
+  mr_share:     String!
+  sr_share:     String!
   source:       SourceInput!
 }
 
@@ -422,6 +428,9 @@ type ComposerWorkLink {
   composer: Composer!
   work:     Work!
   role:     String!
+  pr_share: String!
+  mr_share: String!
+  sr_share: String!
   source:   Source!
 }
 
@@ -447,6 +456,9 @@ type PublisherWorkLink {
   publisher: Publisher!
   work:      Work!
   role:      String!
+  pr_share:  String!
+  mr_share:  String!
+  sr_share:  String!
   source:    Source!
 }
 
@@ -1771,6 +1783,9 @@ type createComposerWorkLinkArgs struct {
 		ComposerID Identifier
 		WorkID     Identifier
 		Role       string
+		PRShare    string
+		MRShare    string
+		SRShare    string
 		Source     Source
 	}
 }
@@ -1780,6 +1795,9 @@ func (r *Resolver) CreateComposerWorkLink(args createComposerWorkLinkArgs) (*com
 		Composer: args.Link.ComposerID,
 		Work:     args.Link.WorkID,
 		Role:     args.Link.Role,
+		PerformanceRightsShare:     args.Link.PRShare,
+		MechanicalRightsShare:      args.Link.MRShare,
+		SynchronizationRightsShare: args.Link.SRShare,
 	}
 	record, err := r.mediaIndex.CreateComposerWork(link, &args.Link.Source)
 	if err != nil {
@@ -1803,6 +1821,18 @@ func (c *composerWorkLinkResolver) Work() *WorkResolver {
 
 func (c *composerWorkLinkResolver) Role() string {
 	return c.record.Role
+}
+
+func (c *composerWorkLinkResolver) PRShare() string {
+	return c.record.PerformanceRightsShare
+}
+
+func (c *composerWorkLinkResolver) MRShare() string {
+	return c.record.MechanicalRightsShare
+}
+
+func (c *composerWorkLinkResolver) SRShare() string {
+	return c.record.SynchronizationRightsShare
 }
 
 func (c *composerWorkLinkResolver) Source() *sourceResolver {
@@ -1925,6 +1955,9 @@ type createPublisherWorkLinkArgs struct {
 		PublisherID Identifier
 		WorkID      Identifier
 		Role        string
+		PRShare     string
+		MRShare     string
+		SRShare     string
 		Source      Source
 	}
 }
@@ -1934,6 +1967,9 @@ func (r *Resolver) CreatePublisherWorkLink(args createPublisherWorkLinkArgs) (*p
 		Publisher: args.Link.PublisherID,
 		Work:      args.Link.WorkID,
 		Role:      args.Link.Role,
+		PerformanceRightsShare:     args.Link.PRShare,
+		MechanicalRightsShare:      args.Link.MRShare,
+		SynchronizationRightsShare: args.Link.SRShare,
 	}
 	record, err := r.mediaIndex.CreatePublisherWork(link, &args.Link.Source)
 	if err != nil {
@@ -1961,6 +1997,18 @@ func (p *publisherWorkLinkResolver) Source() *sourceResolver {
 
 func (p *publisherWorkLinkResolver) Role() string {
 	return p.record.Role
+}
+
+func (p *publisherWorkLinkResolver) PRShare() string {
+	return p.record.PerformanceRightsShare
+}
+
+func (p *publisherWorkLinkResolver) MRShare() string {
+	return p.record.MechanicalRightsShare
+}
+
+func (p *publisherWorkLinkResolver) SRShare() string {
+	return p.record.SynchronizationRightsShare
 }
 
 type createSongRecordingLinkArgs struct {
