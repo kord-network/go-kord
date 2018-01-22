@@ -33,15 +33,20 @@ import (
 	sqlite3 "github.com/mattn/go-sqlite3"
 )
 
-var QueryDialect = csql.QueryDialect{
-	RegexpOp:   "REGEXP", // TODO: add regexp extension
-	FieldQuote: pq.QuoteIdentifier,
-	Placeholder: func(n int) string {
-		return fmt.Sprintf("$%d", n)
-	},
+type Storage interface {
+	GetDB(name string, notify chan struct{}) (path string, n Notifier, err error)
 }
 
-func init() {
+type Notifier interface {
+	Close()
+	Err() error
+}
+
+func Register(storage Storage) {
+	driver := NewDriver(storage)
+
+	sql.Register("meta", driver)
+
 	// TODO: Update OpIsTrue to handle the fact that SQLite does not have
 	//       a built-in 'true' literal
 	//
@@ -63,11 +68,19 @@ func init() {
 		Error: func(err error) error {
 			return err
 		},
-		RunTx: RunTx,
+		RunTx: runTx,
 	})
 }
 
-func RunTx(tx *sql.Tx, nodes []graphlog.NodeUpdate, quads []graphlog.QuadUpdate, opts graph.IgnoreOpts) error {
+var QueryDialect = csql.QueryDialect{
+	RegexpOp:   "REGEXP", // TODO: add regexp extension
+	FieldQuote: pq.QuoteIdentifier,
+	Placeholder: func(n int) string {
+		return fmt.Sprintf("$%d", n)
+	},
+}
+
+func runTx(tx *sql.Tx, nodes []graphlog.NodeUpdate, quads []graphlog.QuadUpdate, opts graph.IgnoreOpts) error {
 	// update node ref counts and insert nodes
 	var (
 		// prepared statements for each value type

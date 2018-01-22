@@ -22,128 +22,70 @@ package sql
 import (
 	"context"
 	"database/sql/driver"
-	"fmt"
-	"io"
-	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/swarm/storage"
 	sqlite3 "github.com/mattn/go-sqlite3"
 )
-
-type ENS interface {
-	Resolve(name string) (common.Hash, error)
-}
 
 type Driver struct {
 	sqlite3.SQLiteDriver
 
-	ens     ENS
-	dpa     *storage.DPA
-	dataDir string
-
-	conns    map[string][]*Conn
-	connsMtx sync.RWMutex
+	storage Storage
 }
 
-func NewDriver(dpa *storage.DPA, ens ENS, dataDir string) *Driver {
-	return &Driver{
-		ens:     ens,
-		dpa:     dpa,
-		dataDir: dataDir,
-		conns:   make(map[string][]*Conn),
-	}
+func NewDriver(storage Storage) *Driver {
+	return &Driver{storage: storage}
 }
 
 func (d *Driver) Open(name string) (driver.Conn, error) {
-	hash, err := d.ens.Resolve(name)
+	notify := make(chan struct{})
+	path, notifier, err := d.storage.GetDB(name, notify)
 	if err != nil {
 		return nil, err
 	}
-
-	sqliteConn, err := d.open(name, hash)
+	sqliteConn, err := d.SQLiteDriver.Open(path)
 	if err != nil {
+		notifier.Close()
 		return nil, err
 	}
-
-	conn := &Conn{}
-	conn.sqliteConn.Store(sqliteConn)
-
-	d.connsMtx.Lock()
-	d.conns[name] = append(d.conns[name], conn)
-	d.connsMtx.Unlock()
-
+	conn := newConn(sqliteConn.(*sqlite3.SQLiteConn))
+	go func() {
+		defer notifier.Close()
+		for {
+			select {
+			case _, ok := <-notify:
+				if !ok {
+					conn.Close()
+					return
+				}
+				sqliteConn, err := d.SQLiteDriver.Open(path)
+				if err != nil {
+					conn.Close()
+					return
+				}
+				conn.sqliteConn.Store(sqliteConn)
+			case <-conn.closed:
+				return
+			}
+		}
+	}()
 	return conn, nil
-}
-
-func (d *Driver) Update(name string, hash common.Hash) error {
-	d.connsMtx.RLock()
-	defer d.connsMtx.RUnlock()
-	conns, ok := d.conns[name]
-	if !ok {
-		return nil
-	}
-	for _, conn := range conns {
-		sqliteConn, err := d.open(name, hash)
-		if err != nil {
-			return err
-		}
-		conn.sqliteConn.Store(sqliteConn)
-	}
-	return nil
-}
-
-func (d *Driver) Save(name string) (common.Hash, error) {
-	dbPath := filepath.Join(d.dataDir, name)
-	f, err := os.Open(dbPath)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	defer f.Close()
-	info, err := f.Stat()
-	if err != nil {
-		return common.Hash{}, err
-	}
-	key, err := d.dpa.Store(f, info.Size(), &sync.WaitGroup{}, &sync.WaitGroup{})
-	if err != nil {
-		return common.Hash{}, err
-	}
-	return common.BytesToHash(key[:]), nil
-}
-
-func (d *Driver) open(name string, hash common.Hash) (driver.Conn, error) {
-	dbPath := filepath.Join(d.dataDir, name)
-	_, err := os.Stat(dbPath)
-	if os.IsNotExist(err) {
-		if hash != (common.Hash{}) {
-			reader := d.dpa.Retrieve(storage.Key(hash[:]))
-			size, err := reader.Size(nil)
-			if err != nil {
-				return nil, err
-			}
-			dst, err := os.Create(dbPath)
-			if err != nil {
-				return nil, err
-			}
-			n, err := io.Copy(dst, io.LimitReader(reader, size))
-			dst.Close()
-			if err != nil {
-				return nil, err
-			} else if n != size {
-				return nil, fmt.Errorf("failed to copy database, expected %d bytes, copied %d", size, n)
-			}
-		}
-	} else if err != nil {
-		return nil, err
-	}
-	return d.SQLiteDriver.Open(dbPath)
 }
 
 type Conn struct {
 	sqliteConn atomic.Value
+
+	closeOnce sync.Once
+	closed    chan struct{}
+}
+
+func newConn(sqliteConn *sqlite3.SQLiteConn) *Conn {
+	conn := &Conn{
+		closed: make(chan struct{}),
+	}
+	conn.sqliteConn.Store(sqliteConn)
+	return conn
 }
 
 func (c *Conn) Prepare(query string) (driver.Stmt, error) {
@@ -151,6 +93,7 @@ func (c *Conn) Prepare(query string) (driver.Stmt, error) {
 }
 
 func (c *Conn) Close() error {
+	c.closeOnce.Do(func() { close(c.closed) })
 	return c.SQLiteConn().Close()
 }
 

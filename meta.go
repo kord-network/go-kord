@@ -23,6 +23,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/cayleygraph/cayley/graph"
@@ -30,10 +34,185 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/tent/canonical-json-go"
 
 	metasql "github.com/meta-network/go-meta/sql"
 )
+
+type ENS interface {
+	Content(name string) (common.Hash, error)
+}
+
+type Storage struct {
+	dir string
+	dpa *storage.DPA
+	ens ENS
+
+	notifyMtx sync.RWMutex
+	notifiers map[string]map[*notifier]struct{}
+}
+
+func NewStorage(dir string, dpa *storage.DPA, ens ENS) *Storage {
+	return &Storage{
+		dir:       dir,
+		dpa:       dpa,
+		ens:       ens,
+		notifiers: make(map[string]map[*notifier]struct{}),
+	}
+}
+
+func (s *Storage) GetDB(name string, notify chan struct{}) (string, metasql.Notifier, error) {
+	path := filepath.Join(s.dir, name)
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		err = s.fetchDB(name, path)
+	}
+	if err != nil {
+		return "", nil, err
+	}
+	notifier := newNotifier(name, s, notify)
+	s.addNotifier(notifier)
+	return path, notifier, nil
+}
+
+func (s *Storage) UpdateDB(name string, hash common.Hash) error {
+	tmp, err := ioutil.TempFile("", "meta-db")
+	if err != nil {
+		return err
+	}
+	defer tmp.Close()
+	if err := s.fetchHash(hash, tmp); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	path := filepath.Join(s.dir, name)
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	s.notify(name)
+	return nil
+}
+
+func (s *Storage) SaveDB(name string) (common.Hash, error) {
+	path := filepath.Join(s.dir, name)
+	f, err := os.Open(path)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return common.Hash{}, err
+	}
+	key, err := s.dpa.Store(f, info.Size(), &sync.WaitGroup{}, &sync.WaitGroup{})
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return common.BytesToHash(key[:]), nil
+}
+
+func (s *Storage) fetchDB(name, path string) error {
+	hash, err := s.ens.Content(name)
+	if err != nil {
+		return err
+	}
+	if common.EmptyHash(hash) {
+		return nil
+	}
+	dst, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+	return s.fetchHash(hash, dst)
+}
+
+func (s *Storage) fetchHash(hash common.Hash, dst io.Writer) error {
+	reader := s.dpa.Retrieve(storage.Key(hash[:]))
+	size, err := reader.Size(nil)
+	if err != nil {
+		return err
+	}
+	n, err := io.Copy(dst, io.LimitReader(reader, size))
+	if err != nil {
+		return err
+	} else if n != size {
+		return fmt.Errorf("failed to fetch database, expected %d bytes, copied %d", size, n)
+	}
+	return nil
+}
+
+func (s *Storage) addNotifier(n *notifier) {
+	s.notifyMtx.Lock()
+	defer s.notifyMtx.Unlock()
+	notifiers, ok := s.notifiers[n.name]
+	if !ok {
+		notifiers = make(map[*notifier]struct{})
+		s.notifiers[n.name] = notifiers
+	}
+	notifiers[n] = struct{}{}
+}
+
+func (s *Storage) removeNotifier(n *notifier) {
+	s.notifyMtx.Lock()
+	defer s.notifyMtx.Unlock()
+	if notifiers, ok := s.notifiers[n.name]; ok {
+		delete(notifiers, n)
+	}
+}
+
+func (s *Storage) notify(name string) {
+	s.notifyMtx.RLock()
+	defer s.notifyMtx.RUnlock()
+	for n := range s.notifiers[name] {
+		n.Notify()
+	}
+}
+
+type notifier struct {
+	name     string
+	storage  *Storage
+	ch       chan struct{}
+	done     chan struct{}
+	doneOnce sync.Once
+	err      error
+}
+
+func newNotifier(name string, storage *Storage, ch chan struct{}) *notifier {
+	return &notifier{
+		name:    name,
+		storage: storage,
+		ch:      ch,
+		done:    make(chan struct{}),
+	}
+}
+
+func (n *notifier) Notify() {
+	select {
+	case n.ch <- struct{}{}:
+	case <-n.done:
+	}
+}
+
+func (n *notifier) Done() chan struct{} {
+	return n.done
+}
+
+func (n *notifier) Close() {
+	n.CloseWithErr(nil)
+}
+
+func (n *notifier) CloseWithErr(err error) {
+	n.err = err
+	n.storage.removeNotifier(n)
+	n.doneOnce.Do(func() { close(n.done) })
+}
+
+func (n *notifier) Err() error {
+	return n.err
+}
 
 type Backend interface {
 	Apply(tx *Tx) (common.Hash, error)
@@ -43,70 +222,70 @@ type Signer interface {
 	SignHash(address common.Address, hash []byte) ([]byte, error)
 }
 
-type Client struct {
+type QuadStore struct {
 	graph.QuadStore
 
-	Address common.Address
-	Name    string
-	Backend Backend
-	Signer  Signer
-	Driver  *metasql.Driver
+	address common.Address
+	name    string
+	backend Backend
+	signer  Signer
+	storage *Storage
 }
 
-func NewClient(address common.Address, name string, backend Backend, signer Signer, driver *metasql.Driver) (*Client, error) {
+func NewQuadStore(address common.Address, name string, backend Backend, signer Signer, storage *Storage) (*QuadStore, error) {
 	if err := graph.InitQuadStore("meta", name, graph.Options{}); err != nil {
 		return nil, err
 	}
-	store, err := graph.NewQuadStore("meta", name, graph.Options{})
+	qs, err := graph.NewQuadStore("meta", name, graph.Options{})
 	if err != nil {
 		return nil, err
 	}
-	return &Client{
-		QuadStore: store,
-		Address:   address,
-		Name:      name,
-		Backend:   backend,
-		Signer:    signer,
-		Driver:    driver,
+	return &QuadStore{
+		QuadStore: qs,
+		address:   address,
+		name:      name,
+		backend:   backend,
+		signer:    signer,
+		storage:   storage,
 	}, nil
 }
 
-func (c *Client) ApplyDeltas(in []graph.Delta, opts graph.IgnoreOpts) error {
+func (qs *QuadStore) ApplyDeltas(in []graph.Delta, opts graph.IgnoreOpts) error {
 	deltas := make([]graph.Delta, len(in))
 	for i, delta := range in {
-		delta.Quad.Label = quad.String(c.Address.Hex())
+		delta.Quad.Label = quad.String(qs.address.Hex())
 		deltas[i] = delta
 	}
 	req := &Request{
-		Name:   c.Name,
+		Name:   qs.name,
 		Deltas: deltas,
 	}
-	sig, err := c.Signer.SignHash(c.Address, req.Hash())
+	sig, err := qs.signer.SignHash(qs.address, req.Hash())
 	if err != nil {
 		return err
 	}
 	tx := &Tx{
-		Address: c.Address,
+		Address: qs.address,
 		Data:    req.Bytes(),
 		Sig:     sig,
 	}
-	hash, err := c.Backend.Apply(tx)
+	hash, err := qs.backend.Apply(tx)
 	if err != nil {
 		return err
 	}
-	return c.Driver.Update(c.Name, hash)
+	return qs.storage.UpdateDB(qs.name, hash)
 }
 
 type State struct {
-	mtx    sync.Mutex
-	stores map[string]graph.QuadStore
-	driver *metasql.Driver
+	mtx     sync.Mutex
+	stores  map[string]graph.QuadStore
+	storage *Storage
 }
 
-func NewState(driver *metasql.Driver) *State {
+func NewState(storage *Storage) *State {
 	return &State{
-		stores: make(map[string]graph.QuadStore),
-		driver: driver,
+		stores:  make(map[string]graph.QuadStore),
+		storage: storage,
 	}
 }
 
@@ -158,7 +337,7 @@ func (s *State) Apply(tx *Tx) (common.Hash, error) {
 	}
 
 	// TODO: rollback ApplyDeltas if saving fails
-	return s.driver.Save(req.Name)
+	return s.storage.SaveDB(req.Name)
 }
 
 func (s *State) Close() {

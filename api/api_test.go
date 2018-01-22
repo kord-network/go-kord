@@ -17,44 +17,47 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package meta
+package api
 
 import (
 	"context"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/cayleygraph/cayley"
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/quad"
-	_ "github.com/cayleygraph/cayley/writer"
+	meta "github.com/meta-network/go-meta"
 	metasql "github.com/meta-network/go-meta/sql"
 	"github.com/meta-network/go-meta/testutil"
 )
 
-func TestAddQuad(t *testing.T) {
-	// setup Swarm SQLite3 driver
+func TestAPI(t *testing.T) {
 	dpa, err := testutil.NewTestDPA()
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer dpa.Cleanup()
-	storage := NewStorage(dpa.Dir, dpa.DPA, &testutil.ENS{})
+
+	storage := meta.NewStorage(dpa.Dir, dpa.DPA, &testutil.ENS{})
+
 	metasql.Register(storage)
 
-	// create state
-	state := NewState(storage)
+	state := meta.NewState(storage)
 
 	signer, err := testutil.NewTestSigner()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// create client
-	store, err := NewQuadStore(
+	// create store
+	srv := httptest.NewServer(NewServer(state))
+	client := NewClient(srv.URL)
+	store, err := meta.NewQuadStore(
 		signer.Address,
 		"test.meta",
-		state,
+		client,
 		signer,
 		storage,
 	)
