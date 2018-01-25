@@ -20,13 +20,14 @@
 package testutil
 
 import (
-	"crypto/ecdsa"
 	"io/ioutil"
 	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+	meta "github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/store"
 )
 
 type TestDPA struct {
@@ -73,22 +74,11 @@ func (e *ENS) Content(name string) (common.Hash, error) {
 	return common.Hash{}, nil
 }
 
-type TestSigner struct {
-	Key     *ecdsa.PrivateKey
-	Address common.Address
-}
-
-func NewTestSigner() (*TestSigner, error) {
+func NewTestSigner() (common.Address, meta.TxSigner, error) {
 	key, err := crypto.GenerateKey()
 	if err != nil {
-		return nil, err
+		return common.Address{}, nil, err
 	}
-	return &TestSigner{
-		Key:     key,
-		Address: crypto.PubkeyToAddress(key.PublicKey),
-	}, nil
-}
-
-func (t *TestSigner) SignHash(_ common.Address, hash []byte) ([]byte, error) {
-	return crypto.Sign(hash, t.Key)
+	address := crypto.PubkeyToAddress(key.PublicKey)
+	return address, store.NewPrivateKeySigner(key), nil
 }

@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package sql
+package db
 
 import (
 	"database/sql"
@@ -27,26 +27,13 @@ import (
 	"github.com/cayleygraph/cayley/clog"
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/log"
-	csql "github.com/cayleygraph/cayley/graph/sql"
+	cayleysql "github.com/cayleygraph/cayley/graph/sql"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/lib/pq"
 	sqlite3 "github.com/mattn/go-sqlite3"
 )
 
-type Storage interface {
-	GetDB(name string, notify chan struct{}) (path string, n Notifier, err error)
-}
-
-type Notifier interface {
-	Close()
-	Err() error
-}
-
-func Register(storage Storage) {
-	driver := NewDriver(storage)
-
-	sql.Register("meta", driver)
-
+func init() {
 	// TODO: Update OpIsTrue to handle the fact that SQLite does not have
 	//       a built-in 'true' literal
 	//
@@ -55,7 +42,7 @@ func Register(storage Storage) {
 	// TODO: Update cayley so that it supports creating indexes in the
 	//       CREATE TABLE statement (currently we are just not creating
 	//       the indexes by setting NoForeignKeys)
-	csql.Register("meta", csql.Registration{
+	cayleysql.Register("meta", cayleysql.Registration{
 		Driver:               "meta",
 		HashType:             `BLOB`,
 		BytesType:            `BLOB`,
@@ -72,7 +59,7 @@ func Register(storage Storage) {
 	})
 }
 
-var QueryDialect = csql.QueryDialect{
+var QueryDialect = cayleysql.QueryDialect{
 	RegexpOp:   "REGEXP", // TODO: add regexp extension
 	FieldQuote: pq.QuoteIdentifier,
 	Placeholder: func(n int) string {
@@ -84,7 +71,7 @@ func runTx(tx *sql.Tx, nodes []graphlog.NodeUpdate, quads []graphlog.QuadUpdate,
 	// update node ref counts and insert nodes
 	var (
 		// prepared statements for each value type
-		insertValue = make(map[csql.ValueType]*sql.Stmt)
+		insertValue = make(map[cayleysql.ValueType]*sql.Stmt)
 		updateValue *sql.Stmt
 	)
 
@@ -92,7 +79,7 @@ func runTx(tx *sql.Tx, nodes []graphlog.NodeUpdate, quads []graphlog.QuadUpdate,
 		if n.RefInc < 0 {
 			return fmt.Errorf("invalid node.RefInc: %d", n.RefInc)
 		}
-		nodeKey, values, err := csql.NodeValues(csql.NodeHash{n.Hash}, n.Val)
+		nodeKey, values, err := cayleysql.NodeValues(cayleysql.NodeHash{n.Hash}, n.Val)
 		if err != nil {
 			return err
 		}
@@ -123,7 +110,7 @@ func runTx(tx *sql.Tx, nodes []graphlog.NodeUpdate, quads []graphlog.QuadUpdate,
 				}
 				defer updateValue.Close()
 			}
-			if _, err := updateValue.Exec(n.RefInc, csql.NodeHash{n.Hash}.SQLValue()); err != nil {
+			if _, err := updateValue.Exec(n.RefInc, cayleysql.NodeHash{n.Hash}.SQLValue()); err != nil {
 				return err
 			}
 		} else if err != nil {
@@ -140,7 +127,7 @@ func runTx(tx *sql.Tx, nodes []graphlog.NodeUpdate, quads []graphlog.QuadUpdate,
 		}
 		dirs := make([]interface{}, 0, len(quad.Directions))
 		for _, h := range d.Quad.Dirs() {
-			dirs = append(dirs, csql.NodeHash{h}.SQLValue())
+			dirs = append(dirs, cayleysql.NodeHash{h}.SQLValue())
 		}
 		if insertQuad == nil {
 			var err error

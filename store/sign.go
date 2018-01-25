@@ -17,49 +17,38 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package api
+package store
 
 import (
-	"bytes"
-	"encoding/json"
+	"crypto/ecdsa"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	meta "github.com/meta-network/go-meta"
 )
 
-type Client struct {
-	addr string
+func NewPrivateKeySigner(key *ecdsa.PrivateKey) meta.TxSigner {
+	return &privateKeySigner{key}
 }
 
-func NewClient(addr string) *Client {
-	return &Client{addr}
+type privateKeySigner struct {
+	key *ecdsa.PrivateKey
 }
 
-func (c *Client) ApplyTransaction(name string, tx *meta.SignedTx) (common.Hash, error) {
-	data, err := json.Marshal(tx)
+func (p *privateKeySigner) SignTx(address common.Address, tx *meta.Tx) (*meta.SignedTx, error) {
+	if address != crypto.PubkeyToAddress(p.key.PublicKey) {
+		return nil, fmt.Errorf("unknown address: %s", address)
+	}
+	data := tx.Bytes()
+	hash := crypto.Keccak256(data)
+	sig, err := crypto.Sign(hash, p.key)
 	if err != nil {
-		return common.Hash{}, err
+		return nil, err
 	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/%s/tx", c.addr, name), bytes.NewReader(data))
-	if err != nil {
-		return common.Hash{}, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		body, _ := ioutil.ReadAll(res.Body)
-		return common.Hash{}, fmt.Errorf("unxpected HTTP response: %s: %s", res.Status, body)
-	}
-	body, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	return common.HexToHash(string(body)), nil
+	return &meta.SignedTx{
+		Address:   address,
+		Tx:        data,
+		Signature: sig,
+	}, nil
 }

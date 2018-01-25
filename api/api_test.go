@@ -28,8 +28,8 @@ import (
 	"github.com/cayleygraph/cayley"
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/quad"
-	meta "github.com/meta-network/go-meta"
-	metasql "github.com/meta-network/go-meta/sql"
+	"github.com/meta-network/go-meta/db"
+	"github.com/meta-network/go-meta/store"
 	"github.com/meta-network/go-meta/testutil"
 )
 
@@ -40,32 +40,32 @@ func TestAPI(t *testing.T) {
 	}
 	defer dpa.Cleanup()
 
-	storage := meta.NewStorage(dpa.Dir, dpa.DPA, &testutil.ENS{})
+	db.Init(dpa.DPA, &testutil.ENS{}, dpa.Dir)
 
-	metasql.Register(storage)
+	name := "test.meta"
+	if err := graph.InitQuadStore("meta", name, graph.Options{}); err != nil {
+		t.Fatal(err)
+	}
 
-	state := meta.NewState(storage)
-
-	signer, err := testutil.NewTestSigner()
+	address, signer, err := testutil.NewTestSigner()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// create store
-	srv := httptest.NewServer(NewServer(state))
+	srv := httptest.NewServer(NewServer())
 	client := NewClient(srv.URL)
-	store, err := meta.NewQuadStore(
-		signer.Address,
-		"test.meta",
-		client,
+	clientStore, err := store.NewClientStore(
+		address,
 		signer,
-		storage,
+		client,
+		name,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	qw, err := graph.NewQuadWriter("single", store, nil)
+	qw, err := graph.NewQuadWriter("single", clientStore, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	path := cayley.StartPath(store, quad.String("phrase of the day")).Out(quad.String("is of course"))
+	path := cayley.StartPath(clientStore, quad.String("phrase of the day")).Out(quad.String("is of course"))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	results, err := path.Iterate(ctx).All()
@@ -84,7 +84,7 @@ func TestAPI(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
-	v := store.NameOf(results[0])
+	v := clientStore.NameOf(results[0])
 	s, ok := v.Native().(string)
 	if !ok {
 		t.Fatalf("expected string, got %T", v.Native())

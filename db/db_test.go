@@ -17,10 +17,9 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package sql
+package db_test
 
 import (
-	"database/sql"
 	"fmt"
 	"math/rand"
 	"os"
@@ -28,6 +27,7 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/sql/sqltest"
+	"github.com/meta-network/go-meta/db"
 	"github.com/meta-network/go-meta/testutil"
 )
 
@@ -39,7 +39,7 @@ func TestMain(m *testing.M) {
 			return 1
 		}
 		defer dpa.Cleanup()
-		sql.Register("meta", NewDriver(dpa.DPA, &testutil.ENS{}, dpa.Dir))
+		db.Init(dpa.DPA, &testutil.ENS{}, dpa.Dir)
 		return m.Run()
 	}())
 }
