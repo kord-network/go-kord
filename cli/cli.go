@@ -27,15 +27,16 @@ import (
 )
 
 var usage = `
-usage: meta [-h|--help] [--version] <command> [<args>...]
+usage: meta [options] <command> [<args>...]
 
 Options:
-        -h, --help   show this usage message
-        --version    print the version
+        -h, --help      show this usage message
+        --version       print the version
 
 Commands:
         help     show usage for a specific command
-        node     start a META node
+        node     run a META node
+        load     load quads into META
 
 See 'meta help <command>' for more information on a specific command.
 `[1:]

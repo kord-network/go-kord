@@ -29,21 +29,19 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	meta "github.com/meta-network/go-meta"
 	"github.com/meta-network/go-meta/api"
-	metasql "github.com/meta-network/go-meta/sql"
+	"github.com/meta-network/go-meta/db"
 	"github.com/meta-network/go-meta/testutil"
 )
 
 type Config struct {
 	DataDir string
 
-	API api.Config
+	API *api.Config
 }
 
 var DefaultConfig = Config{
 	DataDir: ".meta",
-	API:     api.DefaultConfig,
 }
 
 var DefaultLogger = log.New()
@@ -104,22 +102,23 @@ func (n *Node) Start() error {
 	n.dpa.Start()
 
 	log.Info("registering the META storage")
-	storage := meta.NewStorage(n.config.DataDir, n.dpa, &testutil.ENS{})
-	metasql.Register(storage)
+	db.Init(n.dpa, &testutil.ENS{}, n.config.DataDir)
 
-	state := meta.NewState(storage)
-	n.srv = &http.Server{
-		Addr:    fmt.Sprintf("%s:%d", n.config.API.HTTPAddr, n.config.API.HTTPPort),
-		Handler: api.NewServer(state),
-	}
-	go func() {
-		n.log.Info("starting HTTP server", "addr", n.srv.Addr)
-		if err := n.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			n.log.Error("error starting HTTP server", "err", err)
-			n.err = err
-			n.Stop()
+	if n.config.API != nil {
+		addr := fmt.Sprintf("%s:%d", n.config.API.HTTPAddr, n.config.API.HTTPPort)
+		n.log.Info("starting HTTP server", "addr", addr)
+		n.srv = &http.Server{
+			Addr:    addr,
+			Handler: api.NewServer(),
 		}
-	}()
+		go func() {
+			if err := n.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				n.log.Error("error starting HTTP server", "err", err)
+				n.err = err
+				n.Stop()
+			}
+		}()
+	}
 	return nil
 
 }

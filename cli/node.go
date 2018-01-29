@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/meta-network/go-meta/api"
 	"github.com/meta-network/go-meta/node"
 )
 
@@ -34,18 +35,27 @@ usage: meta node [options]
 Run a META node.
 
 options:
-        -p, --port <port>   HTTP port
+        -d, --datadir <dir>  META data directory
+        --http               Enable the HTTP server
+        --http.port <port>   HTTP server port
 `[1:])
 }
 
 func RunNode(ctx context.Context, args Args) error {
 	config := node.DefaultConfig
-	if p := args.String("--port"); p != "" {
-		port, err := strconv.Atoi(p)
-		if err != nil {
-			return fmt.Errorf("error parsing --port: %s", err)
+	if dir := args.String("--datadir"); dir != "" {
+		config.DataDir = dir
+	}
+	if args.Bool("--http") {
+		apiConfig := api.DefaultConfig
+		if p := args.String("--http.port"); p != "" {
+			port, err := strconv.Atoi(p)
+			if err != nil {
+				return fmt.Errorf("error parsing --http.port: %s", err)
+			}
+			apiConfig.HTTPPort = port
 		}
-		config.API.HTTPPort = port
+		config.API = &apiConfig
 	}
 	node := node.New(config)
 
