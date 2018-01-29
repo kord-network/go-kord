@@ -39,7 +39,7 @@ func TestMain(m *testing.M) {
 			return 1
 		}
 		defer dpa.Cleanup()
-		db.Init(dpa.DPA, &testutil.ENS{}, dpa.Dir)
+		db.Init(dpa.DPA, testutil.NewTestENS(), dpa.Dir)
 		return m.Run()
 	}())
 }

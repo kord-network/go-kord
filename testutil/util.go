@@ -22,12 +22,11 @@ package testutil
 import (
 	"io/ioutil"
 	"os"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	meta "github.com/meta-network/go-meta"
-	"github.com/meta-network/go-meta/store"
+	"github.com/meta-network/go-meta/ens"
 )
 
 type TestDPA struct {
@@ -68,17 +67,63 @@ func (t *TestDPA) Cleanup() {
 	os.RemoveAll(t.Dir)
 }
 
-type ENS struct{}
-
-func (e *ENS) Content(name string) (common.Hash, error) {
-	return common.Hash{}, nil
+type ENS struct {
+	mtx    sync.Mutex
+	hashes map[string]common.Hash
+	subs   map[string]map[*ENSSubscription]struct{}
 }
 
-func NewTestSigner() (common.Address, meta.TxSigner, error) {
-	key, err := crypto.GenerateKey()
-	if err != nil {
-		return common.Address{}, nil, err
+func NewTestENS() *ENS {
+	return &ENS{
+		hashes: make(map[string]common.Hash),
+		subs:   make(map[string]map[*ENSSubscription]struct{}),
 	}
-	address := crypto.PubkeyToAddress(key.PublicKey)
-	return address, store.NewPrivateKeySigner(key), nil
+}
+
+func (e *ENS) Content(name string) (common.Hash, error) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	return e.hashes[name], nil
+}
+
+func (e *ENS) SetContent(name string, hash common.Hash) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	e.hashes[name] = hash
+	if subs, ok := e.subs[name]; ok {
+		for sub := range subs {
+			sub.updates <- hash
+		}
+	}
+	return nil
+}
+
+func (e *ENS) SubscribeContent(name string, updates chan common.Hash) (ens.Subscription, error) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	subs, ok := e.subs[name]
+	if !ok {
+		subs = make(map[*ENSSubscription]struct{})
+		e.subs[name] = subs
+	}
+	sub := &ENSSubscription{e, name, updates}
+	subs[sub] = struct{}{}
+	return sub, nil
+}
+
+type ENSSubscription struct {
+	ens     *ENS
+	name    string
+	updates chan common.Hash
+}
+
+func (e *ENSSubscription) Close() error {
+	e.ens.mtx.Lock()
+	defer e.ens.mtx.Unlock()
+	delete(e.ens.subs[e.name], e)
+	return nil
+}
+
+func (e *ENSSubscription) Err() error {
+	return nil
 }

@@ -34,97 +34,43 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	sqlite3 "github.com/mattn/go-sqlite3"
-	meta "github.com/meta-network/go-meta"
+	"github.com/meta-network/go-meta/ens"
 )
 
 var driver *Driver
 
 type Driver struct {
 	dpa *storage.DPA
-	ens meta.ENS
+	ens ens.ENS
 	dir string
 
 	sqlite sqlite3.SQLiteDriver
 
-	connsMtx sync.RWMutex
-	conns    map[string]map[*Conn]struct{}
+	dbs   map[string]*db
+	dbMtx sync.Mutex
 }
 
-func Init(dpa *storage.DPA, ens meta.ENS, dir string) {
+func Init(dpa *storage.DPA, ens ens.ENS, dir string) {
 	if driver != nil {
 		panic("db: driver already initialised")
 	}
 
 	driver = &Driver{
-		dpa:   dpa,
-		ens:   ens,
-		dir:   dir,
-		conns: make(map[string]map[*Conn]struct{}),
+		dpa: dpa,
+		ens: ens,
+		dir: dir,
+		dbs: make(map[string]*db),
 	}
 
 	sql.Register("meta", driver)
 }
 
 func (d *Driver) Open(name string) (sqldriver.Conn, error) {
-	// fetch the database if it doesn't exist locally
-	_, err := os.Stat(d.path(name))
-	if os.IsNotExist(err) {
-		err = d.fetchDB(name)
-	}
+	db, err := d.openDB(name)
 	if err != nil {
 		return nil, err
 	}
-
-	// open a SQLite connection to the db
-	sqliteConn, err := d.sqlite.Open(d.path(name))
-	if err != nil {
-		return nil, err
-	}
-
-	// return the wrapped connection
-	conn := newConn(name, d, sqliteConn.(*sqlite3.SQLiteConn))
-	d.addConn(conn)
-	return conn, nil
-}
-
-func Update(name string, hash common.Hash) error {
-	if driver == nil {
-		panic("db: uninitialised driver")
-	}
-	return driver.Update(name, hash)
-}
-
-// Update fetches the db stored at the given hash, stores it at the db's path
-// and then re-opens connections to the database.
-func (d *Driver) Update(name string, hash common.Hash) error {
-	tmp, err := ioutil.TempFile("", "meta-db")
-	if err != nil {
-		return err
-	}
-	defer tmp.Close()
-	if err := d.fetchHash(hash, tmp); err != nil {
-		os.Remove(tmp.Name())
-		return err
-	}
-	if err := os.Rename(tmp.Name(), d.path(name)); err != nil {
-		os.Remove(tmp.Name())
-		return err
-	}
-
-	d.connsMtx.RLock()
-	defer d.connsMtx.RUnlock()
-	conns, ok := d.conns[name]
-	if !ok {
-		return nil
-	}
-	for conn := range conns {
-		sqliteConn, err := d.sqlite.Open(d.path(name))
-		if err != nil {
-			return err
-		}
-		conn.sqliteConn.Store(sqliteConn)
-	}
-	return nil
+	return db.newConn()
 }
 
 func Commit(name string) (common.Hash, error) {
@@ -135,7 +81,8 @@ func Commit(name string) (common.Hash, error) {
 }
 
 func (d *Driver) Commit(name string) (common.Hash, error) {
-	f, err := os.Open(d.path(name))
+	path := filepath.Join(d.dir, name)
+	f, err := os.Open(path)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -151,46 +98,86 @@ func (d *Driver) Commit(name string) (common.Hash, error) {
 	return common.BytesToHash(key[:]), nil
 }
 
-func (d *Driver) addConn(conn *Conn) {
-	d.connsMtx.Lock()
-	defer d.connsMtx.Unlock()
-	if _, ok := d.conns[conn.name]; !ok {
-		d.conns[conn.name] = make(map[*Conn]struct{})
+func (d *Driver) openDB(name string) (*db, error) {
+	d.dbMtx.Lock()
+	defer d.dbMtx.Unlock()
+
+	// if the db is already open, return it
+	if db, ok := d.dbs[name]; ok {
+		return db, nil
 	}
-	d.conns[conn.name][conn] = struct{}{}
-}
 
-func (d *Driver) removeConn(conn *Conn) {
-	d.connsMtx.Lock()
-	defer d.connsMtx.Unlock()
-	conns, ok := d.conns[conn.name]
-	if !ok {
-		return
-	}
-	delete(conns, conn)
-}
-
-func (d *Driver) path(name string) string {
-	return filepath.Join(d.dir, name)
-}
-
-func (d *Driver) fetchDB(name string) error {
+	// get the current hash from ENS
 	hash, err := d.ens.Content(name)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if common.EmptyHash(hash) {
-		return nil
+
+	// fetch the database
+	path := filepath.Join(d.dir, name)
+	if err := d.fetchDB(hash, path); err != nil {
+		return nil, err
 	}
-	dst, err := os.Create(d.path(name))
+
+	// subscribe to ENS updates
+	updates := make(chan common.Hash)
+	sub, err := d.ens.SubscribeContent(name, updates)
+	if err != nil {
+		return nil, err
+	}
+
+	db := newDB(d, path)
+	d.dbs[name] = db
+	go func() {
+		defer func() {
+			sub.Close()
+			db.close()
+			d.dbMtx.Lock()
+			delete(d.dbs, name)
+			d.dbMtx.Unlock()
+		}()
+		for {
+			select {
+			case hash, ok := <-updates:
+				if !ok {
+					return
+				}
+				if err := d.fetchDB(hash, path); err != nil {
+					return
+				}
+				if err := db.reopenConns(); err != nil {
+					return
+				}
+			case <-db.closed:
+				return
+			}
+		}
+	}()
+
+	return db, nil
+}
+
+func (d *Driver) fetchDB(hash common.Hash, path string) error {
+	tmp, err := ioutil.TempFile("", "meta-db")
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
-	return d.fetchHash(hash, dst)
+	defer tmp.Close()
+	if err := d.fetchHash(hash, tmp); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		os.Remove(tmp.Name())
+		return err
+	}
+	return nil
 }
 
 func (d *Driver) fetchHash(hash common.Hash, dst io.Writer) error {
+	if common.EmptyHash(hash) {
+		return nil
+	}
 	reader := d.dpa.Retrieve(storage.Key(hash[:]))
 	size, err := reader.Size(nil)
 	if err != nil {
@@ -205,20 +192,84 @@ func (d *Driver) fetchHash(hash common.Hash, dst io.Writer) error {
 	return nil
 }
 
+type db struct {
+	driver *Driver
+
+	path string
+
+	conns    map[*Conn]struct{}
+	connsMtx sync.RWMutex
+
+	closed chan struct{}
+}
+
+func newDB(driver *Driver, path string) *db {
+	return &db{
+		driver: driver,
+		path:   path,
+		conns:  make(map[*Conn]struct{}),
+		closed: make(chan struct{}),
+	}
+}
+
+func (db *db) newConn() (sqldriver.Conn, error) {
+	sqliteConn, err := db.driver.sqlite.Open(db.path)
+	if err != nil {
+		return nil, err
+	}
+
+	conn := newConn(db, sqliteConn.(*sqlite3.SQLiteConn))
+	db.addConn(conn)
+	return conn, nil
+}
+
+func (db *db) addConn(conn *Conn) {
+	db.connsMtx.Lock()
+	defer db.connsMtx.Unlock()
+	db.conns[conn] = struct{}{}
+}
+
+func (db *db) removeConn(conn *Conn) {
+	db.connsMtx.Lock()
+	defer db.connsMtx.Unlock()
+	delete(db.conns, conn)
+}
+
+func (db *db) reopenConns() error {
+	db.connsMtx.RLock()
+	defer db.connsMtx.RUnlock()
+	for conn := range db.conns {
+		sqliteConn, err := db.driver.sqlite.Open(db.path)
+		if err != nil {
+			return err
+		}
+		conn.sqliteConn.Store(sqliteConn)
+	}
+	return nil
+}
+
+func (db *db) close() {
+	close(db.closed)
+	db.connsMtx.Lock()
+	for conn := range db.conns {
+		conn.Close()
+	}
+	db.conns = nil
+	db.connsMtx.Unlock()
+}
+
 type Conn struct {
 	sqliteConn atomic.Value
 
-	name   string
-	driver *Driver
+	db *db
 
 	closeOnce sync.Once
 	closed    chan struct{}
 }
 
-func newConn(name string, driver *Driver, sqliteConn *sqlite3.SQLiteConn) *Conn {
+func newConn(db *db, sqliteConn *sqlite3.SQLiteConn) *Conn {
 	conn := &Conn{
-		name:   name,
-		driver: driver,
+		db:     db,
 		closed: make(chan struct{}),
 	}
 	conn.sqliteConn.Store(sqliteConn)
@@ -231,7 +282,7 @@ func (c *Conn) Prepare(query string) (sqldriver.Stmt, error) {
 
 func (c *Conn) Close() error {
 	c.closeOnce.Do(func() { close(c.closed) })
-	c.driver.removeConn(c)
+	c.db.removeConn(c)
 	return c.SQLiteConn().Close()
 }
 
