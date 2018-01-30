@@ -31,17 +31,20 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/meta-network/go-meta/api"
 	"github.com/meta-network/go-meta/db"
-	"github.com/meta-network/go-meta/testutil"
+	"github.com/meta-network/go-meta/ens"
 )
 
 type Config struct {
 	DataDir string
 
-	API *api.Config
+	API api.Config
+	ENS ens.Config
 }
 
 var DefaultConfig = Config{
 	DataDir: ".meta",
+	API:     api.DefaultConfig,
+	ENS:     ens.DefaultConfig,
 }
 
 var DefaultLogger = log.New()
@@ -63,6 +66,7 @@ type Node struct {
 
 	dpa *storage.DPA
 	srv *http.Server
+	ens *ens.Client
 
 	log log.Logger
 
@@ -101,30 +105,40 @@ func (n *Node) Start() error {
 	}
 	n.dpa.Start()
 
-	log.Info("registering the META storage")
-	db.Init(n.dpa, &testutil.ENS{}, n.config.DataDir)
-
-	if n.config.API != nil {
-		addr := fmt.Sprintf("%s:%d", n.config.API.HTTPAddr, n.config.API.HTTPPort)
-		n.log.Info("starting HTTP server", "addr", addr)
-		n.srv = &http.Server{
-			Addr:    addr,
-			Handler: api.NewServer(),
-		}
-		go func() {
-			if err := n.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				n.log.Error("error starting HTTP server", "err", err)
-				n.err = err
-				n.Stop()
-			}
-		}()
+	n.log.Info("connecting ENS client", "url", n.config.ENS.URL)
+	ens, err := ens.NewClientWithConfig(n.config.ENS)
+	if err != nil {
+		n.dpa.Stop()
+		return err
 	}
+	n.ens = ens
+
+	n.log.Info("registering the META storage")
+	db.Init(n.dpa, ens, n.config.DataDir)
+
+	addr := fmt.Sprintf("%s:%d", n.config.API.HTTPAddr, n.config.API.HTTPPort)
+	n.log.Info("starting HTTP server", "addr", addr)
+	n.srv = &http.Server{
+		Addr:    addr,
+		Handler: api.NewServer(),
+	}
+	go func() {
+		if err := n.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			n.log.Error("error starting HTTP server", "err", err)
+			n.err = err
+			n.Stop()
+		}
+	}()
 	return nil
 
 }
 
 func (n *Node) Stop() error {
 	n.log.Info("stopping META node")
+	if n.ens != nil {
+		n.log.Info("closing ENS client")
+		n.ens.Close()
+	}
 	if n.srv != nil {
 		n.log.Info("stopping HTTP server", "addr", n.srv.Addr)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

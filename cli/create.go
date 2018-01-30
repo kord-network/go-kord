@@ -21,38 +21,23 @@ package cli
 
 import (
 	"context"
-	"os"
 
-	"github.com/cayleygraph/cayley/graph"
-	"github.com/cayleygraph/cayley/quad"
-	"github.com/cayleygraph/cayley/quad/nquads"
 	_ "github.com/cayleygraph/cayley/writer"
 	"github.com/meta-network/go-meta/api"
 )
 
 func init() {
-	registerCommand("load", RunLoad, `
-usage: meta load [options] <file> <db>
+	registerCommand("create", RunCreate, `
+usage: meta create [options] <db>
 
-Load quads from <file> into META database <db>.
+Create META database <db>.
 
 options:
         -u, --url <url>   URL of the META node [default: http://localhost:5000]
 `[1:])
 }
 
-func RunLoad(ctx context.Context, args Args) error {
-	f, err := os.Open(args.String("<file>"))
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+func RunCreate(ctx context.Context, args Args) error {
 	client := api.NewClient(args.String("--url"), args.String("<db>"))
-	qw, err := graph.NewQuadWriter("single", client, nil)
-	if err != nil {
-		return err
-	}
-	qr := nquads.NewReader(f, false)
-	_, err = quad.CopyBatch(graph.NewWriter(qw), qr, quad.DefaultBatch)
-	return err
+	return client.Create()
 }

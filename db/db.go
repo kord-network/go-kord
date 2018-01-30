@@ -31,6 +31,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/cayleygraph/cayley/graph"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	sqlite3 "github.com/mattn/go-sqlite3"
@@ -63,6 +64,27 @@ func Init(dpa *storage.DPA, ens ens.ENS, dir string) {
 	}
 
 	sql.Register("meta", driver)
+}
+
+func Create(name string) error {
+	if driver == nil {
+		panic("db: uninitialised driver")
+	}
+	return driver.Create(name)
+}
+
+func (d *Driver) Create(name string) error {
+	if err := d.ens.Register(name); err != nil {
+		return err
+	}
+	if err := graph.InitQuadStore("meta", name, graph.Options{}); err != nil {
+		return err
+	}
+	hash, err := d.Commit(name)
+	if err != nil {
+		return err
+	}
+	return d.ens.SetContent(name, hash)
 }
 
 func (d *Driver) Open(name string) (sqldriver.Conn, error) {

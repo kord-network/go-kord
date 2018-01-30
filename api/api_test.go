@@ -29,7 +29,6 @@ import (
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/meta-network/go-meta/db"
-	"github.com/meta-network/go-meta/store"
 	"github.com/meta-network/go-meta/testutil"
 )
 
@@ -40,41 +39,33 @@ func TestAPI(t *testing.T) {
 	}
 	defer dpa.Cleanup()
 
-	db.Init(dpa.DPA, &testutil.ENS{}, dpa.Dir)
+	db.Init(dpa.DPA, testutil.NewTestENS(), dpa.Dir)
 
-	name := "test.meta"
-	if err := graph.InitQuadStore("meta", name, graph.Options{}); err != nil {
-		t.Fatal(err)
-	}
-
-	address, signer, err := testutil.NewTestSigner()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// create store
+	// start server
 	srv := httptest.NewServer(NewServer())
-	client := NewClient(srv.URL)
-	clientStore, err := store.NewClientStore(
-		address,
-		signer,
-		client,
-		name,
-	)
-	if err != nil {
+
+	// create a database
+	name := "test.meta"
+	client := NewClient(srv.URL, name)
+	if err := client.Create(); err != nil {
 		t.Fatal(err)
 	}
 
-	qw, err := graph.NewQuadWriter("single", clientStore, nil)
+	// write some quads
+	qw, err := graph.NewQuadWriter("single", client, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	if err := qw.AddQuad(quad.Make("phrase of the day", "is of course", "Hello World!", nil)); err != nil {
 		t.Fatal(err)
 	}
 
-	path := cayley.StartPath(clientStore, quad.String("phrase of the day")).Out(quad.String("is of course"))
+	// check the quads were added
+	qs, err := graph.NewQuadStore("meta", name, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := cayley.StartPath(qs, quad.String("phrase of the day")).Out(quad.String("is of course"))
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	results, err := path.Iterate(ctx).All()
@@ -84,7 +75,7 @@ func TestAPI(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("expected 1 result, got %d", len(results))
 	}
-	v := clientStore.NameOf(results[0])
+	v := qs.NameOf(results[0])
 	s, ok := v.Native().(string)
 	if !ok {
 		t.Fatalf("expected string, got %T", v.Native())

@@ -80,6 +80,10 @@ func NewTestENS() *ENS {
 	}
 }
 
+func (e *ENS) Register(name string) error {
+	return nil
+}
+
 func (e *ENS) Content(name string) (common.Hash, error) {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()

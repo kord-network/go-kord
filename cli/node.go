@@ -24,7 +24,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/meta-network/go-meta/api"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/meta-network/go-meta/node"
 )
 
@@ -36,7 +37,9 @@ Run a META node.
 
 options:
         -d, --datadir <dir>  META data directory
-        --http               Enable the HTTP server
+        --ens.url <url>      ENS URL
+        --ens.addr <addr>    ENS registry address
+        --ens.key <key>      ENS private key
         --http.port <port>   HTTP server port
 `[1:])
 }
@@ -46,16 +49,28 @@ func RunNode(ctx context.Context, args Args) error {
 	if dir := args.String("--datadir"); dir != "" {
 		config.DataDir = dir
 	}
-	if args.Bool("--http") {
-		apiConfig := api.DefaultConfig
-		if p := args.String("--http.port"); p != "" {
-			port, err := strconv.Atoi(p)
-			if err != nil {
-				return fmt.Errorf("error parsing --http.port: %s", err)
-			}
-			apiConfig.HTTPPort = port
+	if v := args.String("--http.port"); v != "" {
+		port, err := strconv.Atoi(v)
+		if err != nil {
+			return fmt.Errorf("error parsing --http.port: %s", err)
 		}
-		config.API = &apiConfig
+		config.API.HTTPPort = port
+	}
+	if v := args.String("--ens.url"); v != "" {
+		config.ENS.URL = v
+	}
+	if v := args.String("--ens.addr"); v != "" {
+		if !common.IsHexAddress(v) {
+			return fmt.Errorf("invalid --ens.addr: %s", v)
+		}
+		config.ENS.RegistryAddr = common.HexToAddress(v)
+	}
+	if v := args.String("--ens.key"); v != "" {
+		key, err := crypto.HexToECDSA(v)
+		if err != nil {
+			return fmt.Errorf("invalid --ens.key: %s", err)
+		}
+		config.ENS.Key = key
 	}
 	node := node.New(config)
 

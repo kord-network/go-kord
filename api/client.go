@@ -26,40 +26,59 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/ethereum/go-ethereum/common"
-	meta "github.com/meta-network/go-meta"
+	"github.com/cayleygraph/cayley/graph"
 )
 
 type Client struct {
+	graph.QuadStore
+
 	addr string
+	name string
 }
 
-func NewClient(addr string) *Client {
-	return &Client{addr}
+func NewClient(addr, name string) *Client {
+	return &Client{
+		addr: addr,
+		name: name,
+	}
 }
 
-func (c *Client) ApplyTransaction(name string, tx *meta.SignedTx) (common.Hash, error) {
-	data, err := json.Marshal(tx)
+func (c *Client) Create() error {
+	res, err := http.Post(fmt.Sprintf("%s/%s", c.addr, c.name), "", nil)
 	if err != nil {
-		return common.Hash{}, err
-	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/%s/tx", c.addr, name), bytes.NewReader(data))
-	if err != nil {
-		return common.Hash{}, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return common.Hash{}, err
+		return err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(res.Body)
-		return common.Hash{}, fmt.Errorf("unxpected HTTP response: %s: %s", res.Status, body)
+		return fmt.Errorf("unxpected HTTP response: %s: %s", res.Status, body)
 	}
-	body, err := ioutil.ReadAll(res.Body)
+	return nil
+}
+
+type Request struct {
+	In   []graph.Delta
+	Opts graph.IgnoreOpts
+}
+
+func (c *Client) ApplyDeltas(in []graph.Delta, opts graph.IgnoreOpts) error {
+	data, err := json.Marshal(&Request{in, opts})
 	if err != nil {
-		return common.Hash{}, err
+		return err
 	}
-	return common.HexToHash(string(body)), nil
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/%s/apply-deltas", c.addr, c.name), bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(res.Body)
+		return fmt.Errorf("unxpected HTTP response: %s: %s", res.Status, body)
+	}
+	return nil
 }
