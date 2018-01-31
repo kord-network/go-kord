@@ -22,6 +22,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -118,19 +119,23 @@ func (n *Node) Start() error {
 
 	addr := fmt.Sprintf("%s:%d", n.config.API.HTTPAddr, n.config.API.HTTPPort)
 	n.log.Info("starting HTTP server", "addr", addr)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		n.dpa.Stop()
+		return err
+	}
 	n.srv = &http.Server{
-		Addr:    addr,
+		Addr:    ln.Addr().String(),
 		Handler: api.NewServer(),
 	}
 	go func() {
-		if err := n.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := n.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			n.log.Error("error starting HTTP server", "err", err)
 			n.err = err
 			n.Stop()
 		}
 	}()
 	return nil
-
 }
 
 func (n *Node) Stop() error {
@@ -157,4 +162,8 @@ func (n *Node) Wait() error {
 	<-n.done
 	n.log.Info("META node exited", "err", n.err)
 	return n.err
+}
+
+func (n *Node) HTTPAddr() string {
+	return n.srv.Addr
 }
