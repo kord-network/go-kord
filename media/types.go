@@ -60,6 +60,22 @@ type Release struct {
 	Date  string `json:"date"`
 }
 
+type Series struct {
+	Name string `json:"name"`
+}
+
+type Season struct {
+	Name string `json:"name"`
+}
+
+type Episode struct {
+	Name string `json:"name"`
+}
+
+type Supplemental struct {
+	Name string `json:"name"`
+}
+
 type PerformerRecord struct {
 	ID     int64
 	Name   string
@@ -116,6 +132,30 @@ type ReleaseRecord struct {
 	Type   string
 	Title  string
 	Date   string
+	Source int64
+}
+
+type SeriesRecord struct {
+	ID     int64
+	Name   string
+	Source int64
+}
+
+type SeasonRecord struct {
+	ID     int64
+	Name   string
+	Source int64
+}
+
+type EpisodeRecord struct {
+	ID     int64
+	Name   string
+	Source int64
+}
+
+type SupplementalRecord struct {
+	ID     int64
+	Name   string
 	Source int64
 }
 
@@ -205,6 +245,36 @@ type RecordingWorkLink struct {
 type ReleaseSongLink struct {
 	Release Identifier `json:"release"`
 	Song    Identifier `json:"song"`
+}
+
+type SeriesSeasonLink struct {
+	Series Identifier `json:"series"`
+	Season Identifier `json:"season"`
+}
+
+type SeriesEpisodeLink struct {
+	Series  Identifier `json:"series"`
+	Episode Identifier `json:"episode"`
+}
+
+type SeriesSupplementalLink struct {
+	Series       Identifier `json:"series"`
+	Supplemental Identifier `json:"supplemental"`
+}
+
+type SeasonEpisodeLink struct {
+	Season  Identifier `json:"season"`
+	Episode Identifier `json:"episode"`
+}
+
+type SeasonSupplementalLink struct {
+	Season       Identifier `json:"season"`
+	Supplemental Identifier `json:"supplemental"`
+}
+
+type EpisodeSupplementalLink struct {
+	Episode      Identifier `json:"episode"`
+	Supplemental Identifier `json:"supplemental"`
 }
 
 type PerformerRecordingRecord struct {
@@ -308,6 +378,48 @@ type ReleaseSongRecord struct {
 	Release *IdentifierRecord
 	Song    *IdentifierRecord
 	Source  int64
+}
+
+type SeriesSeasonRecord struct {
+	ID     int64
+	Series *IdentifierRecord
+	Season *IdentifierRecord
+	Source int64
+}
+
+type SeriesEpisodeRecord struct {
+	ID      int64
+	Series  *IdentifierRecord
+	Episode *IdentifierRecord
+	Source  int64
+}
+
+type SeriesSupplementalRecord struct {
+	ID           int64
+	Series       *IdentifierRecord
+	Supplemental *IdentifierRecord
+	Source       int64
+}
+
+type SeasonEpisodeRecord struct {
+	ID      int64
+	Season  *IdentifierRecord
+	Episode *IdentifierRecord
+	Source  int64
+}
+
+type SeasonSupplementalRecord struct {
+	ID           int64
+	Season       *IdentifierRecord
+	Supplemental *IdentifierRecord
+	Source       int64
+}
+
+type EpisodeSupplementalRecord struct {
+	ID           int64
+	Episode      *IdentifierRecord
+	Supplemental *IdentifierRecord
+	Source       int64
 }
 
 type Source struct {

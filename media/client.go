@@ -209,6 +209,78 @@ func (c *Client) Release(identifier *Identifier) (*Release, error) {
 	}, nil
 }
 
+func (c *Client) Series(identifier *Identifier) (*Series, error) {
+	var v struct {
+		Series struct {
+			Name struct {
+				Value string `json:"value"`
+			} `json:"name"`
+		} `json:"series"`
+	}
+	if err := c.Query(
+		getSeriesQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
+		return nil, err
+	}
+	return &Series{Name: v.Series.Name.Value}, nil
+}
+
+func (c *Client) Season(identifier *Identifier) (*Season, error) {
+	var v struct {
+		Season struct {
+			Name struct {
+				Value string `json:"value"`
+			} `json:"name"`
+		} `json:"season"`
+	}
+	if err := c.Query(
+		getSeasonQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
+		return nil, err
+	}
+	return &Season{Name: v.Season.Name.Value}, nil
+}
+
+func (c *Client) Episode(identifier *Identifier) (*Episode, error) {
+	var v struct {
+		Episode struct {
+			Name struct {
+				Value string `json:"value"`
+			} `json:"name"`
+		} `json:"episode"`
+	}
+	if err := c.Query(
+		getEpisodeQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
+		return nil, err
+	}
+	return &Episode{Name: v.Episode.Name.Value}, nil
+}
+
+func (c *Client) Supplemental(identifier *Identifier) (*Supplemental, error) {
+	var v struct {
+		Supplemental struct {
+			Name struct {
+				Value string `json:"value"`
+			} `json:"name"`
+		} `json:"supplemental"`
+	}
+	if err := c.Query(
+		getSupplementalQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
+		return nil, err
+	}
+	return &Supplemental{Name: v.Supplemental.Name.Value}, nil
+}
+
 func (c *Client) CreatePerformer(performer *Performer, identifier *Identifier) error {
 	return c.createResource(
 		"performer",
@@ -317,6 +389,54 @@ func (c *Client) CreateRelease(release *Release, identifier *Identifier) error {
 			"type":       release.Type,
 			"title":      release.Title,
 			"date":       release.Date,
+			"source":     c.source,
+		},
+	)
+}
+
+func (c *Client) CreateSeries(series *Series, identifier *Identifier) error {
+	return c.createResource(
+		"series",
+		createSeriesQuery,
+		graphql.Variables{
+			"identifier": identifier,
+			"name":       series.Name,
+			"source":     c.source,
+		},
+	)
+}
+
+func (c *Client) CreateSeason(season *Season, identifier *Identifier) error {
+	return c.createResource(
+		"season",
+		createSeasonQuery,
+		graphql.Variables{
+			"identifier": identifier,
+			"name":       season.Name,
+			"source":     c.source,
+		},
+	)
+}
+
+func (c *Client) CreateEpisode(episode *Episode, identifier *Identifier) error {
+	return c.createResource(
+		"episode",
+		createEpisodeQuery,
+		graphql.Variables{
+			"identifier": identifier,
+			"name":       episode.Name,
+			"source":     c.source,
+		},
+	)
+}
+
+func (c *Client) CreateSupplemental(supplemental *Supplemental, identifier *Identifier) error {
+	return c.createResource(
+		"supplemental",
+		createSupplementalQuery,
+		graphql.Variables{
+			"identifier": identifier,
+			"name":       supplemental.Name,
 			"source":     c.source,
 		},
 	)
@@ -486,6 +606,78 @@ func (c *Client) CreateReleaseSongLink(link *ReleaseSongLink) error {
 			"release_id": link.Release,
 			"song_id":    link.Song,
 			"source":     c.source,
+		},
+	)
+}
+
+func (c *Client) CreateSeriesSeasonLink(link *SeriesSeasonLink) error {
+	return c.createResource(
+		"link",
+		createSeriesSeasonLinkQuery,
+		graphql.Variables{
+			"series_id": link.Series,
+			"season_id": link.Season,
+			"source":    c.source,
+		},
+	)
+}
+
+func (c *Client) CreateSeriesEpisodeLink(link *SeriesEpisodeLink) error {
+	return c.createResource(
+		"link",
+		createSeriesEpisodeLinkQuery,
+		graphql.Variables{
+			"series_id":  link.Series,
+			"episode_id": link.Episode,
+			"source":     c.source,
+		},
+	)
+}
+
+func (c *Client) CreateSeriesSupplementalLink(link *SeriesSupplementalLink) error {
+	return c.createResource(
+		"link",
+		createSeriesSupplementalLinkQuery,
+		graphql.Variables{
+			"series_id":       link.Series,
+			"supplemental_id": link.Supplemental,
+			"source":          c.source,
+		},
+	)
+}
+
+func (c *Client) CreateSeasonEpisodeLink(link *SeasonEpisodeLink) error {
+	return c.createResource(
+		"link",
+		createSeasonEpisodeLinkQuery,
+		graphql.Variables{
+			"season_id":  link.Season,
+			"episode_id": link.Episode,
+			"source":     c.source,
+		},
+	)
+}
+
+func (c *Client) CreateSeasonSupplementalLink(link *SeasonSupplementalLink) error {
+	return c.createResource(
+		"link",
+		createSeasonSupplementalLinkQuery,
+		graphql.Variables{
+			"season_id":       link.Season,
+			"supplemental_id": link.Supplemental,
+			"source":          c.source,
+		},
+	)
+}
+
+func (c *Client) CreateEpisodeSupplementalLink(link *EpisodeSupplementalLink) error {
+	return c.createResource(
+		"link",
+		createEpisodeSupplementalLinkQuery,
+		graphql.Variables{
+			"episode_id":      link.Episode,
+			"supplemental_id": link.Supplemental,
+			"source":          c.source,
 		},
 	)
 }

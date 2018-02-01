@@ -319,6 +319,114 @@ func (i *Index) Releases(identifier *IdentifierRecord) ([]*ReleaseRecord, error)
 	return releases, nil
 }
 
+func (i *Index) Series(identifier *IdentifierRecord) ([]*SeriesRecord, error) {
+	rows, err := i.Query(
+		"SELECT id, name, source FROM series WHERE id IN (SELECT record_id FROM identifier_assignment WHERE record_type = 'series' AND identifier_id = $1)",
+		identifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var series []*SeriesRecord
+	for rows.Next() {
+		var s SeriesRecord
+		if err := rows.Scan(
+			&s.ID,
+			&s.Name,
+			&s.Source,
+		); err != nil {
+			return nil, err
+		}
+		series = append(series, &s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return series, nil
+}
+
+func (i *Index) Season(identifier *IdentifierRecord) ([]*SeasonRecord, error) {
+	rows, err := i.Query(
+		"SELECT id, name, source FROM season WHERE id IN (SELECT record_id FROM identifier_assignment WHERE record_type = 'season' AND identifier_id = $1)",
+		identifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var seasons []*SeasonRecord
+	for rows.Next() {
+		var season SeasonRecord
+		if err := rows.Scan(
+			&season.ID,
+			&season.Name,
+			&season.Source,
+		); err != nil {
+			return nil, err
+		}
+		seasons = append(seasons, &season)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return seasons, nil
+}
+
+func (i *Index) Episode(identifier *IdentifierRecord) ([]*EpisodeRecord, error) {
+	rows, err := i.Query(
+		"SELECT id, name, source FROM episode WHERE id IN (SELECT record_id FROM identifier_assignment WHERE record_type = 'episode' AND identifier_id = $1)",
+		identifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var episodes []*EpisodeRecord
+	for rows.Next() {
+		var episode EpisodeRecord
+		if err := rows.Scan(
+			&episode.ID,
+			&episode.Name,
+			&episode.Source,
+		); err != nil {
+			return nil, err
+		}
+		episodes = append(episodes, &episode)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return episodes, nil
+}
+
+func (i *Index) Supplemental(identifier *IdentifierRecord) ([]*SupplementalRecord, error) {
+	rows, err := i.Query(
+		"SELECT id, name, source FROM supplemental WHERE id IN (SELECT record_id FROM identifier_assignment WHERE record_type = 'supplemental' AND identifier_id = $1)",
+		identifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var supplementals []*SupplementalRecord
+	for rows.Next() {
+		var supplemental SupplementalRecord
+		if err := rows.Scan(
+			&supplemental.ID,
+			&supplemental.Name,
+			&supplemental.Source,
+		); err != nil {
+			return nil, err
+		}
+		supplementals = append(supplementals, &supplemental)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return supplementals, nil
+}
+
 func (i *Index) PerformerRecordings(performerIdentifier *IdentifierRecord) ([]*PerformerRecordingRecord, error) {
 	rows, err := i.Query(
 		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.role, a.source FROM performer_recording AS a JOIN identifier AS b ON b.id = a.performer_identifier JOIN identifier AS c ON c.id = a.recording_identifier WHERE a.performer_identifier = $1",
@@ -1253,6 +1361,426 @@ func (i *Index) SongReleases(songIdentifier *IdentifierRecord) ([]*ReleaseSongRe
 	return records, nil
 }
 
+func (i *Index) SeriesSeasons(seriesIdentifier *IdentifierRecord) ([]*SeriesSeasonRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM series_season AS a JOIN identifier AS b ON b.id = a.series_identifier JOIN identifier AS c ON c.id = a.season_identifier WHERE a.series_identifier = $1",
+		seriesIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*SeriesSeasonRecord
+	for rows.Next() {
+		record := SeriesSeasonRecord{
+			Series: &IdentifierRecord{},
+			Season: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Series.ID,
+			&record.Series.Type,
+			&record.Series.Value,
+			&record.Season.ID,
+			&record.Season.Type,
+			&record.Season.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SeasonSeries(seasonIdentifier *IdentifierRecord) ([]*SeriesSeasonRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM series_season AS a JOIN identifier AS b ON b.id = a.series_identifier JOIN identifier AS c ON c.id = a.season_identifier WHERE a.season_identifier = $1",
+		seasonIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*SeriesSeasonRecord
+	for rows.Next() {
+		record := SeriesSeasonRecord{
+			Series: &IdentifierRecord{},
+			Season: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Series.ID,
+			&record.Series.Type,
+			&record.Series.Value,
+			&record.Season.ID,
+			&record.Season.Type,
+			&record.Season.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SeriesEpisodes(seriesIdentifier *IdentifierRecord) ([]*SeriesEpisodeRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM series_episode AS a JOIN identifier AS b ON b.id = a.series_identifier JOIN identifier AS c ON c.id = a.episode_identifier WHERE a.series_identifier = $1",
+		seriesIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*SeriesEpisodeRecord
+	for rows.Next() {
+		record := SeriesEpisodeRecord{
+			Series:  &IdentifierRecord{},
+			Episode: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Series.ID,
+			&record.Series.Type,
+			&record.Series.Value,
+			&record.Episode.ID,
+			&record.Episode.Type,
+			&record.Episode.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) EpisodeSeries(episodeIdentifier *IdentifierRecord) ([]*SeriesEpisodeRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM series_episode AS a JOIN identifier AS b ON b.id = a.series_identifier JOIN identifier AS c ON c.id = a.episode_identifier WHERE a.episode_identifier = $1",
+		episodeIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*SeriesEpisodeRecord
+	for rows.Next() {
+		record := SeriesEpisodeRecord{
+			Series:  &IdentifierRecord{},
+			Episode: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Series.ID,
+			&record.Series.Type,
+			&record.Series.Value,
+			&record.Episode.ID,
+			&record.Episode.Type,
+			&record.Episode.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SeriesSupplementals(seriesIdentifier *IdentifierRecord) ([]*SeriesSupplementalRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM series_supplemental AS a JOIN identifier AS b ON b.id = a.series_identifier JOIN identifier AS c ON c.id = a.supplemental_identifier WHERE a.series_identifier = $1",
+		seriesIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*SeriesSupplementalRecord
+	for rows.Next() {
+		record := SeriesSupplementalRecord{
+			Series:       &IdentifierRecord{},
+			Supplemental: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Series.ID,
+			&record.Series.Type,
+			&record.Series.Value,
+			&record.Supplemental.ID,
+			&record.Supplemental.Type,
+			&record.Supplemental.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SupplementalSeries(supplementalIdentifier *IdentifierRecord) ([]*SeriesSupplementalRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM series_supplemental AS a JOIN identifier AS b ON b.id = a.series_identifier JOIN identifier AS c ON c.id = a.supplemental_identifier WHERE a.supplemental_identifier = $1",
+		supplementalIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*SeriesSupplementalRecord
+	for rows.Next() {
+		record := SeriesSupplementalRecord{
+			Series:       &IdentifierRecord{},
+			Supplemental: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Series.ID,
+			&record.Series.Type,
+			&record.Series.Value,
+			&record.Supplemental.ID,
+			&record.Supplemental.Type,
+			&record.Supplemental.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SeasonEpisodes(seasonIdentifier *IdentifierRecord) ([]*SeasonEpisodeRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM season_episode AS a JOIN identifier AS b ON b.id = a.season_identifier JOIN identifier AS c ON c.id = a.episode_identifier WHERE a.season_identifier = $1",
+		seasonIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*SeasonEpisodeRecord
+	for rows.Next() {
+		record := SeasonEpisodeRecord{
+			Season:  &IdentifierRecord{},
+			Episode: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Season.ID,
+			&record.Season.Type,
+			&record.Season.Value,
+			&record.Episode.ID,
+			&record.Episode.Type,
+			&record.Episode.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) EpisodeSeasons(episodeIdentifier *IdentifierRecord) ([]*SeasonEpisodeRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM season_episode AS a JOIN identifier AS b ON b.id = a.season_identifier JOIN identifier AS c ON c.id = a.episode_identifier WHERE a.episode_identifier = $1",
+		episodeIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*SeasonEpisodeRecord
+	for rows.Next() {
+		record := SeasonEpisodeRecord{
+			Season:  &IdentifierRecord{},
+			Episode: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Season.ID,
+			&record.Season.Type,
+			&record.Season.Value,
+			&record.Episode.ID,
+			&record.Episode.Type,
+			&record.Episode.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SeasonSupplementals(seasonIdentifier *IdentifierRecord) ([]*SeasonSupplementalRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM season_supplemental AS a JOIN identifier AS b ON b.id = a.season_identifier JOIN identifier AS c ON c.id = a.supplemental_identifier WHERE a.season_identifier = $1",
+		seasonIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*SeasonSupplementalRecord
+	for rows.Next() {
+		record := SeasonSupplementalRecord{
+			Season:       &IdentifierRecord{},
+			Supplemental: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Season.ID,
+			&record.Season.Type,
+			&record.Season.Value,
+			&record.Supplemental.ID,
+			&record.Supplemental.Type,
+			&record.Supplemental.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SupplementalSeasons(supplementalIdentifier *IdentifierRecord) ([]*SeasonSupplementalRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM season_supplemental AS a JOIN identifier AS b ON b.id = a.season_identifier JOIN identifier AS c ON c.id = a.supplemental_identifier WHERE a.supplemental_identifier = $1",
+		supplementalIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*SeasonSupplementalRecord
+	for rows.Next() {
+		record := SeasonSupplementalRecord{
+			Season:       &IdentifierRecord{},
+			Supplemental: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Season.ID,
+			&record.Season.Type,
+			&record.Season.Value,
+			&record.Supplemental.ID,
+			&record.Supplemental.Type,
+			&record.Supplemental.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) EpisodeSupplementals(episodeIdentifier *IdentifierRecord) ([]*EpisodeSupplementalRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM episode_supplemental AS a JOIN identifier AS b ON b.id = a.episode_identifier JOIN identifier AS c ON c.id = a.supplemental_identifier WHERE a.episode_identifier = $1",
+		episodeIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*EpisodeSupplementalRecord
+	for rows.Next() {
+		record := EpisodeSupplementalRecord{
+			Episode:      &IdentifierRecord{},
+			Supplemental: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Episode.ID,
+			&record.Episode.Type,
+			&record.Episode.Value,
+			&record.Supplemental.ID,
+			&record.Supplemental.Type,
+			&record.Supplemental.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SupplementalEpisodes(supplementalIdentifier *IdentifierRecord) ([]*EpisodeSupplementalRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM episode_supplemental AS a JOIN identifier AS b ON b.id = a.episode_identifier JOIN identifier AS c ON c.id = a.supplemental_identifier WHERE a.supplemental_identifier = $1",
+		supplementalIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*EpisodeSupplementalRecord
+	for rows.Next() {
+		record := EpisodeSupplementalRecord{
+			Episode:      &IdentifierRecord{},
+			Supplemental: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Episode.ID,
+			&record.Episode.Type,
+			&record.Episode.Value,
+			&record.Supplemental.ID,
+			&record.Supplemental.Type,
+			&record.Supplemental.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
 func (i *Index) Source(id int64) (*SourceRecord, error) {
 	record := &SourceRecord{ID: id}
 	if err := i.QueryRow("SELECT name FROM source WHERE id = $1", id).Scan(&record.Name); err != nil {
@@ -1360,6 +1888,46 @@ func (i *Index) CreateRecord(record interface{}, identifier *Identifier, source 
 			selectStmt = []interface{}{
 				"SELECT id FROM release WHERE type = $1 AND title = $2 AND date = $3 AND source = $4",
 				v.Type, v.Title, v.Date, source.ID,
+			}
+		case *Series:
+			recordType = "series"
+			insertStmt = []interface{}{
+				"INSERT INTO series (name, source) VALUES ($1, $2)",
+				v.Name, source.ID,
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM series WHERE name = $1 AND source = $2",
+				v.Name, source.ID,
+			}
+		case *Season:
+			recordType = "season"
+			insertStmt = []interface{}{
+				"INSERT INTO season (name, source) VALUES ($1, $2)",
+				v.Name, source.ID,
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM season WHERE name = $1 AND source = $2",
+				v.Name, source.ID,
+			}
+		case *Episode:
+			recordType = "episode"
+			insertStmt = []interface{}{
+				"INSERT INTO episode (name, source) VALUES ($1, $2)",
+				v.Name, source.ID,
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM episode WHERE name = $1 AND source = $2",
+				v.Name, source.ID,
+			}
+		case *Supplemental:
+			recordType = "supplemental"
+			insertStmt = []interface{}{
+				"INSERT INTO supplemental (name, source) VALUES ($1, $2)",
+				v.Name, source.ID,
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM supplemental WHERE name = $1 AND source = $2",
+				v.Name, source.ID,
 			}
 		}
 		var id int64
@@ -1980,6 +2548,270 @@ func (i *Index) CreateReleaseSong(link *ReleaseSongLink, source *Source) (*Relea
 			return tx.QueryRow(
 				"SELECT id FROM release_song WHERE release_identifier = $1 AND song_identifier = $2 AND source = $3",
 				release.ID, song.ID, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateSeriesSeason(link *SeriesSeasonLink, source *Source) (*SeriesSeasonRecord, error) {
+	series, err := i.Identifier("series", &link.Series)
+	if err != nil {
+		return nil, err
+	}
+	season, err := i.Identifier("season", &link.Season)
+	if err != nil {
+		return nil, err
+	}
+	record := &SeriesSeasonRecord{
+		Series: series,
+		Season: season,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO series_season (series_identifier, season_identifier, source) VALUES ($1, $2, $3)",
+			series.ID, season.ID, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM series_season WHERE series_identifier = $1 AND season_identifier = $2 AND source = $3",
+				series.ID, season.ID, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateSeriesEpisode(link *SeriesEpisodeLink, source *Source) (*SeriesEpisodeRecord, error) {
+	series, err := i.Identifier("series", &link.Series)
+	if err != nil {
+		return nil, err
+	}
+	episode, err := i.Identifier("episode", &link.Episode)
+	if err != nil {
+		return nil, err
+	}
+	record := &SeriesEpisodeRecord{
+		Series:  series,
+		Episode: episode,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO series_episode (series_identifier, episode_identifier, source) VALUES ($1, $2, $3)",
+			series.ID, episode.ID, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM series_episode WHERE series_identifier = $1 AND episode_identifier = $2 AND source = $3",
+				series.ID, episode.ID, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateSeriesSupplemental(link *SeriesSupplementalLink, source *Source) (*SeriesSupplementalRecord, error) {
+	series, err := i.Identifier("series", &link.Series)
+	if err != nil {
+		return nil, err
+	}
+	supplemental, err := i.Identifier("supplemental", &link.Supplemental)
+	if err != nil {
+		return nil, err
+	}
+	record := &SeriesSupplementalRecord{
+		Series:       series,
+		Supplemental: supplemental,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO series_supplemental (series_identifier, supplemental_identifier, source) VALUES ($1, $2, $3)",
+			series.ID, supplemental.ID, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM series_supplemental WHERE series_identifier = $1 AND supplemental_identifier = $2 AND source = $3",
+				series.ID, supplemental.ID, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateSeasonEpisode(link *SeasonEpisodeLink, source *Source) (*SeasonEpisodeRecord, error) {
+	season, err := i.Identifier("season", &link.Season)
+	if err != nil {
+		return nil, err
+	}
+	episode, err := i.Identifier("episode", &link.Episode)
+	if err != nil {
+		return nil, err
+	}
+	record := &SeasonEpisodeRecord{
+		Season:  season,
+		Episode: episode,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO season_episode (season_identifier, episode_identifier, source) VALUES ($1, $2, $3)",
+			season.ID, episode.ID, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM season_episode WHERE season_identifier = $1 AND episode_identifier = $2 AND source = $3",
+				season.ID, episode.ID, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateSeasonSupplemental(link *SeasonSupplementalLink, source *Source) (*SeasonSupplementalRecord, error) {
+	season, err := i.Identifier("season", &link.Season)
+	if err != nil {
+		return nil, err
+	}
+	supplemental, err := i.Identifier("supplemental", &link.Supplemental)
+	if err != nil {
+		return nil, err
+	}
+	record := &SeasonSupplementalRecord{
+		Season:       season,
+		Supplemental: supplemental,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO season_supplemental (season_identifier, supplemental_identifier, source) VALUES ($1, $2, $3)",
+			season.ID, supplemental.ID, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM season_supplemental WHERE season_identifier = $1 AND supplemental_identifier = $2 AND source = $3",
+				season.ID, supplemental.ID, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateEpisodeSupplemental(link *EpisodeSupplementalLink, source *Source) (*EpisodeSupplementalRecord, error) {
+	episode, err := i.Identifier("episode", &link.Episode)
+	if err != nil {
+		return nil, err
+	}
+	supplemental, err := i.Identifier("supplemental", &link.Supplemental)
+	if err != nil {
+		return nil, err
+	}
+	record := &EpisodeSupplementalRecord{
+		Episode:      episode,
+		Supplemental: supplemental,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO episode_supplemental (episode_identifier, supplemental_identifier, source) VALUES ($1, $2, $3)",
+			episode.ID, supplemental.ID, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM episode_supplemental WHERE episode_identifier = $1 AND supplemental_identifier = $2 AND source = $3",
+				episode.ID, supplemental.ID, record.Source,
 			).Scan(&record.ID)
 		}
 		return err

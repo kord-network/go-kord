@@ -298,4 +298,104 @@ ALTER TABLE publisher_work ADD COLUMN pr_share TEXT NOT NULL DEFAULT "0";
 ALTER TABLE publisher_work ADD COLUMN mr_share TEXT NOT NULL DEFAULT "0";
 ALTER TABLE publisher_work ADD COLUMN sr_share TEXT NOT NULL DEFAULT "0";
 	`)
+
+	migrations.Add(3, `
+CREATE TABLE series (
+  id     INTEGER PRIMARY KEY,
+  name   TEXT NOT NULL,
+  source INTEGER NOT NULL REFERENCES source (id)
+);
+
+CREATE UNIQUE INDEX series_unique_idx ON series (name, source);
+
+CREATE TABLE season (
+  id     INTEGER PRIMARY KEY,
+  name   TEXT NOT NULL,
+  source INTEGER NOT NULL REFERENCES source (id)
+);
+
+CREATE UNIQUE INDEX season_unique_idx ON season (name, source);
+
+CREATE TABLE episode (
+  id     INTEGER PRIMARY KEY,
+  name   TEXT NOT NULL,
+  source INTEGER NOT NULL REFERENCES source (id)
+);
+
+CREATE UNIQUE INDEX episode_unique_idx ON episode (name, source);
+
+CREATE TABLE supplemental (
+  id     INTEGER PRIMARY KEY,
+  name   TEXT NOT NULL,
+  source INTEGER NOT NULL REFERENCES source (id)
+);
+
+CREATE UNIQUE INDEX supplemental_unique_idx ON supplemental (name, source);
+
+CREATE TABLE series_season (
+  id                INTEGER PRIMARY KEY,
+  series_identifier INTEGER REFERENCES identifier (id),
+  season_identifier INTEGER REFERENCES identifier (id),
+  source            INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX series_season_series_idx ON series_season (series_identifier);
+CREATE INDEX series_season_season_idx ON series_season (season_identifier);
+CREATE UNIQUE INDEX series_season_unique_idx ON series_season (series_identifier, season_identifier, source);
+
+CREATE TABLE series_episode (
+  id                INTEGER PRIMARY KEY,
+  series_identifier INTEGER REFERENCES identifier (id),
+  episode_identifier INTEGER REFERENCES identifier (id),
+  source            INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX series_episode_series_idx ON series_episode (series_identifier);
+CREATE INDEX series_episode_episode_idx ON series_episode (episode_identifier);
+CREATE UNIQUE INDEX series_episode_unique_idx ON series_episode (series_identifier, episode_identifier, source);
+
+CREATE TABLE series_supplemental (
+  id                INTEGER PRIMARY KEY,
+  series_identifier INTEGER REFERENCES identifier (id),
+  supplemental_identifier INTEGER REFERENCES identifier (id),
+  source            INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX series_supplemental_series_idx ON series_supplemental (series_identifier);
+CREATE INDEX series_supplemental_supplemental_idx ON series_supplemental (supplemental_identifier);
+CREATE UNIQUE INDEX series_supplemental_unique_idx ON series_supplemental (series_identifier, supplemental_identifier, source);
+
+CREATE TABLE season_episode (
+  id                INTEGER PRIMARY KEY,
+  season_identifier INTEGER REFERENCES identifier (id),
+  episode_identifier INTEGER REFERENCES identifier (id),
+  source            INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX season_episode_season_idx ON season_episode (season_identifier);
+CREATE INDEX season_episode_episode_idx ON season_episode (episode_identifier);
+CREATE UNIQUE INDEX season_episode_unique_idx ON season_episode (season_identifier, episode_identifier, source);
+
+CREATE TABLE season_supplemental (
+  id                INTEGER PRIMARY KEY,
+  season_identifier INTEGER REFERENCES identifier (id),
+  supplemental_identifier INTEGER REFERENCES identifier (id),
+  source            INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX season_supplemental_season_idx ON season_supplemental (season_identifier);
+CREATE INDEX season_supplemental_supplemental_idx ON season_supplemental (supplemental_identifier);
+CREATE UNIQUE INDEX season_supplemental_unique_idx ON season_supplemental (season_identifier, supplemental_identifier, source);
+
+CREATE TABLE episode_supplemental (
+  id                INTEGER PRIMARY KEY,
+  episode_identifier INTEGER REFERENCES identifier (id),
+  supplemental_identifier INTEGER REFERENCES identifier (id),
+  source            INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX episode_supplemental_episode_idx ON episode_supplemental (episode_identifier);
+CREATE INDEX episode_supplemental_supplemental_idx ON episode_supplemental (supplemental_identifier);
+CREATE UNIQUE INDEX episode_supplemental_unique_idx ON episode_supplemental (episode_identifier, supplemental_identifier, source);
+	`)
 }

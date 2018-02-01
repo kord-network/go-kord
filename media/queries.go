@@ -186,6 +186,78 @@ query GetRelease($identifier: IdentifierInput!) {
 }
 `
 
+const createSeriesQuery = `
+mutation CreateSeries($series: SeriesInput!) {
+  createSeries(series: $series) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
+const getSeriesQuery = `
+query GetSeries($identifier: IdentifierInput!) {
+  series(identifier: $identifier) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
+const createSeasonQuery = `
+mutation CreateSeason($season: SeasonInput!) {
+  createSeason(season: $season) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
+const getSeasonQuery = `
+query GetSeason($identifier: IdentifierInput!) {
+  season(identifier: $identifier) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
+const createEpisodeQuery = `
+mutation CreateEpisode($episode: EpisodeInput!) {
+  createEpisode(episode: $episode) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
+const getEpisodeQuery = `
+query GetEpisode($identifier: IdentifierInput!) {
+  episode(identifier: $identifier) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
+const createSupplementalQuery = `
+mutation CreateSupplemental($supplemental: SupplementalInput!) {
+  createSupplemental(supplemental: $supplemental) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
+const getSupplementalQuery = `
+query GetSupplemental($identifier: IdentifierInput!) {
+  supplemental(identifier: $identifier) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
 const createPerformerRecordingLinkQuery = `
 mutation CreatePerformerRecordingLink($link: PerformerRecordingLinkInput!) {
   createPerformerRecordingLink(link: $link) { source { name } }
@@ -261,5 +333,41 @@ mutation CreateRecordingWorkLink($link: RecordingWorkLinkInput!) {
 const createReleaseSongLinkQuery = `
 mutation CreateReleaseSongLink($link: ReleaseSongLinkInput!) {
   createReleaseSongLink(link: $link) { source { name } }
+}
+`
+
+const createSeriesSeasonLinkQuery = `
+mutation CreateSeriesSeasonLink($link: SeriesSeasonLinkInput!) {
+  createSeriesSeasonLink(link: $link) { source { name } }
+}
+`
+
+const createSeriesEpisodeLinkQuery = `
+mutation CreateSeriesEpisodeLink($link: SeriesEpisodeLinkInput!) {
+  createSeriesEpisodeLink(link: $link) { source { name } }
+}
+`
+
+const createSeriesSupplementalLinkQuery = `
+mutation CreateSeriesSupplementalLink($link: SeriesSupplementalLinkInput!) {
+  createSeriesSupplementalLink(link: $link) { source { name } }
+}
+`
+
+const createSeasonEpisodeLinkQuery = `
+mutation CreateSeasonEpisodeLink($link: SeasonEpisodeLinkInput!) {
+  createSeasonEpisodeLink(link: $link) { source { name } }
+}
+`
+
+const createSeasonSupplementalLinkQuery = `
+mutation CreateSeasonSupplementalLink($link: SeasonSupplementalLinkInput!) {
+  createSeasonSupplementalLink(link: $link) { source { name } }
+}
+`
+
+const createEpisodeSupplementalLinkQuery = `
+mutation CreateEpisodeSupplementalLink($link: EpisodeSupplementalLinkInput!) {
+  createEpisodeSupplementalLink(link: $link) { source { name } }
 }
 `

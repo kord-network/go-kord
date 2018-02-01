@@ -79,6 +79,14 @@ type Query {
   song(identifier: IdentifierInput!): Song!
 
   release(identifier: IdentifierInput!): Release!
+
+  series(identifier: IdentifierInput!): Series!
+
+  season(identifier: IdentifierInput!): Season!
+
+  episode(identifier: IdentifierInput!): Episode!
+
+  supplemental(identifier: IdentifierInput!): Supplemental!
 }
 
 type Mutation {
@@ -99,6 +107,14 @@ type Mutation {
   createSong(song: SongInput!): Song!
 
   createRelease(release: ReleaseInput!): Release!
+
+  createSeries(series: SeriesInput!): Series!
+
+  createSeason(season: SeasonInput!): Season!
+
+  createEpisode(episode: EpisodeInput!): Episode!
+
+  createSupplemental(supplemental: SupplementalInput!): Supplemental!
 
   createPerformerRecordingLink(link: PerformerRecordingLinkInput!): PerformerRecordingLink!
 
@@ -125,6 +141,18 @@ type Mutation {
   createRecordingWorkLink(link: RecordingWorkLinkInput!): RecordingWorkLink!
 
   createReleaseSongLink(link: ReleaseSongLinkInput!): ReleaseSongLink!
+
+  createSeriesSeasonLink(link: SeriesSeasonLinkInput!): SeriesSeasonLink!
+
+  createSeriesEpisodeLink(link: SeriesEpisodeLinkInput!): SeriesEpisodeLink!
+
+  createSeriesSupplementalLink(link: SeriesSupplementalLinkInput!): SeriesSupplementalLink!
+
+  createSeasonEpisodeLink(link: SeasonEpisodeLinkInput!): SeasonEpisodeLink!
+
+  createSeasonSupplementalLink(link: SeasonSupplementalLinkInput!): SeasonSupplementalLink!
+
+  createEpisodeSupplementalLink(link: EpisodeSupplementalLinkInput!): EpisodeSupplementalLink!
 }
 
 #
@@ -231,6 +259,46 @@ type Release {
   record_labels: [RecordLabelReleaseLink]!
 }
 
+type Series {
+  identifiers: [IdentifierValue]!
+
+  name: StringValue
+
+  seasons:       [SeriesSeasonLink]!
+  episodes:      [SeriesEpisodeLink]!
+  supplementals: [SeriesSupplementalLink]!
+}
+
+type Season {
+  identifiers: [IdentifierValue]!
+
+  name: StringValue
+
+  series:        [SeriesSeasonLink]!
+  episodes:      [SeasonEpisodeLink]!
+  supplementals: [SeasonSupplementalLink]!
+}
+
+type Episode {
+  identifiers: [IdentifierValue]!
+
+  name: StringValue
+
+  series:        [SeriesEpisodeLink]!
+  seasons:       [SeasonEpisodeLink]!
+  supplementals: [EpisodeSupplementalLink]!
+}
+
+type Supplemental {
+  identifiers: [IdentifierValue]!
+
+  name: StringValue
+
+  series:   [SeriesSupplementalLink]!
+  seasons:  [SeasonSupplementalLink]!
+  episodes: [EpisodeSupplementalLink]!
+}
+
 #
 # --- Mutation Inputs ---
 #
@@ -290,6 +358,30 @@ input ReleaseInput {
   type:       String!
   title:      String!
   date:       String!
+  source:     SourceInput!
+}
+
+input SeriesInput {
+  identifier: IdentifierInput!
+  name:       String!
+  source:     SourceInput!
+}
+
+input SeasonInput {
+  identifier: IdentifierInput!
+  name:       String!
+  source:     SourceInput!
+}
+
+input EpisodeInput {
+  identifier: IdentifierInput!
+  name:       String!
+  source:     SourceInput!
+}
+
+input SupplementalInput {
+  identifier: IdentifierInput!
+  name:       String!
   source:     SourceInput!
 }
 
@@ -381,6 +473,42 @@ input ReleaseSongLinkInput {
   release_id: IdentifierInput!
   song_id:    IdentifierInput!
   source:     SourceInput!
+}
+
+input SeriesSeasonLinkInput {
+  series_id: IdentifierInput!
+  season_id: IdentifierInput!
+  source:    SourceInput!
+}
+
+input SeriesEpisodeLinkInput {
+  series_id:  IdentifierInput!
+  episode_id: IdentifierInput!
+  source:     SourceInput!
+}
+
+input SeriesSupplementalLinkInput {
+  series_id:       IdentifierInput!
+  supplemental_id: IdentifierInput!
+  source:          SourceInput!
+}
+
+input SeasonEpisodeLinkInput {
+  season_id:  IdentifierInput!
+  episode_id: IdentifierInput!
+  source:     SourceInput!
+}
+
+input SeasonSupplementalLinkInput {
+  season_id:       IdentifierInput!
+  supplemental_id: IdentifierInput!
+  source:          SourceInput!
+}
+
+input EpisodeSupplementalLinkInput {
+  episode_id:      IdentifierInput!
+  supplemental_id: IdentifierInput!
+  source:          SourceInput!
 }
 
 input IdentifierInput {
@@ -484,6 +612,42 @@ type ReleaseSongLink {
   release: Release!
   song:    Song!
   source:  Source!
+}
+
+type SeriesSeasonLink {
+  series: Series!
+  season: Season!
+  source: Source!
+}
+
+type SeriesEpisodeLink {
+  series:  Series!
+  episode: Episode!
+  source:  Source!
+}
+
+type SeriesSupplementalLink {
+  series:       Series!
+  supplemental: Supplemental!
+  source:       Source!
+}
+
+type SeasonEpisodeLink {
+  season:  Season!
+  episode: Episode!
+  source:  Source!
+}
+
+type SeasonSupplementalLink {
+  season:       Season!
+  supplemental: Supplemental!
+  source:       Source!
+}
+
+type EpisodeSupplementalLink {
+  episode:      Episode!
+  supplemental: Supplemental!
+  source:       Source!
 }
 
 #
@@ -1606,6 +1770,406 @@ func (r *ReleaseResolver) RecordLabels() ([]*recordLabelReleaseLinkResolver, err
 	return resolvers, nil
 }
 
+type createSeriesArgs struct {
+	Series struct {
+		Series
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreateSeries(args createSeriesArgs) (*SeriesResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Series.Series,
+		&args.Series.Identifier,
+		&args.Series.Source,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &SeriesResolver{r, identifier}, nil
+}
+
+func (r *Resolver) Series(args IdentifierArgs) (*SeriesResolver, error) {
+	identifier, err := r.mediaIndex.Identifier("series", &args.Identifier)
+	if err != nil {
+		return nil, err
+	}
+	return &SeriesResolver{r, identifier}, nil
+}
+
+type SeriesResolver struct {
+	resolver   *Resolver
+	identifier *IdentifierRecord
+}
+
+func (s *SeriesResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{s.resolver, s.identifier}}
+}
+
+func (s *SeriesResolver) Name() (*stringValueResolver, error) {
+	records, err := s.resolver.mediaIndex.Series(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Name
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Name,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (s *SeriesResolver) Seasons() ([]*seriesSeasonLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SeriesSeasons(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*seriesSeasonLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &seriesSeasonLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (s *SeriesResolver) Episodes() ([]*seriesEpisodeLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SeriesEpisodes(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*seriesEpisodeLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &seriesEpisodeLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (s *SeriesResolver) Supplementals() ([]*seriesSupplementalLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SeriesSupplementals(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*seriesSupplementalLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &seriesSupplementalLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+type createSeasonArgs struct {
+	Season struct {
+		Season
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreateSeason(args createSeasonArgs) (*SeasonResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Season.Season,
+		&args.Season.Identifier,
+		&args.Season.Source,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &SeasonResolver{r, identifier}, nil
+}
+
+func (r *Resolver) Season(args IdentifierArgs) (*SeasonResolver, error) {
+	identifier, err := r.mediaIndex.Identifier("season", &args.Identifier)
+	if err != nil {
+		return nil, err
+	}
+	return &SeasonResolver{r, identifier}, nil
+}
+
+type SeasonResolver struct {
+	resolver   *Resolver
+	identifier *IdentifierRecord
+}
+
+func (s *SeasonResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{s.resolver, s.identifier}}
+}
+
+func (s *SeasonResolver) Name() (*stringValueResolver, error) {
+	records, err := s.resolver.mediaIndex.Season(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Name
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Name,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (s *SeasonResolver) Series() ([]*seriesSeasonLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SeasonSeries(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*seriesSeasonLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &seriesSeasonLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (s *SeasonResolver) Episodes() ([]*seasonEpisodeLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SeasonEpisodes(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*seasonEpisodeLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &seasonEpisodeLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (s *SeasonResolver) Supplementals() ([]*seasonSupplementalLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SeasonSupplementals(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*seasonSupplementalLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &seasonSupplementalLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+type createEpisodeArgs struct {
+	Episode struct {
+		Episode
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreateEpisode(args createEpisodeArgs) (*EpisodeResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Episode.Episode,
+		&args.Episode.Identifier,
+		&args.Episode.Source,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &EpisodeResolver{r, identifier}, nil
+}
+
+func (r *Resolver) Episode(args IdentifierArgs) (*EpisodeResolver, error) {
+	identifier, err := r.mediaIndex.Identifier("episode", &args.Identifier)
+	if err != nil {
+		return nil, err
+	}
+	return &EpisodeResolver{r, identifier}, nil
+}
+
+type EpisodeResolver struct {
+	resolver   *Resolver
+	identifier *IdentifierRecord
+}
+
+func (e *EpisodeResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{e.resolver, e.identifier}}
+}
+
+func (e *EpisodeResolver) Name() (*stringValueResolver, error) {
+	records, err := e.resolver.mediaIndex.Episode(e.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Name
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Name,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (e *EpisodeResolver) Series() ([]*seriesEpisodeLinkResolver, error) {
+	records, err := e.resolver.mediaIndex.EpisodeSeries(e.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*seriesEpisodeLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &seriesEpisodeLinkResolver{
+			resolver: e.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (e *EpisodeResolver) Seasons() ([]*seasonEpisodeLinkResolver, error) {
+	records, err := e.resolver.mediaIndex.EpisodeSeasons(e.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*seasonEpisodeLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &seasonEpisodeLinkResolver{
+			resolver: e.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (e *EpisodeResolver) Supplementals() ([]*episodeSupplementalLinkResolver, error) {
+	records, err := e.resolver.mediaIndex.EpisodeSupplementals(e.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*episodeSupplementalLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &episodeSupplementalLinkResolver{
+			resolver: e.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+type createSupplementalArgs struct {
+	Supplemental struct {
+		Supplemental
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreateSupplemental(args createSupplementalArgs) (*SupplementalResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Supplemental.Supplemental,
+		&args.Supplemental.Identifier,
+		&args.Supplemental.Source,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &SupplementalResolver{r, identifier}, nil
+}
+
+func (r *Resolver) Supplemental(args IdentifierArgs) (*SupplementalResolver, error) {
+	identifier, err := r.mediaIndex.Identifier("supplemental", &args.Identifier)
+	if err != nil {
+		return nil, err
+	}
+	return &SupplementalResolver{r, identifier}, nil
+}
+
+type SupplementalResolver struct {
+	resolver   *Resolver
+	identifier *IdentifierRecord
+}
+
+func (s *SupplementalResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{s.resolver, s.identifier}}
+}
+
+func (s *SupplementalResolver) Name() (*stringValueResolver, error) {
+	records, err := s.resolver.mediaIndex.Supplemental(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Name
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Name,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (s *SupplementalResolver) Series() ([]*seriesSupplementalLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SupplementalSeries(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*seriesSupplementalLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &seriesSupplementalLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (s *SupplementalResolver) Episodes() ([]*episodeSupplementalLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SupplementalEpisodes(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*episodeSupplementalLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &episodeSupplementalLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (s *SupplementalResolver) Seasons() ([]*seasonSupplementalLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SupplementalSeasons(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*seasonSupplementalLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &seasonSupplementalLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
 type createPerformerRecordingLinkArgs struct {
 	Link struct {
 		PerformerID Identifier
@@ -2156,6 +2720,228 @@ func (r *releaseSongLinkResolver) Song() *SongResolver {
 }
 
 func (r *releaseSongLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createSeriesSeasonLinkArgs struct {
+	Link struct {
+		SeriesID Identifier
+		SeasonID Identifier
+		Source   Source
+	}
+}
+
+func (r *Resolver) CreateSeriesSeasonLink(args createSeriesSeasonLinkArgs) (*seriesSeasonLinkResolver, error) {
+	link := &SeriesSeasonLink{
+		Series: args.Link.SeriesID,
+		Season: args.Link.SeasonID,
+	}
+	record, err := r.mediaIndex.CreateSeriesSeason(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &seriesSeasonLinkResolver{r, record}, nil
+}
+
+type seriesSeasonLinkResolver struct {
+	resolver *Resolver
+	record   *SeriesSeasonRecord
+}
+
+func (r *seriesSeasonLinkResolver) Series() *SeriesResolver {
+	return &SeriesResolver{r.resolver, r.record.Series}
+}
+
+func (r *seriesSeasonLinkResolver) Season() *SeasonResolver {
+	return &SeasonResolver{r.resolver, r.record.Season}
+}
+
+func (r *seriesSeasonLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createSeriesEpisodeLinkArgs struct {
+	Link struct {
+		SeriesID  Identifier
+		EpisodeID Identifier
+		Source    Source
+	}
+}
+
+func (r *Resolver) CreateSeriesEpisodeLink(args createSeriesEpisodeLinkArgs) (*seriesEpisodeLinkResolver, error) {
+	link := &SeriesEpisodeLink{
+		Series:  args.Link.SeriesID,
+		Episode: args.Link.EpisodeID,
+	}
+	record, err := r.mediaIndex.CreateSeriesEpisode(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &seriesEpisodeLinkResolver{r, record}, nil
+}
+
+type seriesEpisodeLinkResolver struct {
+	resolver *Resolver
+	record   *SeriesEpisodeRecord
+}
+
+func (r *seriesEpisodeLinkResolver) Series() *SeriesResolver {
+	return &SeriesResolver{r.resolver, r.record.Series}
+}
+
+func (r *seriesEpisodeLinkResolver) Episode() *EpisodeResolver {
+	return &EpisodeResolver{r.resolver, r.record.Episode}
+}
+
+func (r *seriesEpisodeLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createSeriesSupplementalLinkArgs struct {
+	Link struct {
+		SeriesID       Identifier
+		SupplementalID Identifier
+		Source         Source
+	}
+}
+
+func (r *Resolver) CreateSeriesSupplementalLink(args createSeriesSupplementalLinkArgs) (*seriesSupplementalLinkResolver, error) {
+	link := &SeriesSupplementalLink{
+		Series:       args.Link.SeriesID,
+		Supplemental: args.Link.SupplementalID,
+	}
+	record, err := r.mediaIndex.CreateSeriesSupplemental(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &seriesSupplementalLinkResolver{r, record}, nil
+}
+
+type seriesSupplementalLinkResolver struct {
+	resolver *Resolver
+	record   *SeriesSupplementalRecord
+}
+
+func (r *seriesSupplementalLinkResolver) Series() *SeriesResolver {
+	return &SeriesResolver{r.resolver, r.record.Series}
+}
+
+func (r *seriesSupplementalLinkResolver) Supplemental() *SupplementalResolver {
+	return &SupplementalResolver{r.resolver, r.record.Supplemental}
+}
+
+func (r *seriesSupplementalLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createSeasonEpisodeLinkArgs struct {
+	Link struct {
+		SeasonID  Identifier
+		EpisodeID Identifier
+		Source    Source
+	}
+}
+
+func (r *Resolver) CreateSeasonEpisodeLink(args createSeasonEpisodeLinkArgs) (*seasonEpisodeLinkResolver, error) {
+	link := &SeasonEpisodeLink{
+		Season:  args.Link.SeasonID,
+		Episode: args.Link.EpisodeID,
+	}
+	record, err := r.mediaIndex.CreateSeasonEpisode(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &seasonEpisodeLinkResolver{r, record}, nil
+}
+
+type seasonEpisodeLinkResolver struct {
+	resolver *Resolver
+	record   *SeasonEpisodeRecord
+}
+
+func (r *seasonEpisodeLinkResolver) Season() *SeasonResolver {
+	return &SeasonResolver{r.resolver, r.record.Season}
+}
+
+func (r *seasonEpisodeLinkResolver) Episode() *EpisodeResolver {
+	return &EpisodeResolver{r.resolver, r.record.Episode}
+}
+
+func (r *seasonEpisodeLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createSeasonSupplementalLinkArgs struct {
+	Link struct {
+		SeasonID       Identifier
+		SupplementalID Identifier
+		Source         Source
+	}
+}
+
+func (r *Resolver) CreateSeasonSupplementalLink(args createSeasonSupplementalLinkArgs) (*seasonSupplementalLinkResolver, error) {
+	link := &SeasonSupplementalLink{
+		Season:       args.Link.SeasonID,
+		Supplemental: args.Link.SupplementalID,
+	}
+	record, err := r.mediaIndex.CreateSeasonSupplemental(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &seasonSupplementalLinkResolver{r, record}, nil
+}
+
+type seasonSupplementalLinkResolver struct {
+	resolver *Resolver
+	record   *SeasonSupplementalRecord
+}
+
+func (r *seasonSupplementalLinkResolver) Season() *SeasonResolver {
+	return &SeasonResolver{r.resolver, r.record.Season}
+}
+
+func (r *seasonSupplementalLinkResolver) Supplemental() *SupplementalResolver {
+	return &SupplementalResolver{r.resolver, r.record.Supplemental}
+}
+
+func (r *seasonSupplementalLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createEpisodeSupplementalLinkArgs struct {
+	Link struct {
+		EpisodeID      Identifier
+		SupplementalID Identifier
+		Source         Source
+	}
+}
+
+func (r *Resolver) CreateEpisodeSupplementalLink(args createEpisodeSupplementalLinkArgs) (*episodeSupplementalLinkResolver, error) {
+	link := &EpisodeSupplementalLink{
+		Episode:      args.Link.EpisodeID,
+		Supplemental: args.Link.SupplementalID,
+	}
+	record, err := r.mediaIndex.CreateEpisodeSupplemental(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &episodeSupplementalLinkResolver{r, record}, nil
+}
+
+type episodeSupplementalLinkResolver struct {
+	resolver *Resolver
+	record   *EpisodeSupplementalRecord
+}
+
+func (r *episodeSupplementalLinkResolver) Episode() *EpisodeResolver {
+	return &EpisodeResolver{r.resolver, r.record.Episode}
+}
+
+func (r *episodeSupplementalLinkResolver) Supplemental() *SupplementalResolver {
+	return &SupplementalResolver{r.resolver, r.record.Supplemental}
+}
+
+func (r *episodeSupplementalLinkResolver) Source() *sourceResolver {
 	return &sourceResolver{r.resolver, r.record.Source}
 }
 
