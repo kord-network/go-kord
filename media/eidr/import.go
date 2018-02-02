@@ -35,7 +35,15 @@ func NewImporter(client *media.Client) *Importer {
 	return &Importer{client}
 }
 
-func (i *Importer) ImportEIDR(src io.Reader) error {
+func (i *Importer) ImportParty(src io.Reader) error {
+	var msg Party
+	if err := xml.NewDecoder(src).Decode(&msg); err != nil {
+		return err
+	}
+	return i.importParty(&msg)
+}
+
+func (i *Importer) ImportFullMetadata(src io.Reader) error {
 	var msg FullMetadata
 	if err := xml.NewDecoder(src).Decode(&msg); err != nil {
 		return err
@@ -52,6 +60,17 @@ func (i *Importer) ImportEIDR(src io.Reader) error {
 	}
 }
 
+func (i *Importer) importParty(msg *Party) error {
+	identifier := &media.Identifier{
+		Type:  "doid",
+		Value: msg.ID,
+	}
+	org := &media.Organisation{
+		Name: msg.PartyName.DisplayName,
+	}
+	return i.client.CreateOrganisation(org, identifier)
+}
+
 func (i *Importer) importSeries(msg *FullMetadata) error {
 	identifier := &media.Identifier{
 		Type:  "doid",
@@ -60,7 +79,17 @@ func (i *Importer) importSeries(msg *FullMetadata) error {
 	series := &media.Series{
 		Name: msg.BaseObjectData.ResourceName.Value,
 	}
-	return i.client.CreateSeries(series, identifier)
+	if err := i.client.CreateSeries(series, identifier); err != nil {
+		return err
+	}
+	org := media.Identifier{
+		Type:  "doid",
+		Value: msg.BaseObjectData.Administrators.Registrant,
+	}
+	return i.client.CreateOrganisationSeriesLink(&media.OrganisationSeriesLink{
+		Organisation: org,
+		Series:       *identifier,
+	})
 }
 
 func (i *Importer) importSeason(msg *FullMetadata) error {
@@ -72,6 +101,16 @@ func (i *Importer) importSeason(msg *FullMetadata) error {
 		Name: msg.BaseObjectData.ResourceName.Value,
 	}
 	if err := i.client.CreateSeason(season, identifier); err != nil {
+		return err
+	}
+	org := media.Identifier{
+		Type:  "doid",
+		Value: msg.BaseObjectData.Administrators.Registrant,
+	}
+	if err := i.client.CreateOrganisationSeasonLink(&media.OrganisationSeasonLink{
+		Organisation: org,
+		Season:       *identifier,
+	}); err != nil {
 		return err
 	}
 	series := media.Identifier{
@@ -93,6 +132,16 @@ func (i *Importer) importEpisode(msg *FullMetadata) error {
 		Name: msg.BaseObjectData.ResourceName.Value,
 	}
 	if err := i.client.CreateEpisode(episode, identifier); err != nil {
+		return err
+	}
+	org := media.Identifier{
+		Type:  "doid",
+		Value: msg.BaseObjectData.Administrators.Registrant,
+	}
+	if err := i.client.CreateOrganisationEpisodeLink(&media.OrganisationEpisodeLink{
+		Organisation: org,
+		Episode:      *identifier,
+	}); err != nil {
 		return err
 	}
 	season := media.Identifier{

@@ -209,6 +209,24 @@ func (c *Client) Release(identifier *Identifier) (*Release, error) {
 	}, nil
 }
 
+func (c *Client) Organisation(identifier *Identifier) (*Organisation, error) {
+	var v struct {
+		Organisation struct {
+			Name struct {
+				Value string `json:"value"`
+			} `json:"name"`
+		} `json:"organisation"`
+	}
+	if err := c.Query(
+		getOrganisationQuery,
+		graphql.Variables{"identifier": identifier},
+		&v,
+	); err != nil {
+		return nil, err
+	}
+	return &Organisation{Name: v.Organisation.Name.Value}, nil
+}
+
 func (c *Client) Series(identifier *Identifier) (*Series, error) {
 	var v struct {
 		Series struct {
@@ -389,6 +407,18 @@ func (c *Client) CreateRelease(release *Release, identifier *Identifier) error {
 			"type":       release.Type,
 			"title":      release.Title,
 			"date":       release.Date,
+			"source":     c.source,
+		},
+	)
+}
+
+func (c *Client) CreateOrganisation(organisation *Organisation, identifier *Identifier) error {
+	return c.createResource(
+		"organisation",
+		createOrganisationQuery,
+		graphql.Variables{
+			"identifier": identifier,
+			"name":       organisation.Name,
 			"source":     c.source,
 		},
 	)
@@ -606,6 +636,54 @@ func (c *Client) CreateReleaseSongLink(link *ReleaseSongLink) error {
 			"release_id": link.Release,
 			"song_id":    link.Song,
 			"source":     c.source,
+		},
+	)
+}
+
+func (c *Client) CreateOrganisationSeriesLink(link *OrganisationSeriesLink) error {
+	return c.createResource(
+		"link",
+		createOrganisationSeriesLinkQuery,
+		graphql.Variables{
+			"organisation_id": link.Organisation,
+			"series_id":       link.Series,
+			"source":          c.source,
+		},
+	)
+}
+
+func (c *Client) CreateOrganisationSeasonLink(link *OrganisationSeasonLink) error {
+	return c.createResource(
+		"link",
+		createOrganisationSeasonLinkQuery,
+		graphql.Variables{
+			"organisation_id": link.Organisation,
+			"season_id":       link.Season,
+			"source":          c.source,
+		},
+	)
+}
+
+func (c *Client) CreateOrganisationEpisodeLink(link *OrganisationEpisodeLink) error {
+	return c.createResource(
+		"link",
+		createOrganisationEpisodeLinkQuery,
+		graphql.Variables{
+			"organisation_id": link.Organisation,
+			"episode_id":      link.Episode,
+			"source":          c.source,
+		},
+	)
+}
+
+func (c *Client) CreateOrganisationSupplementalLink(link *OrganisationSupplementalLink) error {
+	return c.createResource(
+		"link",
+		createOrganisationSupplementalLinkQuery,
+		graphql.Variables{
+			"organisation_id": link.Organisation,
+			"supplemental_id": link.Supplemental,
+			"source":          c.source,
 		},
 	)
 }

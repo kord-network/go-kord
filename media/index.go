@@ -319,6 +319,33 @@ func (i *Index) Releases(identifier *IdentifierRecord) ([]*ReleaseRecord, error)
 	return releases, nil
 }
 
+func (i *Index) Organisation(identifier *IdentifierRecord) ([]*OrganisationRecord, error) {
+	rows, err := i.Query(
+		"SELECT id, name, source FROM organisation WHERE id IN (SELECT record_id FROM identifier_assignment WHERE record_type = 'organisation' AND identifier_id = $1)",
+		identifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var organisations []*OrganisationRecord
+	for rows.Next() {
+		var organisation OrganisationRecord
+		if err := rows.Scan(
+			&organisation.ID,
+			&organisation.Name,
+			&organisation.Source,
+		); err != nil {
+			return nil, err
+		}
+		organisations = append(organisations, &organisation)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return organisations, nil
+}
+
 func (i *Index) Series(identifier *IdentifierRecord) ([]*SeriesRecord, error) {
 	rows, err := i.Query(
 		"SELECT id, name, source FROM series WHERE id IN (SELECT record_id FROM identifier_assignment WHERE record_type = 'series' AND identifier_id = $1)",
@@ -1361,6 +1388,286 @@ func (i *Index) SongReleases(songIdentifier *IdentifierRecord) ([]*ReleaseSongRe
 	return records, nil
 }
 
+func (i *Index) OrganisationSeries(organisationIdentifier *IdentifierRecord) ([]*OrganisationSeriesRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM organisation_series AS a JOIN identifier AS b ON b.id = a.organisation_identifier JOIN identifier AS c ON c.id = a.series_identifier WHERE a.organisation_identifier = $1",
+		organisationIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*OrganisationSeriesRecord
+	for rows.Next() {
+		record := OrganisationSeriesRecord{
+			Organisation: &IdentifierRecord{},
+			Series:       &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Organisation.ID,
+			&record.Organisation.Type,
+			&record.Organisation.Value,
+			&record.Series.ID,
+			&record.Series.Type,
+			&record.Series.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SeriesOrganisations(seriesIdentifier *IdentifierRecord) ([]*OrganisationSeriesRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM organisation_series AS a JOIN identifier AS b ON b.id = a.organisation_identifier JOIN identifier AS c ON c.id = a.series_identifier WHERE a.series_identifier = $1",
+		seriesIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*OrganisationSeriesRecord
+	for rows.Next() {
+		record := OrganisationSeriesRecord{
+			Organisation: &IdentifierRecord{},
+			Series:       &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Organisation.ID,
+			&record.Organisation.Type,
+			&record.Organisation.Value,
+			&record.Series.ID,
+			&record.Series.Type,
+			&record.Series.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) OrganisationSeasons(organisationIdentifier *IdentifierRecord) ([]*OrganisationSeasonRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM organisation_season AS a JOIN identifier AS b ON b.id = a.organisation_identifier JOIN identifier AS c ON c.id = a.season_identifier WHERE a.organisation_identifier = $1",
+		organisationIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*OrganisationSeasonRecord
+	for rows.Next() {
+		record := OrganisationSeasonRecord{
+			Organisation: &IdentifierRecord{},
+			Season:       &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Organisation.ID,
+			&record.Organisation.Type,
+			&record.Organisation.Value,
+			&record.Season.ID,
+			&record.Season.Type,
+			&record.Season.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SeasonOrganisations(seasonIdentifier *IdentifierRecord) ([]*OrganisationSeasonRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM organisation_season AS a JOIN identifier AS b ON b.id = a.organisation_identifier JOIN identifier AS c ON c.id = a.season_identifier WHERE a.season_identifier = $1",
+		seasonIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*OrganisationSeasonRecord
+	for rows.Next() {
+		record := OrganisationSeasonRecord{
+			Organisation: &IdentifierRecord{},
+			Season:       &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Organisation.ID,
+			&record.Organisation.Type,
+			&record.Organisation.Value,
+			&record.Season.ID,
+			&record.Season.Type,
+			&record.Season.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) OrganisationEpisodes(organisationIdentifier *IdentifierRecord) ([]*OrganisationEpisodeRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM organisation_episode AS a JOIN identifier AS b ON b.id = a.organisation_identifier JOIN identifier AS c ON c.id = a.episode_identifier WHERE a.organisation_identifier = $1",
+		organisationIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*OrganisationEpisodeRecord
+	for rows.Next() {
+		record := OrganisationEpisodeRecord{
+			Organisation: &IdentifierRecord{},
+			Episode:      &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Organisation.ID,
+			&record.Organisation.Type,
+			&record.Organisation.Value,
+			&record.Episode.ID,
+			&record.Episode.Type,
+			&record.Episode.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) EpisodeOrganisations(episodeIdentifier *IdentifierRecord) ([]*OrganisationEpisodeRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM organisation_episode AS a JOIN identifier AS b ON b.id = a.organisation_identifier JOIN identifier AS c ON c.id = a.episode_identifier WHERE a.episode_identifier = $1",
+		episodeIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*OrganisationEpisodeRecord
+	for rows.Next() {
+		record := OrganisationEpisodeRecord{
+			Organisation: &IdentifierRecord{},
+			Episode:      &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Organisation.ID,
+			&record.Organisation.Type,
+			&record.Organisation.Value,
+			&record.Episode.ID,
+			&record.Episode.Type,
+			&record.Episode.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) OrganisationSupplementals(organisationIdentifier *IdentifierRecord) ([]*OrganisationSupplementalRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM organisation_supplemental AS a JOIN identifier AS b ON b.id = a.organisation_identifier JOIN identifier AS c ON c.id = a.supplemental_identifier WHERE a.organisation_identifier = $1",
+		organisationIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*OrganisationSupplementalRecord
+	for rows.Next() {
+		record := OrganisationSupplementalRecord{
+			Organisation: &IdentifierRecord{},
+			Supplemental: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Organisation.ID,
+			&record.Organisation.Type,
+			&record.Organisation.Value,
+			&record.Supplemental.ID,
+			&record.Supplemental.Type,
+			&record.Supplemental.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (i *Index) SupplementalOrganisations(supplementalIdentifier *IdentifierRecord) ([]*OrganisationSupplementalRecord, error) {
+	rows, err := i.Query(
+		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM organisation_supplemental AS a JOIN identifier AS b ON b.id = a.organisation_identifier JOIN identifier AS c ON c.id = a.supplemental_identifier WHERE a.supplemental_identifier = $1",
+		supplementalIdentifier.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []*OrganisationSupplementalRecord
+	for rows.Next() {
+		record := OrganisationSupplementalRecord{
+			Organisation: &IdentifierRecord{},
+			Supplemental: &IdentifierRecord{},
+		}
+		if err := rows.Scan(
+			&record.ID,
+			&record.Organisation.ID,
+			&record.Organisation.Type,
+			&record.Organisation.Value,
+			&record.Supplemental.ID,
+			&record.Supplemental.Type,
+			&record.Supplemental.Value,
+			&record.Source,
+		); err != nil {
+			return nil, err
+		}
+		records = append(records, &record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
 func (i *Index) SeriesSeasons(seriesIdentifier *IdentifierRecord) ([]*SeriesSeasonRecord, error) {
 	rows, err := i.Query(
 		"SELECT a.id, b.id, b.type, b.value, c.id, c.type, c.value, a.source FROM series_season AS a JOIN identifier AS b ON b.id = a.series_identifier JOIN identifier AS c ON c.id = a.season_identifier WHERE a.series_identifier = $1",
@@ -1888,6 +2195,16 @@ func (i *Index) CreateRecord(record interface{}, identifier *Identifier, source 
 			selectStmt = []interface{}{
 				"SELECT id FROM release WHERE type = $1 AND title = $2 AND date = $3 AND source = $4",
 				v.Type, v.Title, v.Date, source.ID,
+			}
+		case *Organisation:
+			recordType = "organisation"
+			insertStmt = []interface{}{
+				"INSERT INTO organisation (name, source) VALUES ($1, $2)",
+				v.Name, source.ID,
+			}
+			selectStmt = []interface{}{
+				"SELECT id FROM organisation WHERE name = $1 AND source = $2",
+				v.Name, source.ID,
 			}
 		case *Series:
 			recordType = "series"
@@ -2548,6 +2865,182 @@ func (i *Index) CreateReleaseSong(link *ReleaseSongLink, source *Source) (*Relea
 			return tx.QueryRow(
 				"SELECT id FROM release_song WHERE release_identifier = $1 AND song_identifier = $2 AND source = $3",
 				release.ID, song.ID, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateOrganisationSeries(link *OrganisationSeriesLink, source *Source) (*OrganisationSeriesRecord, error) {
+	organisation, err := i.Identifier("organisation", &link.Organisation)
+	if err != nil {
+		return nil, err
+	}
+	series, err := i.Identifier("series", &link.Series)
+	if err != nil {
+		return nil, err
+	}
+	record := &OrganisationSeriesRecord{
+		Organisation: organisation,
+		Series:       series,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO organisation_series (organisation_identifier, series_identifier, source) VALUES ($1, $2, $3)",
+			organisation.ID, series.ID, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM organisation_series WHERE organisation_identifier = $1 AND series_identifier = $2 AND source = $3",
+				organisation.ID, series.ID, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateOrganisationSeason(link *OrganisationSeasonLink, source *Source) (*OrganisationSeasonRecord, error) {
+	organisation, err := i.Identifier("organisation", &link.Organisation)
+	if err != nil {
+		return nil, err
+	}
+	season, err := i.Identifier("season", &link.Season)
+	if err != nil {
+		return nil, err
+	}
+	record := &OrganisationSeasonRecord{
+		Organisation: organisation,
+		Season:       season,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO organisation_season (organisation_identifier, season_identifier, source) VALUES ($1, $2, $3)",
+			organisation.ID, season.ID, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM organisation_season WHERE organisation_identifier = $1 AND season_identifier = $2 AND source = $3",
+				organisation.ID, season.ID, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateOrganisationEpisode(link *OrganisationEpisodeLink, source *Source) (*OrganisationEpisodeRecord, error) {
+	organisation, err := i.Identifier("organisation", &link.Organisation)
+	if err != nil {
+		return nil, err
+	}
+	episode, err := i.Identifier("episode", &link.Episode)
+	if err != nil {
+		return nil, err
+	}
+	record := &OrganisationEpisodeRecord{
+		Organisation: organisation,
+		Episode:      episode,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO organisation_episode (organisation_identifier, episode_identifier, source) VALUES ($1, $2, $3)",
+			organisation.ID, episode.ID, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM organisation_episode WHERE organisation_identifier = $1 AND episode_identifier = $2 AND source = $3",
+				organisation.ID, episode.ID, record.Source,
+			).Scan(&record.ID)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (i *Index) CreateOrganisationSupplemental(link *OrganisationSupplementalLink, source *Source) (*OrganisationSupplementalRecord, error) {
+	organisation, err := i.Identifier("organisation", &link.Organisation)
+	if err != nil {
+		return nil, err
+	}
+	supplemental, err := i.Identifier("supplemental", &link.Supplemental)
+	if err != nil {
+		return nil, err
+	}
+	record := &OrganisationSupplementalRecord{
+		Organisation: organisation,
+		Supplemental: supplemental,
+	}
+	err = i.Update(func(tx *sql.Tx) error {
+		source, err := i.createSource(tx, source)
+		if err != nil {
+			return err
+		}
+		record.Source = source.ID
+		res, err := tx.Exec(
+			"INSERT INTO organisation_supplemental (organisation_identifier, supplemental_identifier, source) VALUES ($1, $2, $3)",
+			organisation.ID, supplemental.ID, record.Source,
+		)
+		if err == nil {
+			id, err := res.LastInsertId()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+			return nil
+		} else if isUniqueErr(err) {
+			return tx.QueryRow(
+				"SELECT id FROM organisation_supplemental WHERE organisation_identifier = $1 AND supplemental_identifier = $2 AND source = $3",
+				organisation.ID, supplemental.ID, record.Source,
 			).Scan(&record.ID)
 		}
 		return err

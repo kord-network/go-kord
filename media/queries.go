@@ -186,6 +186,24 @@ query GetRelease($identifier: IdentifierInput!) {
 }
 `
 
+const createOrganisationQuery = `
+mutation CreateOrganisation($organisation: OrganisationInput!) {
+  createOrganisation(organisation: $organisation) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
+const getOrganisationQuery = `
+query GetOrganisation($identifier: IdentifierInput!) {
+  organisation(identifier: $identifier) {
+    identifiers { value { type value } }
+    name { value }
+  }
+}
+`
+
 const createSeriesQuery = `
 mutation CreateSeries($series: SeriesInput!) {
   createSeries(series: $series) {
@@ -333,6 +351,30 @@ mutation CreateRecordingWorkLink($link: RecordingWorkLinkInput!) {
 const createReleaseSongLinkQuery = `
 mutation CreateReleaseSongLink($link: ReleaseSongLinkInput!) {
   createReleaseSongLink(link: $link) { source { name } }
+}
+`
+
+const createOrganisationSeriesLinkQuery = `
+mutation CreateOrganisationSeriesLink($link: OrganisationSeriesLinkInput!) {
+  createOrganisationSeriesLink(link: $link) { source { name } }
+}
+`
+
+const createOrganisationSeasonLinkQuery = `
+mutation CreateOrganisationSeasonLink($link: OrganisationSeasonLinkInput!) {
+  createOrganisationSeasonLink(link: $link) { source { name } }
+}
+`
+
+const createOrganisationEpisodeLinkQuery = `
+mutation CreateOrganisationEpisodeLink($link: OrganisationEpisodeLinkInput!) {
+  createOrganisationEpisodeLink(link: $link) { source { name } }
+}
+`
+
+const createOrganisationSupplementalLinkQuery = `
+mutation CreateOrganisationSupplementalLink($link: OrganisationSupplementalLinkInput!) {
+  createOrganisationSupplementalLink(link: $link) { source { name } }
 }
 `
 

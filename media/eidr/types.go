@@ -19,6 +19,23 @@
 
 package eidr
 
+type Party struct {
+	ID           string       `xml:"ID"`
+	PartyName    *PartyName   `xml:"PartyName"`
+	ContactInfo  *ContactInfo `xml:"ContactInfo"`
+	Active       string       `xml:"Active"`
+	AllowedRoles string       `xml:"AllowedRoles"`
+}
+
+type PartyName struct {
+	DisplayName string `xml:"DisplayName"`
+}
+
+type ContactInfo struct {
+	Name         string `xml:"Name"`
+	PrimaryEmail string `xml:"PrimaryEmail"`
+}
+
 type FullMetadata struct {
 	BaseObjectData      *BaseObjectData      `xml:"BaseObjectData"`
 	ExtraObjectMetadata *ExtraObjectMetadata `xml:"ExtraObjectMetadata"`

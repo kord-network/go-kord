@@ -60,6 +60,10 @@ type Release struct {
 	Date  string `json:"date"`
 }
 
+type Organisation struct {
+	Name string `json:"name"`
+}
+
 type Series struct {
 	Name string `json:"name"`
 }
@@ -132,6 +136,12 @@ type ReleaseRecord struct {
 	Type   string
 	Title  string
 	Date   string
+	Source int64
+}
+
+type OrganisationRecord struct {
+	ID     int64
+	Name   string
 	Source int64
 }
 
@@ -245,6 +255,26 @@ type RecordingWorkLink struct {
 type ReleaseSongLink struct {
 	Release Identifier `json:"release"`
 	Song    Identifier `json:"song"`
+}
+
+type OrganisationSeriesLink struct {
+	Organisation Identifier `json:"organisation"`
+	Series       Identifier `json:"series"`
+}
+
+type OrganisationSeasonLink struct {
+	Organisation Identifier `json:"organisation"`
+	Season       Identifier `json:"season"`
+}
+
+type OrganisationEpisodeLink struct {
+	Organisation Identifier `json:"organisation"`
+	Episode      Identifier `json:"episode"`
+}
+
+type OrganisationSupplementalLink struct {
+	Organisation Identifier `json:"organisation"`
+	Supplemental Identifier `json:"supplemental"`
 }
 
 type SeriesSeasonLink struct {
@@ -378,6 +408,34 @@ type ReleaseSongRecord struct {
 	Release *IdentifierRecord
 	Song    *IdentifierRecord
 	Source  int64
+}
+
+type OrganisationSeriesRecord struct {
+	ID           int64
+	Organisation *IdentifierRecord
+	Series       *IdentifierRecord
+	Source       int64
+}
+
+type OrganisationSeasonRecord struct {
+	ID           int64
+	Organisation *IdentifierRecord
+	Season       *IdentifierRecord
+	Source       int64
+}
+
+type OrganisationEpisodeRecord struct {
+	ID           int64
+	Organisation *IdentifierRecord
+	Episode      *IdentifierRecord
+	Source       int64
+}
+
+type OrganisationSupplementalRecord struct {
+	ID           int64
+	Organisation *IdentifierRecord
+	Supplemental *IdentifierRecord
+	Source       int64
 }
 
 type SeriesSeasonRecord struct {

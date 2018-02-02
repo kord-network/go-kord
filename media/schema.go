@@ -398,4 +398,58 @@ CREATE INDEX episode_supplemental_episode_idx ON episode_supplemental (episode_i
 CREATE INDEX episode_supplemental_supplemental_idx ON episode_supplemental (supplemental_identifier);
 CREATE UNIQUE INDEX episode_supplemental_unique_idx ON episode_supplemental (episode_identifier, supplemental_identifier, source);
 	`)
+
+	migrations.Add(4, `
+CREATE TABLE organisation (
+  id     INTEGER PRIMARY KEY,
+  name   TEXT NOT NULL,
+  source INTEGER NOT NULL REFERENCES source (id)
+);
+
+CREATE UNIQUE INDEX organisation_unique_idx ON organisation (name, source);
+
+CREATE TABLE organisation_series (
+  id                      INTEGER PRIMARY KEY,
+  organisation_identifier INTEGER REFERENCES identifier (id),
+  series_identifier       INTEGER REFERENCES identifier (id),
+  source                  INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX organisation_series_organisation_idx ON organisation_series (organisation_identifier);
+CREATE INDEX organisation_series_series_idx       ON organisation_series (series_identifier);
+CREATE UNIQUE INDEX organisation_series_unique_idx ON organisation_series (organisation_identifier, series_identifier, source);
+
+CREATE TABLE organisation_season (
+  id                      INTEGER PRIMARY KEY,
+  organisation_identifier INTEGER REFERENCES identifier (id),
+  season_identifier       INTEGER REFERENCES identifier (id),
+  source                  INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX organisation_season_organisation_idx ON organisation_season (organisation_identifier);
+CREATE INDEX organisation_season_season_idx       ON organisation_season (season_identifier);
+CREATE UNIQUE INDEX organisation_season_unique_idx ON organisation_season (organisation_identifier, season_identifier, source);
+
+CREATE TABLE organisation_episode (
+  id                      INTEGER PRIMARY KEY,
+  organisation_identifier INTEGER REFERENCES identifier (id),
+  episode_identifier      INTEGER REFERENCES identifier (id),
+  source                  INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX organisation_episode_organisation_idx  ON organisation_episode (organisation_identifier);
+CREATE INDEX organisation_episode_episode_idx       ON organisation_episode (episode_identifier);
+CREATE UNIQUE INDEX organisation_episode_unique_idx ON organisation_episode (organisation_identifier, episode_identifier, source);
+
+CREATE TABLE organisation_supplemental (
+  id                      INTEGER PRIMARY KEY,
+  organisation_identifier INTEGER REFERENCES identifier (id),
+  supplemental_identifier INTEGER REFERENCES identifier (id),
+  source                  INTEGER REFERENCES source (id)
+);
+
+CREATE INDEX organisation_supplemental_organisation_idx ON organisation_supplemental (organisation_identifier);
+CREATE INDEX organisation_supplemental_supplemental_idx ON organisation_supplemental (supplemental_identifier);
+CREATE UNIQUE INDEX organisation_supplemental_unique_idx ON organisation_supplemental (organisation_identifier, supplemental_identifier, source);
+	`)
 }

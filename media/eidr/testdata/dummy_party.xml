@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Party xmlns="http://www.eidr.org/schema" xmlns:md="http://www.movielabs.com/schema/md/v2.1/md">
+  <ID>10.5237/FFFF-FFFF</ID>
+  <PartyName>
+    <md:DisplayName>Acme, Inc</md:DisplayName>
+  </PartyName>
+  <ContactInfo>
+    <md:Name/>
+    <md:PrimaryEmail/>
+  </ContactInfo>
+  <Active>true</Active>
+  <AllowedRoles>Registrant</AllowedRoles>
+</Party>

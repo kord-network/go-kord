@@ -24,6 +24,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -45,7 +46,7 @@ import (
 var usage = `
 usage: meta media import [--url=<url>] [--source=<source>] cwr <file>...
        meta media import [--url=<url>] [--source=<source>] ern <file>...
-       meta media import [--url=<url>] [--source=<source>] eidr <file>...
+       meta media import [--url=<url>] [--source=<source>] eidr <type> <file>...
        meta media import [--url=<url>] [--source=<source>] musicbrainz <type> <postgres-uri>
        meta server [--datadir=<dir>] [--port=<port>] [--cors-domain=<domain>...]
 
@@ -150,6 +151,13 @@ func RunMediaImportCWR(ctx context.Context, client *media.Client, args Args) err
 
 func RunMediaImportEIDR(ctx context.Context, client *media.Client, args Args) error {
 	importer := eidr.NewImporter(client)
+	var importerFunc func(io.Reader) error
+	switch args.String("<type>") {
+	case "party":
+		importerFunc = importer.ImportParty
+	case "full-metadata":
+		importerFunc = importer.ImportFullMetadata
+	}
 	for _, file := range args.List("<file>") {
 		f, err := os.Open(file)
 		if err != nil {
@@ -160,8 +168,8 @@ func RunMediaImportEIDR(ctx context.Context, client *media.Client, args Args) er
 		if err != nil {
 			return err
 		}
-		log.Info("importing EIDR", "path", file, "size", info.Size())
-		if err := importer.ImportEIDR(f); err != nil {
+		log.Info("importing EIDR", "type", args.String("<type>"), "path", file, "size", info.Size())
+		if err := importerFunc(f); err != nil {
 			return err
 		}
 	}

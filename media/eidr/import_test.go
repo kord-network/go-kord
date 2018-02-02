@@ -56,6 +56,14 @@ func TestImport(t *testing.T) {
 	source := &media.Source{Name: "test"}
 	client := media.NewClient(srv.URL+"/graphql", source)
 	importer := NewImporter(client)
+	f, err := os.Open(filepath.Join("testdata", "dummy_party.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := importer.ImportParty(f); err != nil {
+		t.Fatal(err)
+	}
 	files := []string{
 		"dummy_series.xml",
 		"dummy_season.xml",
@@ -67,17 +75,105 @@ func TestImport(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer f.Close()
-		if err := importer.ImportEIDR(f); err != nil {
+		if err := importer.ImportFullMetadata(f); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	// check series
+	// check organisation
 	identifier := &media.Identifier{
+		Type:  "doid",
+		Value: "10.5237/FFFF-FFFF",
+	}
+	query := `
+query GetOrganisation($identifier: IdentifierInput!) {
+  organisation(identifier: $identifier) {
+    name {
+      value
+    }
+    series {
+      series {
+	name {
+	  value
+	}
+      }
+    }
+    seasons {
+      season {
+	name {
+	  value
+	}
+      }
+    }
+    episodes {
+      episode {
+	name {
+	  value
+	}
+      }
+    }
+  }
+}
+`
+	var v struct {
+		Organisation struct {
+			Name struct {
+				Value string `json:"value"`
+			} `json:"name"`
+			Series []struct {
+				Series struct {
+					Name struct {
+						Value string `json:"value"`
+					} `json:"name"`
+				} `json:"series"`
+			} `json:"series"`
+			Seasons []struct {
+				Season struct {
+					Name struct {
+						Value string `json:"value"`
+					} `json:"name"`
+				} `json:"season"`
+			} `json:"seasons"`
+			Episodes []struct {
+				Episode struct {
+					Name struct {
+						Value string `json:"value"`
+					} `json:"name"`
+				} `json:"episode"`
+			} `json:"episodes"`
+		} `json:"organisation"`
+	}
+	if err := client.Query(query, graphql.Variables{"identifier": identifier}, &v); err != nil {
+		t.Fatal(err)
+	}
+	if v.Organisation.Name.Value != "Acme, Inc" {
+		t.Fatalf("expected organisation to have name %q, got %q", "Acme, Inc", v.Organisation.Name.Value)
+	}
+	if len(v.Organisation.Series) != 1 {
+		t.Fatalf("expected organisation to have 1 series, got %d", len(v.Organisation.Series))
+	}
+	if name := v.Organisation.Series[0].Series.Name.Value; name != "Foo" {
+		t.Fatalf("expected series to have name %q, got %q", "Foo", name)
+	}
+	if len(v.Organisation.Seasons) != 1 {
+		t.Fatalf("expected organisation to have 1 season, got %d", len(v.Organisation.Seasons))
+	}
+	if name := v.Organisation.Seasons[0].Season.Name.Value; name != "Foo: Season 1" {
+		t.Fatalf("expected season to have name %q, got %q", "Foo: Season 1", name)
+	}
+	if len(v.Organisation.Episodes) != 1 {
+		t.Fatalf("expected organisation to have 1 episode, got %d", len(v.Organisation.Episodes))
+	}
+	if name := v.Organisation.Episodes[0].Episode.Name.Value; name != "Foo: Season 1: Episode 1" {
+		t.Fatalf("expected episode to have name %q, got %q", "Foo: Season 1: Episode 1", name)
+	}
+
+	// check series
+	identifier = &media.Identifier{
 		Type:  "doid",
 		Value: "10.5240/FEED-BEEF-0123-4567-890A-C",
 	}
-	query := `
+	query = `
 query GetSeries($identifier: IdentifierInput!) {
   series(identifier: $identifier) {
     name {
@@ -93,7 +189,7 @@ query GetSeries($identifier: IdentifierInput!) {
   }
 }
 `
-	var v struct {
+	var w struct {
 		Series struct {
 			Name struct {
 				Value string `json:"value"`
@@ -107,16 +203,16 @@ query GetSeries($identifier: IdentifierInput!) {
 			} `json:"seasons"`
 		} `json:"series"`
 	}
-	if err := client.Query(query, graphql.Variables{"identifier": identifier}, &v); err != nil {
+	if err := client.Query(query, graphql.Variables{"identifier": identifier}, &w); err != nil {
 		t.Fatal(err)
 	}
-	if v.Series.Name.Value != "Foo" {
-		t.Fatalf("expected series to have name %q, got %q", "Foo", v.Series.Name.Value)
+	if w.Series.Name.Value != "Foo" {
+		t.Fatalf("expected series to have name %q, got %q", "Foo", w.Series.Name.Value)
 	}
-	if len(v.Series.Seasons) != 1 {
-		t.Fatalf("expected series to have 1 season, got %d", len(v.Series.Seasons))
+	if len(w.Series.Seasons) != 1 {
+		t.Fatalf("expected series to have 1 season, got %d", len(w.Series.Seasons))
 	}
-	if name := v.Series.Seasons[0].Season.Name.Value; name != "Foo: Season 1" {
+	if name := w.Series.Seasons[0].Season.Name.Value; name != "Foo: Season 1" {
 		t.Fatalf("expected season to have name %q, got %q", "Foo: Season 1", name)
 	}
 
@@ -141,7 +237,7 @@ query GetSeason($identifier: IdentifierInput!) {
   }
 }
 `
-	var w struct {
+	var x struct {
 		Season struct {
 			Name struct {
 				Value string `json:"value"`
@@ -155,16 +251,16 @@ query GetSeason($identifier: IdentifierInput!) {
 			} `json:"episodes"`
 		} `json:"season"`
 	}
-	if err := client.Query(query, graphql.Variables{"identifier": identifier}, &w); err != nil {
+	if err := client.Query(query, graphql.Variables{"identifier": identifier}, &x); err != nil {
 		t.Fatal(err)
 	}
-	if w.Season.Name.Value != "Foo: Season 1" {
-		t.Fatalf("expected season to have name %q, got %q", "Foo: Season 1", w.Season.Name.Value)
+	if x.Season.Name.Value != "Foo: Season 1" {
+		t.Fatalf("expected season to have name %q, got %q", "Foo: Season 1", x.Season.Name.Value)
 	}
-	if len(w.Season.Episodes) != 1 {
-		t.Fatalf("expected season to have 1 episode, got %d", len(w.Season.Episodes))
+	if len(x.Season.Episodes) != 1 {
+		t.Fatalf("expected season to have 1 episode, got %d", len(x.Season.Episodes))
 	}
-	if name := w.Season.Episodes[0].Episode.Name.Value; name != "Foo: Season 1: Episode 1" {
+	if name := x.Season.Episodes[0].Episode.Name.Value; name != "Foo: Season 1: Episode 1" {
 		t.Fatalf("expected episode to have name %q, got %q", "Foo: Season 1: Episode 1", name)
 	}
 }

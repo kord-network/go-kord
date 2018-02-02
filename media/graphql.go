@@ -80,6 +80,8 @@ type Query {
 
   release(identifier: IdentifierInput!): Release!
 
+  organisation(identifier: IdentifierInput!): Organisation!
+
   series(identifier: IdentifierInput!): Series!
 
   season(identifier: IdentifierInput!): Season!
@@ -107,6 +109,8 @@ type Mutation {
   createSong(song: SongInput!): Song!
 
   createRelease(release: ReleaseInput!): Release!
+
+  createOrganisation(organisation: OrganisationInput!): Organisation!
 
   createSeries(series: SeriesInput!): Series!
 
@@ -142,6 +146,14 @@ type Mutation {
 
   createReleaseSongLink(link: ReleaseSongLinkInput!): ReleaseSongLink!
 
+  createOrganisationSeriesLink(link: OrganisationSeriesLinkInput!): OrganisationSeriesLink!
+
+  createOrganisationSeasonLink(link: OrganisationSeasonLinkInput!): OrganisationSeasonLink!
+
+  createOrganisationEpisodeLink(link: OrganisationEpisodeLinkInput!): OrganisationEpisodeLink!
+
+  createOrganisationSupplementalLink(link: OrganisationSupplementalLinkInput!): OrganisationSupplementalLink!
+
   createSeriesSeasonLink(link: SeriesSeasonLinkInput!): SeriesSeasonLink!
 
   createSeriesEpisodeLink(link: SeriesEpisodeLinkInput!): SeriesEpisodeLink!
@@ -163,6 +175,7 @@ type Account {
   record_labels: [RecordLabel]!
   composers:     [Composer]!
   publishers:    [Publisher]!
+  organisations: [Organisation]!
 }
 
 type Performer {
@@ -259,11 +272,23 @@ type Release {
   record_labels: [RecordLabelReleaseLink]!
 }
 
+type Organisation {
+  identifiers: [IdentifierValue]!
+
+  name: StringValue
+
+  series:        [OrganisationSeriesLink]!
+  seasons:       [OrganisationSeasonLink]!
+  episodes:      [OrganisationEpisodeLink]!
+  supplementals: [OrganisationSupplementalLink]!
+}
+
 type Series {
   identifiers: [IdentifierValue]!
 
   name: StringValue
 
+  organisations: [OrganisationSeriesLink]!
   seasons:       [SeriesSeasonLink]!
   episodes:      [SeriesEpisodeLink]!
   supplementals: [SeriesSupplementalLink]!
@@ -274,6 +299,7 @@ type Season {
 
   name: StringValue
 
+  organisations: [OrganisationSeasonLink]!
   series:        [SeriesSeasonLink]!
   episodes:      [SeasonEpisodeLink]!
   supplementals: [SeasonSupplementalLink]!
@@ -284,6 +310,7 @@ type Episode {
 
   name: StringValue
 
+  organisations: [OrganisationEpisodeLink]!
   series:        [SeriesEpisodeLink]!
   seasons:       [SeasonEpisodeLink]!
   supplementals: [EpisodeSupplementalLink]!
@@ -294,9 +321,10 @@ type Supplemental {
 
   name: StringValue
 
-  series:   [SeriesSupplementalLink]!
-  seasons:  [SeasonSupplementalLink]!
-  episodes: [EpisodeSupplementalLink]!
+  organisations: [OrganisationSupplementalLink]!
+  series:        [SeriesSupplementalLink]!
+  seasons:       [SeasonSupplementalLink]!
+  episodes:      [EpisodeSupplementalLink]!
 }
 
 #
@@ -358,6 +386,12 @@ input ReleaseInput {
   type:       String!
   title:      String!
   date:       String!
+  source:     SourceInput!
+}
+
+input OrganisationInput {
+  identifier: IdentifierInput!
+  name:       String!
   source:     SourceInput!
 }
 
@@ -473,6 +507,30 @@ input ReleaseSongLinkInput {
   release_id: IdentifierInput!
   song_id:    IdentifierInput!
   source:     SourceInput!
+}
+
+input OrganisationSeriesLinkInput {
+  organisation_id: IdentifierInput!
+  series_id:       IdentifierInput!
+  source:          SourceInput!
+}
+
+input OrganisationSeasonLinkInput {
+  organisation_id: IdentifierInput!
+  season_id:       IdentifierInput!
+  source:          SourceInput!
+}
+
+input OrganisationEpisodeLinkInput {
+  organisation_id: IdentifierInput!
+  episode_id:      IdentifierInput!
+  source:          SourceInput!
+}
+
+input OrganisationSupplementalLinkInput {
+  organisation_id: IdentifierInput!
+  supplemental_id: IdentifierInput!
+  source:          SourceInput!
 }
 
 input SeriesSeasonLinkInput {
@@ -612,6 +670,30 @@ type ReleaseSongLink {
   release: Release!
   song:    Song!
   source:  Source!
+}
+
+type OrganisationSeriesLink {
+  organisation: Organisation!
+  series:       Series!
+  source:       Source!
+}
+
+type OrganisationSeasonLink {
+  organisation: Organisation!
+  season:       Season!
+  source:       Source!
+}
+
+type OrganisationEpisodeLink {
+  organisation: Organisation!
+  episode:      Episode!
+  source:       Source!
+}
+
+type OrganisationSupplementalLink {
+  organisation: Organisation!
+  supplemental: Supplemental!
+  source:       Source!
 }
 
 type SeriesSeasonLink {
@@ -769,6 +851,23 @@ func (a *AccountResolver) Publishers() ([]*PublisherResolver, error) {
 		identifier, err := a.resolver.mediaIndex.Identifier("publisher", id)
 		if err == nil {
 			resolvers = append(resolvers, &PublisherResolver{a.resolver, identifier})
+		} else if !isIdentifierNotFound(err) {
+			return nil, err
+		}
+	}
+	return resolvers, nil
+}
+
+func (a *AccountResolver) Organisations() ([]*OrganisationResolver, error) {
+	identifiers, err := a.identifiers("doid")
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*OrganisationResolver, 0, len(identifiers))
+	for _, id := range identifiers {
+		identifier, err := a.resolver.mediaIndex.Identifier("organisation", id)
+		if err == nil {
+			resolvers = append(resolvers, &OrganisationResolver{a.resolver, identifier})
 		} else if !isIdentifierNotFound(err) {
 			return nil, err
 		}
@@ -1770,6 +1869,121 @@ func (r *ReleaseResolver) RecordLabels() ([]*recordLabelReleaseLinkResolver, err
 	return resolvers, nil
 }
 
+type createOrganisationArgs struct {
+	Organisation struct {
+		Organisation
+
+		Identifier Identifier
+		Source     Source
+	}
+}
+
+func (r *Resolver) CreateOrganisation(args createOrganisationArgs) (*OrganisationResolver, error) {
+	identifier, err := r.mediaIndex.CreateRecord(
+		&args.Organisation.Organisation,
+		&args.Organisation.Identifier,
+		&args.Organisation.Source,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &OrganisationResolver{r, identifier}, nil
+}
+
+func (r *Resolver) Organisation(args IdentifierArgs) (*OrganisationResolver, error) {
+	identifier, err := r.mediaIndex.Identifier("organisation", &args.Identifier)
+	if err != nil {
+		return nil, err
+	}
+	return &OrganisationResolver{r, identifier}, nil
+}
+
+type OrganisationResolver struct {
+	resolver   *Resolver
+	identifier *IdentifierRecord
+}
+
+func (o *OrganisationResolver) Identifiers() []*identifierValueResolver {
+	return []*identifierValueResolver{{o.resolver, o.identifier}}
+}
+
+func (o *OrganisationResolver) Name() (*stringValueResolver, error) {
+	records, err := o.resolver.mediaIndex.Organisation(o.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolver := &stringValueResolver{}
+	for _, record := range records {
+		resolver.value = record.Name
+		resolver.sources = append(resolver.sources, &stringSourceResolver{
+			value:  record.Name,
+			source: &sourceResolver{id: record.Source},
+			score:  "1",
+		})
+	}
+	return resolver, nil
+}
+
+func (o *OrganisationResolver) Series() ([]*organisationSeriesLinkResolver, error) {
+	records, err := o.resolver.mediaIndex.OrganisationSeries(o.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*organisationSeriesLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &organisationSeriesLinkResolver{
+			resolver: o.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (o *OrganisationResolver) Seasons() ([]*organisationSeasonLinkResolver, error) {
+	records, err := o.resolver.mediaIndex.OrganisationSeasons(o.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*organisationSeasonLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &organisationSeasonLinkResolver{
+			resolver: o.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (o *OrganisationResolver) Episodes() ([]*organisationEpisodeLinkResolver, error) {
+	records, err := o.resolver.mediaIndex.OrganisationEpisodes(o.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*organisationEpisodeLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &organisationEpisodeLinkResolver{
+			resolver: o.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
+func (o *OrganisationResolver) Supplementals() ([]*organisationSupplementalLinkResolver, error) {
+	records, err := o.resolver.mediaIndex.OrganisationSupplementals(o.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*organisationSupplementalLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &organisationSupplementalLinkResolver{
+			resolver: o.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
 type createSeriesArgs struct {
 	Series struct {
 		Series
@@ -1823,6 +2037,21 @@ func (s *SeriesResolver) Name() (*stringValueResolver, error) {
 		})
 	}
 	return resolver, nil
+}
+
+func (s *SeriesResolver) Organisations() ([]*organisationSeriesLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SeriesOrganisations(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*organisationSeriesLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &organisationSeriesLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
 }
 
 func (s *SeriesResolver) Seasons() ([]*seriesSeasonLinkResolver, error) {
@@ -1925,6 +2154,21 @@ func (s *SeasonResolver) Name() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
+func (s *SeasonResolver) Organisations() ([]*organisationSeasonLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SeasonOrganisations(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*organisationSeasonLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &organisationSeasonLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
 func (s *SeasonResolver) Series() ([]*seriesSeasonLinkResolver, error) {
 	records, err := s.resolver.mediaIndex.SeasonSeries(s.identifier)
 	if err != nil {
@@ -2025,6 +2269,21 @@ func (e *EpisodeResolver) Name() (*stringValueResolver, error) {
 	return resolver, nil
 }
 
+func (e *EpisodeResolver) Organisations() ([]*organisationEpisodeLinkResolver, error) {
+	records, err := e.resolver.mediaIndex.EpisodeOrganisations(e.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*organisationEpisodeLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &organisationEpisodeLinkResolver{
+			resolver: e.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
+}
+
 func (e *EpisodeResolver) Series() ([]*seriesEpisodeLinkResolver, error) {
 	records, err := e.resolver.mediaIndex.EpisodeSeries(e.identifier)
 	if err != nil {
@@ -2123,6 +2382,21 @@ func (s *SupplementalResolver) Name() (*stringValueResolver, error) {
 		})
 	}
 	return resolver, nil
+}
+
+func (s *SupplementalResolver) Organisations() ([]*organisationSupplementalLinkResolver, error) {
+	records, err := s.resolver.mediaIndex.SupplementalOrganisations(s.identifier)
+	if err != nil {
+		return nil, err
+	}
+	resolvers := make([]*organisationSupplementalLinkResolver, len(records))
+	for i, record := range records {
+		resolvers[i] = &organisationSupplementalLinkResolver{
+			resolver: s.resolver,
+			record:   record,
+		}
+	}
+	return resolvers, nil
 }
 
 func (s *SupplementalResolver) Series() ([]*seriesSupplementalLinkResolver, error) {
@@ -2720,6 +2994,154 @@ func (r *releaseSongLinkResolver) Song() *SongResolver {
 }
 
 func (r *releaseSongLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createOrganisationSeriesLinkArgs struct {
+	Link struct {
+		OrganisationID Identifier
+		SeriesID       Identifier
+		Source         Source
+	}
+}
+
+func (r *Resolver) CreateOrganisationSeriesLink(args createOrganisationSeriesLinkArgs) (*organisationSeriesLinkResolver, error) {
+	link := &OrganisationSeriesLink{
+		Organisation: args.Link.OrganisationID,
+		Series:       args.Link.SeriesID,
+	}
+	record, err := r.mediaIndex.CreateOrganisationSeries(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &organisationSeriesLinkResolver{r, record}, nil
+}
+
+type organisationSeriesLinkResolver struct {
+	resolver *Resolver
+	record   *OrganisationSeriesRecord
+}
+
+func (r *organisationSeriesLinkResolver) Organisation() *OrganisationResolver {
+	return &OrganisationResolver{r.resolver, r.record.Organisation}
+}
+
+func (r *organisationSeriesLinkResolver) Series() *SeriesResolver {
+	return &SeriesResolver{r.resolver, r.record.Series}
+}
+
+func (r *organisationSeriesLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createOrganisationSeasonLinkArgs struct {
+	Link struct {
+		OrganisationID Identifier
+		SeasonID       Identifier
+		Source         Source
+	}
+}
+
+func (r *Resolver) CreateOrganisationSeasonLink(args createOrganisationSeasonLinkArgs) (*organisationSeasonLinkResolver, error) {
+	link := &OrganisationSeasonLink{
+		Organisation: args.Link.OrganisationID,
+		Season:       args.Link.SeasonID,
+	}
+	record, err := r.mediaIndex.CreateOrganisationSeason(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &organisationSeasonLinkResolver{r, record}, nil
+}
+
+type organisationSeasonLinkResolver struct {
+	resolver *Resolver
+	record   *OrganisationSeasonRecord
+}
+
+func (r *organisationSeasonLinkResolver) Organisation() *OrganisationResolver {
+	return &OrganisationResolver{r.resolver, r.record.Organisation}
+}
+
+func (r *organisationSeasonLinkResolver) Season() *SeasonResolver {
+	return &SeasonResolver{r.resolver, r.record.Season}
+}
+
+func (r *organisationSeasonLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createOrganisationEpisodeLinkArgs struct {
+	Link struct {
+		OrganisationID Identifier
+		EpisodeID      Identifier
+		Source         Source
+	}
+}
+
+func (r *Resolver) CreateOrganisationEpisodeLink(args createOrganisationEpisodeLinkArgs) (*organisationEpisodeLinkResolver, error) {
+	link := &OrganisationEpisodeLink{
+		Organisation: args.Link.OrganisationID,
+		Episode:      args.Link.EpisodeID,
+	}
+	record, err := r.mediaIndex.CreateOrganisationEpisode(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &organisationEpisodeLinkResolver{r, record}, nil
+}
+
+type organisationEpisodeLinkResolver struct {
+	resolver *Resolver
+	record   *OrganisationEpisodeRecord
+}
+
+func (r *organisationEpisodeLinkResolver) Organisation() *OrganisationResolver {
+	return &OrganisationResolver{r.resolver, r.record.Organisation}
+}
+
+func (r *organisationEpisodeLinkResolver) Episode() *EpisodeResolver {
+	return &EpisodeResolver{r.resolver, r.record.Episode}
+}
+
+func (r *organisationEpisodeLinkResolver) Source() *sourceResolver {
+	return &sourceResolver{r.resolver, r.record.Source}
+}
+
+type createOrganisationSupplementalLinkArgs struct {
+	Link struct {
+		OrganisationID Identifier
+		SupplementalID Identifier
+		Source         Source
+	}
+}
+
+func (r *Resolver) CreateOrganisationSupplementalLink(args createOrganisationSupplementalLinkArgs) (*organisationSupplementalLinkResolver, error) {
+	link := &OrganisationSupplementalLink{
+		Organisation: args.Link.OrganisationID,
+		Supplemental: args.Link.SupplementalID,
+	}
+	record, err := r.mediaIndex.CreateOrganisationSupplemental(link, &args.Link.Source)
+	if err != nil {
+		return nil, err
+	}
+	return &organisationSupplementalLinkResolver{r, record}, nil
+}
+
+type organisationSupplementalLinkResolver struct {
+	resolver *Resolver
+	record   *OrganisationSupplementalRecord
+}
+
+func (r *organisationSupplementalLinkResolver) Organisation() *OrganisationResolver {
+	return &OrganisationResolver{r.resolver, r.record.Organisation}
+}
+
+func (r *organisationSupplementalLinkResolver) Supplemental() *SupplementalResolver {
+	return &SupplementalResolver{r.resolver, r.record.Supplemental}
+}
+
+func (r *organisationSupplementalLinkResolver) Source() *sourceResolver {
 	return &sourceResolver{r.resolver, r.record.Source}
 }
 
