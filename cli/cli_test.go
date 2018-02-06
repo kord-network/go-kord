@@ -58,7 +58,7 @@ func TestLoad(t *testing.T) {
 	node, cleanup := startMetaNode(t, &ensConfig)
 	defer cleanup()
 
-	// create test.meta
+	// create a graph
 	if err := RunCreate(context.Background(), Args(map[string]interface{}{
 		"meta":   true,
 		"create": true,

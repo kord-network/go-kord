@@ -40,6 +40,8 @@ import (
 
 var driver *Driver
 
+// Driver implements the database/sql/driver.Conn interface by wrapping a
+// SQLite3 driver with connections that use databases stored in Swarm.
 type Driver struct {
 	dpa *storage.DPA
 	ens ens.ENS
@@ -51,6 +53,7 @@ type Driver struct {
 	dbMtx sync.Mutex
 }
 
+// Init creates a Driver and registers it as a sql driver with name "meta".
 func Init(dpa *storage.DPA, ens ens.ENS, dir string) {
 	if driver != nil {
 		panic("db: driver already initialised")
@@ -66,6 +69,7 @@ func Init(dpa *storage.DPA, ens ens.ENS, dir string) {
 	sql.Register("meta", driver)
 }
 
+// Create calls Driver.Create on the initialised driver.
 func Create(name string) error {
 	if driver == nil {
 		panic("db: uninitialised driver")
@@ -73,6 +77,8 @@ func Create(name string) error {
 	return driver.Create(name)
 }
 
+// Create creates a SQLite backed META graph with the given name by registering
+// the name in ENS and pointing it at an empty SQLite graph database.
 func (d *Driver) Create(name string) error {
 	if err := d.ens.Register(name); err != nil {
 		return err
@@ -87,6 +93,8 @@ func (d *Driver) Create(name string) error {
 	return d.ens.SetContent(name, hash)
 }
 
+// Open opens the SQLite graph database with the givn name, wrapping it in a
+// connection which is re-opened if the ENS name is updated.
 func (d *Driver) Open(name string) (sqldriver.Conn, error) {
 	db, err := d.openDB(name)
 	if err != nil {
@@ -95,6 +103,7 @@ func (d *Driver) Open(name string) (sqldriver.Conn, error) {
 	return db.newConn()
 }
 
+// Commit calls Driver.Commit on the initialised driver.
 func Commit(name string) (common.Hash, error) {
 	if driver == nil {
 		panic("db: uninitialised driver")
@@ -102,6 +111,8 @@ func Commit(name string) (common.Hash, error) {
 	return driver.Commit(name)
 }
 
+// Commit commits the SQLite graph database with the given name by storing it
+// in Swarm and returning the resulting Swarm hash.
 func (d *Driver) Commit(name string) (common.Hash, error) {
 	path := filepath.Join(d.dir, name)
 	f, err := os.Open(path)

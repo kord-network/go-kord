@@ -32,9 +32,9 @@ import (
 
 func init() {
 	registerCommand("load", RunLoad, `
-usage: meta load [options] <file> <db>
+usage: meta load [options] <file> <name>
 
-Load quads from <file> into META database <db>.
+Load quads from <file> into META graph with name <name>.
 
 options:
         -u, --url <url>   URL of the META node [default: http://localhost:5000]
@@ -47,7 +47,7 @@ func RunLoad(ctx context.Context, args Args) error {
 		return err
 	}
 	defer f.Close()
-	client := api.NewClient(args.String("--url"), args.String("<db>"))
+	client := api.NewClient(args.String("--url"), args.String("<name>"))
 	qw, err := graph.NewQuadWriter("single", client, nil)
 	if err != nil {
 		return err

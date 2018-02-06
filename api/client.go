@@ -29,6 +29,7 @@ import (
 	"github.com/cayleygraph/cayley/graph"
 )
 
+// Client is a client for the META graph API for a named graph.
 type Client struct {
 	graph.QuadStore
 
@@ -36,6 +37,8 @@ type Client struct {
 	name string
 }
 
+// NewClient returns a new client for the API at addr and the graph with the
+// given name.
 func NewClient(addr, name string) *Client {
 	return &Client{
 		addr: addr,
@@ -43,6 +46,7 @@ func NewClient(addr, name string) *Client {
 	}
 }
 
+// Create creates the graph.
 func (c *Client) Create() error {
 	res, err := http.Post(fmt.Sprintf("%s/%s", c.addr, c.name), "", nil)
 	if err != nil {
@@ -56,11 +60,7 @@ func (c *Client) Create() error {
 	return nil
 }
 
-type Request struct {
-	In   []graph.Delta
-	Opts graph.IgnoreOpts
-}
-
+// ApplyDeltas sends a request to the META graph API to apply the given deltas.
 func (c *Client) ApplyDeltas(in []graph.Delta, opts graph.IgnoreOpts) error {
 	data, err := json.Marshal(&Request{in, opts})
 	if err != nil {

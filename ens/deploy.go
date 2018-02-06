@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// Deploy deploys an ENS registry, resolver and FIFS registrar.
 func Deploy(config Config, log log.Logger) error {
 	client, err := NewClientWithConfig(config)
 	if err != nil {

@@ -28,9 +28,9 @@ import (
 
 func init() {
 	registerCommand("create", RunCreate, `
-usage: meta create [options] <db>
+usage: meta create [options] <name>
 
-Create META database <db>.
+Create META graph with name <name>.
 
 options:
         -u, --url <url>   URL of the META node [default: http://localhost:5000]
@@ -38,6 +38,6 @@ options:
 }
 
 func RunCreate(ctx context.Context, args Args) error {
-	client := api.NewClient(args.String("--url"), args.String("<db>"))
+	client := api.NewClient(args.String("--url"), args.String("<name>"))
 	return client.Create()
 }

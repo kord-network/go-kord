@@ -19,14 +19,10 @@
 
 package api
 
-// Config is the configuration used to run an API server.
-type Config struct {
-	HTTPAddr string
-	HTTPPort int
-}
+import "github.com/cayleygraph/cayley/graph"
 
-// DefaultConfig is the default server API config.
-var DefaultConfig = Config{
-	HTTPAddr: "127.0.0.1",
-	HTTPPort: 5000,
+// Request is used in HTTP requests to apply updates to a named graph.
+type Request struct {
+	In   []graph.Delta
+	Opts graph.IgnoreOpts
 }

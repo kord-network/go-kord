@@ -44,7 +44,7 @@ func TestAPI(t *testing.T) {
 	// start server
 	srv := httptest.NewServer(NewServer())
 
-	// create a database
+	// create a graph
 	name := "test.meta"
 	client := NewClient(srv.URL, name)
 	if err := client.Create(); err != nil {

@@ -30,6 +30,8 @@ import (
 	"github.com/meta-network/go-meta/db"
 )
 
+// Server implements the META graph API which supports creating and updating
+// META graphs.
 type Server struct {
 	router *httprouter.Router
 
@@ -37,6 +39,7 @@ type Server struct {
 	storeMtx sync.Mutex
 }
 
+// NewServer returns a new server.
 func NewServer() *Server {
 	s := &Server{
 		router: httprouter.New(),
@@ -47,10 +50,12 @@ func NewServer() *Server {
 	return s
 }
 
+// ServeHTTP implements the http.Handler interface.
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	s.router.ServeHTTP(w, req)
 }
 
+// HandleCreate handles a request to create a META graph.
 func (s *Server) HandleCreate(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
 	name := p.ByName("name")
 	if err := db.Create(name); err != nil {
@@ -60,6 +65,7 @@ func (s *Server) HandleCreate(w http.ResponseWriter, req *http.Request, p httpro
 	w.WriteHeader(http.StatusOK)
 }
 
+// HandleApplyDeltas handles a request to update a META graph.
 func (s *Server) HandleApplyDeltas(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
 	var r Request
 	if err := json.NewDecoder(req.Body).Decode(&r); err != nil {

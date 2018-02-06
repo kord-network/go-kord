@@ -31,6 +31,11 @@ import (
 	"github.com/meta-network/go-meta/testutil"
 )
 
+// TestMain runs the Cayley test suite against the Swarm backed SQLite database
+// driver.
+//
+// TODO: support nanosecond precision in the tests here:
+//       https://github.com/cayleygraph/cayley/blob/v0.7.1/graph/graphtest/graphtest.go#L655-L673
 func TestMain(m *testing.M) {
 	os.Exit(func() int {
 		dpa, err := testutil.NewTestDPA()
@@ -50,11 +55,4 @@ func TestSQL(t *testing.T) {
 
 func newDB(t testing.TB) (string, graph.Options, func()) {
 	return fmt.Sprintf("%d.test.meta", rand.Int()), nil, func() {}
-}
-
-// TODO: remove the need to set TimeInNs by updating Cayley to support
-//       nanosecond precision in the tests here:
-//       https://github.com/cayleygraph/cayley/blob/master/graph/graphtest/graphtest.go#L613-L636
-var conf = &sqltest.Config{
-	TimeInNs: true,
 }

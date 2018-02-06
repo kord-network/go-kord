@@ -29,6 +29,7 @@ import (
 	"github.com/cayleygraph/cayley/quad"
 )
 
+// TestGraph tests the Cayley SQLite backend.
 func TestGraph(t *testing.T) {
 	name := "test.meta"
 	if err := graph.InitQuadStore("meta", name, graph.Options{}); err != nil {

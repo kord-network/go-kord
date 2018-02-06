@@ -34,6 +34,9 @@ import (
 )
 
 func init() {
+	// Register a Cayley backend which uses the Swarm backed SQLite
+	// database driver.
+	//
 	// TODO: Update OpIsTrue to handle the fact that SQLite does not have
 	//       a built-in 'true' literal
 	//
@@ -67,6 +70,12 @@ var QueryDialect = cayleysql.QueryDialect{
 	},
 }
 
+// runTx is Cayley SQL quadstore function which applies updates using the given
+// transaction.
+//
+// See the Cayley PostgreSQL implementation:
+//
+// https://github.com/cayleygraph/cayley/blob/v0.7.1/graph/sql/postgres/postgres.go#L114-L204
 func runTx(tx *sql.Tx, nodes []graphlog.NodeUpdate, quads []graphlog.QuadUpdate, opts graph.IgnoreOpts) error {
 	// update node ref counts and insert nodes
 	var (
