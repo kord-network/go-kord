@@ -23,27 +23,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sync"
 
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/julienschmidt/httprouter"
-	"github.com/meta-network/go-meta/db"
+	"github.com/meta-network/go-meta/graph"
 )
 
 // Server implements the META graph API which supports creating and updating
 // META graphs.
 type Server struct {
 	router *httprouter.Router
-
-	stores   map[string]graph.QuadStore
-	storeMtx sync.Mutex
+	driver *graph.Driver
 }
 
 // NewServer returns a new server.
-func NewServer() *Server {
+func NewServer(driver *graph.Driver) *Server {
 	s := &Server{
 		router: httprouter.New(),
-		stores: make(map[string]graph.QuadStore),
+		driver: driver,
 	}
 	s.router.POST("/:name", s.HandleCreate)
 	s.router.POST("/:name/apply-deltas", s.HandleApplyDeltas)
@@ -58,8 +54,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // HandleCreate handles a request to create a META graph.
 func (s *Server) HandleCreate(w http.ResponseWriter, req *http.Request, p httprouter.Params) {
 	name := p.ByName("name")
-	if err := db.Create(name); err != nil {
-		http.Error(w, fmt.Sprintf("error creating database: %s", err), http.StatusInternalServerError)
+	if err := s.driver.Create(name); err != nil {
+		http.Error(w, fmt.Sprintf("error creating graph: %s", err), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -73,9 +69,9 @@ func (s *Server) HandleApplyDeltas(w http.ResponseWriter, req *http.Request, p h
 		return
 	}
 	name := p.ByName("name")
-	store, err := s.store(name)
+	store, err := s.driver.Get(name)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("error opening store: %s", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("error getting store: %s", err), http.StatusInternalServerError)
 		return
 	}
 	if err := store.ApplyDeltas(r.In, r.Opts); err != nil {
@@ -83,18 +79,4 @@ func (s *Server) HandleApplyDeltas(w http.ResponseWriter, req *http.Request, p h
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-}
-
-func (s *Server) store(name string) (graph.QuadStore, error) {
-	s.storeMtx.Lock()
-	defer s.storeMtx.Unlock()
-	if store, ok := s.stores[name]; ok {
-		return store, nil
-	}
-	store, err := graph.NewQuadStore("meta", name, graph.Options{})
-	if err != nil {
-		return nil, err
-	}
-	s.stores[name] = store
-	return store, nil
 }

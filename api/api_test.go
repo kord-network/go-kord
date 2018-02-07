@@ -28,7 +28,7 @@ import (
 	"github.com/cayleygraph/cayley"
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/quad"
-	"github.com/meta-network/go-meta/db"
+	metagraph "github.com/meta-network/go-meta/graph"
 	"github.com/meta-network/go-meta/testutil"
 )
 
@@ -38,11 +38,10 @@ func TestAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dpa.Cleanup()
-
-	db.Init(dpa.DPA, testutil.NewTestENS(), dpa.Dir)
+	driver := metagraph.NewDriver("meta", dpa.DPA, testutil.NewTestENS(), dpa.Dir)
 
 	// start server
-	srv := httptest.NewServer(NewServer())
+	srv := httptest.NewServer(NewServer(driver))
 
 	// create a graph
 	name := "test.meta"
@@ -61,7 +60,7 @@ func TestAPI(t *testing.T) {
 	}
 
 	// check the quads were added
-	qs, err := graph.NewQuadStore("meta", name, graph.Options{})
+	qs, err := driver.Get(name)
 	if err != nil {
 		t.Fatal(err)
 	}

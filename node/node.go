@@ -31,8 +31,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/meta-network/go-meta/api"
-	"github.com/meta-network/go-meta/db"
 	"github.com/meta-network/go-meta/ens"
+	"github.com/meta-network/go-meta/graph"
 )
 
 type Config struct {
@@ -64,6 +64,8 @@ func init() {
 
 type Node struct {
 	config Config
+
+	driver *graph.Driver
 
 	dpa *storage.DPA
 	srv *http.Server
@@ -115,7 +117,7 @@ func (n *Node) Start() error {
 	n.ens = ens
 
 	n.log.Info("registering the META storage")
-	db.Init(n.dpa, ens, n.config.DataDir)
+	n.driver = graph.NewDriver("meta", n.dpa, ens, n.config.DataDir)
 
 	addr := fmt.Sprintf("%s:%d", n.config.API.HTTPAddr, n.config.API.HTTPPort)
 	n.log.Info("starting HTTP server", "addr", addr)
@@ -126,7 +128,7 @@ func (n *Node) Start() error {
 	}
 	n.srv = &http.Server{
 		Addr:    ln.Addr().String(),
-		Handler: api.NewServer(),
+		Handler: api.NewServer(n.driver),
 	}
 	go func() {
 		if err := n.srv.Serve(ln); err != nil && err != http.ErrServerClosed {

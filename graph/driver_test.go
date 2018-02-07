@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package db_test
+package graph
 
 import (
 	"fmt"
@@ -27,9 +27,10 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/sql/sqltest"
-	"github.com/meta-network/go-meta/db"
 	"github.com/meta-network/go-meta/testutil"
 )
+
+var testDriver *Driver
 
 // TestMain runs the Cayley test suite against the Swarm backed SQLite database
 // driver.
@@ -44,15 +45,15 @@ func TestMain(m *testing.M) {
 			return 1
 		}
 		defer dpa.Cleanup()
-		db.Init(dpa.DPA, testutil.NewTestENS(), dpa.Dir)
+		testDriver = NewDriver("meta-test", dpa.DPA, testutil.NewTestENS(), dpa.Dir)
 		return m.Run()
 	}())
 }
 
-func TestSQL(t *testing.T) {
-	sqltest.TestAll(t, "meta", newDB, conf)
+func TestSQLBackend(t *testing.T) {
+	sqltest.TestAll(t, testDriver.name, newTestDB, nil)
 }
 
-func newDB(t testing.TB) (string, graph.Options, func()) {
+func newTestDB(t testing.TB) (string, graph.Options, func()) {
 	return fmt.Sprintf("%d.test.meta", rand.Int()), nil, func() {}
 }

@@ -33,20 +33,20 @@ import (
 	sqlite3 "github.com/mattn/go-sqlite3"
 )
 
-func init() {
-	// Register a Cayley backend which uses the Swarm backed SQLite
-	// database driver.
-	//
-	// TODO: Update OpIsTrue to handle the fact that SQLite does not have
-	//       a built-in 'true' literal
-	//
-	// TODO: Add a SQLite regex extension so that the REGEXP operator works
-	//
-	// TODO: Update cayley so that it supports creating indexes in the
-	//       CREATE TABLE statement (currently we are just not creating
-	//       the indexes by setting NoForeignKeys)
-	cayleysql.Register("meta", cayleysql.Registration{
-		Driver:               "meta",
+// GraphRegistration returns a Cayley SQL registration which allows Cayley to
+// use Swarm backed SQLite databases.
+//
+// TODO: Update OpIsTrue to handle the fact that SQLite does not have
+//       a built-in 'true' literal
+//
+// TODO: Add a SQLite regex extension so that the REGEXP operator works
+//
+// TODO: Update cayley so that it supports creating indexes in the
+//       CREATE TABLE statement (currently we are just not creating
+//       the indexes by setting NoForeignKeys)
+func (d *Driver) GraphRegistration() cayleysql.Registration {
+	return cayleysql.Registration{
+		Driver:               d.name,
 		HashType:             `BLOB`,
 		BytesType:            `BLOB`,
 		TimeType:             `TIMESTAMP`,
@@ -59,11 +59,11 @@ func init() {
 			return err
 		},
 		RunTx: runTx,
-	})
+	}
 }
 
 var QueryDialect = cayleysql.QueryDialect{
-	RegexpOp:   "REGEXP", // TODO: add regexp extension
+	RegexpOp:   "REGEXP",
 	FieldQuote: pq.QuoteIdentifier,
 	Placeholder: func(n int) string {
 		return fmt.Sprintf("$%d", n)

@@ -22,7 +22,7 @@ package db
 import (
 	"context"
 	"database/sql"
-	sqldriver "database/sql/driver"
+	"database/sql/driver"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -31,21 +31,19 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	sqlite3 "github.com/mattn/go-sqlite3"
 	"github.com/meta-network/go-meta/ens"
 )
 
-var driver *Driver
-
-// Driver implements the database/sql/driver.Conn interface by wrapping a
-// SQLite3 driver with connections that use databases stored in Swarm.
+// Driver implements the driver.Conn interface by wrapping a SQLite3 driver
+// with connections that use databases stored in Swarm.
 type Driver struct {
-	dpa *storage.DPA
-	ens ens.ENS
-	dir string
+	name string
+	dpa  *storage.DPA
+	ens  ens.ENS
+	dir  string
 
 	sqlite sqlite3.SQLiteDriver
 
@@ -53,62 +51,27 @@ type Driver struct {
 	dbMtx sync.Mutex
 }
 
-// Init creates a Driver and registers it as a sql driver with name "meta".
-func Init(dpa *storage.DPA, ens ens.ENS, dir string) {
-	if driver != nil {
-		panic("db: driver already initialised")
+// NewDriver creates and registers a new database driver.
+func NewDriver(name string, dpa *storage.DPA, ens ens.ENS, dir string) *Driver {
+	d := &Driver{
+		name: name,
+		dpa:  dpa,
+		ens:  ens,
+		dir:  dir,
+		dbs:  make(map[string]*db),
 	}
-
-	driver = &Driver{
-		dpa: dpa,
-		ens: ens,
-		dir: dir,
-		dbs: make(map[string]*db),
-	}
-
-	sql.Register("meta", driver)
+	sql.Register(name, d)
+	return d
 }
 
-// Create calls Driver.Create on the initialised driver.
-func Create(name string) error {
-	if driver == nil {
-		panic("db: uninitialised driver")
-	}
-	return driver.Create(name)
-}
-
-// Create creates a SQLite backed META graph with the given name by registering
-// the name in ENS and pointing it at an empty SQLite graph database.
-func (d *Driver) Create(name string) error {
-	if err := d.ens.Register(name); err != nil {
-		return err
-	}
-	if err := graph.InitQuadStore("meta", name, graph.Options{}); err != nil {
-		return err
-	}
-	hash, err := d.Commit(name)
-	if err != nil {
-		return err
-	}
-	return d.ens.SetContent(name, hash)
-}
-
-// Open opens the SQLite graph database with the givn name, wrapping it in a
+// Open opens the SQLite graph database with the given name, wrapping it in a
 // connection which is re-opened if the ENS name is updated.
-func (d *Driver) Open(name string) (sqldriver.Conn, error) {
+func (d *Driver) Open(name string) (driver.Conn, error) {
 	db, err := d.openDB(name)
 	if err != nil {
 		return nil, err
 	}
 	return db.newConn()
-}
-
-// Commit calls Driver.Commit on the initialised driver.
-func Commit(name string) (common.Hash, error) {
-	if driver == nil {
-		panic("db: uninitialised driver")
-	}
-	return driver.Commit(name)
 }
 
 // Commit commits the SQLite graph database with the given name by storing it
@@ -245,7 +208,7 @@ func newDB(driver *Driver, path string) *db {
 	}
 }
 
-func (db *db) newConn() (sqldriver.Conn, error) {
+func (db *db) newConn() (driver.Conn, error) {
 	sqliteConn, err := db.driver.sqlite.Open(db.path)
 	if err != nil {
 		return nil, err
@@ -309,7 +272,7 @@ func newConn(db *db, sqliteConn *sqlite3.SQLiteConn) *Conn {
 	return conn
 }
 
-func (c *Conn) Prepare(query string) (sqldriver.Stmt, error) {
+func (c *Conn) Prepare(query string) (driver.Stmt, error) {
 	return c.SQLiteConn().Prepare(query)
 }
 
@@ -319,23 +282,23 @@ func (c *Conn) Close() error {
 	return c.SQLiteConn().Close()
 }
 
-func (c *Conn) Begin() (sqldriver.Tx, error) {
+func (c *Conn) Begin() (driver.Tx, error) {
 	return c.SQLiteConn().Begin()
 }
 
-func (c *Conn) BeginTx(ctx context.Context, opts sqldriver.TxOptions) (sqldriver.Tx, error) {
+func (c *Conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
 	return c.SQLiteConn().BeginTx(ctx, opts)
 }
 
-func (c *Conn) PrepareContext(ctx context.Context, query string) (sqldriver.Stmt, error) {
+func (c *Conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
 	return c.SQLiteConn().PrepareContext(ctx, query)
 }
 
-func (c *Conn) Exec(query string, args []sqldriver.Value) (sqldriver.Result, error) {
+func (c *Conn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	return c.SQLiteConn().Exec(query, args)
 }
 
-func (c *Conn) ExecContext(ctx context.Context, query string, args []sqldriver.NamedValue) (sqldriver.Result, error) {
+func (c *Conn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
 	return c.SQLiteConn().ExecContext(ctx, query, args)
 }
 
@@ -343,11 +306,11 @@ func (c *Conn) Ping(ctx context.Context) error {
 	return c.SQLiteConn().Ping(ctx)
 }
 
-func (c *Conn) Query(query string, args []sqldriver.Value) (sqldriver.Rows, error) {
+func (c *Conn) Query(query string, args []driver.Value) (driver.Rows, error) {
 	return c.SQLiteConn().Query(query, args)
 }
 
-func (c *Conn) QueryContext(ctx context.Context, query string, args []sqldriver.NamedValue) (sqldriver.Rows, error) {
+func (c *Conn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	return c.SQLiteConn().QueryContext(ctx, query, args)
 }
 

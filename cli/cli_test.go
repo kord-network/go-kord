@@ -63,7 +63,7 @@ func TestLoad(t *testing.T) {
 		"meta":   true,
 		"create": true,
 		"--url":  fmt.Sprintf("http://%s", node.HTTPAddr()),
-		"<db>":   "test.meta",
+		"<name>": "test.meta",
 	})); err != nil {
 		t.Fatal(err)
 	}
@@ -73,8 +73,8 @@ func TestLoad(t *testing.T) {
 		"meta":   true,
 		"load":   true,
 		"--url":  fmt.Sprintf("http://%s", node.HTTPAddr()),
-		"<file>": "../db/data/testdata.nq",
-		"<db>":   "test.meta",
+		"<file>": "../graph/data/testdata.nq",
+		"<name>": "test.meta",
 	})); err != nil {
 		t.Fatal(err)
 	}
