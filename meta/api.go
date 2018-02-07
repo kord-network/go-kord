@@ -17,12 +17,29 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package api
+package meta
 
 import "github.com/cayleygraph/cayley/graph"
 
-// Request is used in HTTP requests to apply updates to a named graph.
-type Request struct {
-	In   []graph.Delta
-	Opts graph.IgnoreOpts
+type PublicAPI struct {
+	meta *Meta
+}
+
+func NewPublicAPI(meta *Meta) *PublicAPI {
+	return &PublicAPI{meta}
+}
+
+func (api *PublicAPI) CreateGraph(name string) error {
+	return api.meta.driver.Create(name)
+}
+
+func (api *PublicAPI) ApplyDeltas(name string, in []graph.Delta, opts graph.IgnoreOpts) error {
+	qs, err := api.meta.driver.Get(name)
+	if err != nil {
+		return err
+	}
+	if err := qs.ApplyDeltas(in, opts); err != nil {
+		return err
+	}
+	return api.meta.driver.Commit(name)
 }

@@ -82,3 +82,11 @@ func (d *Driver) Get(name string) (graph.QuadStore, error) {
 	d.stores[name] = store
 	return store, nil
 }
+
+func (d *Driver) Commit(name string) error {
+	hash, err := d.db.Commit(name)
+	if err != nil {
+		return err
+	}
+	return d.ens.SetContent(name, hash)
+}

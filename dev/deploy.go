@@ -20,7 +20,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -31,8 +30,7 @@ func main() {
 	l := log.New()
 	l.SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 
-	if err := ens.Deploy(ens.DefaultConfig, l); err != nil {
-		fmt.Fprintln(os.Stderr, "ERROR:", err)
-		os.Exit(1)
+	if err := ens.Deploy("dev/meta.ipc", ens.DefaultConfig, l); err != nil {
+		log.Crit("error deploying ENS", "err", err)
 	}
 }

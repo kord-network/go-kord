@@ -43,7 +43,6 @@ var (
 	DevRegistryAddr = common.HexToAddress("0x241be96854Fc2f0172dAA660EE7A14410957C15d")
 	DevResolverAddr = common.HexToAddress("0xD277b08f085121d287878A991e0C496488AAaEc6")
 	DevKey          = mustKey("476e921a198fd2744f270da0bb80dce2dab24e9105473d9bb19e540fcbd04bb0")
-	DevAddress      = common.HexToAddress("0xEe078019375fBFEef8f6278754d54Cf415e83329")
 )
 
 type ENS interface {
@@ -59,23 +58,21 @@ type Subscription interface {
 }
 
 type Config struct {
-	URL          string
 	Key          *ecdsa.PrivateKey
 	RegistryAddr common.Address
 	ResolverAddr common.Address
 }
 
 var DefaultConfig = Config{
-	URL:          "./dev/geth.ipc",
 	Key:          DevKey,
 	RegistryAddr: DevRegistryAddr,
 	ResolverAddr: DevResolverAddr,
 }
 
 type Client struct {
+	*ethclient.Client
+
 	ens          *ens.ENS
-	client       *rpc.Client
-	ethClient    *ethclient.Client
 	blocks       event.Feed
 	transactOpts *bind.TransactOpts
 	resolverAddr common.Address
@@ -83,11 +80,11 @@ type Client struct {
 	closeOnce    sync.Once
 }
 
-func NewClient() (*Client, error) {
-	return NewClientWithConfig(DefaultConfig)
+func NewClient(client *rpc.Client) (*Client, error) {
+	return NewClientWithConfig(client, DefaultConfig)
 }
 
-func NewClientWithConfig(config Config) (*Client, error) {
+func NewClientWithConfig(client *rpc.Client, config Config) (*Client, error) {
 	if config.Key == nil {
 		key, err := crypto.GenerateKey()
 		if err != nil {
@@ -96,10 +93,6 @@ func NewClientWithConfig(config Config) (*Client, error) {
 		config.Key = key
 	}
 
-	client, err := rpc.Dial(config.URL)
-	if err != nil {
-		return nil, err
-	}
 	ethClient := ethclient.NewClient(client)
 
 	transactOpts := bind.NewKeyedTransactor(config.Key)
@@ -111,14 +104,12 @@ func NewClientWithConfig(config Config) (*Client, error) {
 		ethClient,
 	)
 	if err != nil {
-		client.Close()
 		return nil, err
 	}
 
 	c := &Client{
+		Client:       ethClient,
 		ens:          ens,
-		client:       client,
-		ethClient:    ethClient,
 		transactOpts: transactOpts,
 		resolverAddr: DevResolverAddr,
 		closed:       make(chan struct{}),
@@ -152,7 +143,6 @@ func (c *Client) SubscribeContent(name string, updates chan common.Hash) (Subscr
 
 func (c *Client) Close() {
 	c.closeOnce.Do(func() { close(c.closed) })
-	c.client.Close()
 }
 
 func (c *Client) register(name string) error {
@@ -195,7 +185,7 @@ func (c *Client) do(f func() (*types.Transaction, error)) (*types.Receipt, error
 			if count > blockTimeout {
 				return nil, fmt.Errorf("failed to get transaction receipt after %d blocks", blockTimeout)
 			}
-			receipt, err := c.ethClient.TransactionReceipt(context.Background(), tx.Hash())
+			receipt, err := c.TransactionReceipt(context.Background(), tx.Hash())
 			if err == nil {
 				if receipt.Status == types.ReceiptStatusFailed {
 					return nil, errors.New("transaction failed")
@@ -214,7 +204,7 @@ func (c *Client) do(f func() (*types.Transaction, error)) (*types.Receipt, error
 
 func (c *Client) subscribeBlocks() error {
 	heads := make(chan *types.Header)
-	sub, err := c.ethClient.SubscribeNewHead(context.Background(), heads)
+	sub, err := c.SubscribeNewHead(context.Background(), heads)
 	if err != nil {
 		return err
 	}

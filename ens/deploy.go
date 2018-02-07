@@ -25,22 +25,24 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/contracts/ens/contract"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // Deploy deploys an ENS registry, resolver and FIFS registrar.
-func Deploy(config Config, log log.Logger) error {
-	client, err := NewClientWithConfig(config)
+func Deploy(url string, config Config, log log.Logger) error {
+	c, err := rpc.Dial(url)
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer c.Close()
 
-	d := &deployer{
-		client:    client,
-		ethClient: client.ethClient,
+	client, err := NewClientWithConfig(c, config)
+	if err != nil {
+		return err
 	}
+
+	d := &deployer{client}
 
 	log.Info("deploying ENS registry contract")
 	registryAddr, err := d.deployRegistry(config.RegistryAddr)
@@ -70,17 +72,15 @@ func Deploy(config Config, log log.Logger) error {
 }
 
 type deployer struct {
-	client    *Client
-	ethClient *ethclient.Client
-	config    *Config
+	*Client
 }
 
 func (d *deployer) deployRegistry(addr common.Address) (common.Address, error) {
-	if data, err := d.ethClient.CodeAt(context.Background(), addr, nil); err == nil && len(data) > 0 {
+	if data, err := d.CodeAt(context.Background(), addr, nil); err == nil && len(data) > 0 {
 		return addr, nil
 	}
-	receipt, err := d.client.do(func() (tx *types.Transaction, err error) {
-		_, tx, _, err = contract.DeployENS(d.client.transactOpts, d.ethClient)
+	receipt, err := d.do(func() (tx *types.Transaction, err error) {
+		_, tx, _, err = contract.DeployENS(d.transactOpts, d)
 		return
 	})
 	if err != nil {
@@ -90,11 +90,11 @@ func (d *deployer) deployRegistry(addr common.Address) (common.Address, error) {
 }
 
 func (d *deployer) deployResolver(addr common.Address, registryAddr common.Address) (common.Address, error) {
-	if data, err := d.ethClient.CodeAt(context.Background(), addr, nil); err == nil && len(data) > 0 {
+	if data, err := d.CodeAt(context.Background(), addr, nil); err == nil && len(data) > 0 {
 		return addr, nil
 	}
-	receipt, err := d.client.do(func() (tx *types.Transaction, err error) {
-		_, tx, _, err = contract.DeployPublicResolver(d.client.transactOpts, d.ethClient, registryAddr)
+	receipt, err := d.do(func() (tx *types.Transaction, err error) {
+		_, tx, _, err = contract.DeployPublicResolver(d.transactOpts, d, registryAddr)
 		return
 	})
 	if err != nil {
@@ -104,19 +104,19 @@ func (d *deployer) deployResolver(addr common.Address, registryAddr common.Addre
 }
 
 func (d *deployer) deployMetaRegistrar(registryAddr common.Address) (common.Address, error) {
-	if addr, err := d.client.ens.Owner(Namehash("meta")); err == nil && addr != (common.Address{}) {
+	if addr, err := d.ens.Owner(Namehash("meta")); err == nil && addr != (common.Address{}) {
 		return addr, nil
 	}
-	receipt, err := d.client.do(func() (tx *types.Transaction, err error) {
-		_, tx, _, err = contract.DeployFIFSRegistrar(d.client.transactOpts, d.ethClient, registryAddr, Namehash("meta"))
+	receipt, err := d.do(func() (tx *types.Transaction, err error) {
+		_, tx, _, err = contract.DeployFIFSRegistrar(d.transactOpts, d, registryAddr, Namehash("meta"))
 		return
 	})
 	if err != nil {
 		return common.Address{}, err
 	}
 	registrarAddr := receipt.ContractAddress
-	_, err = d.client.do(func() (*types.Transaction, error) {
-		return d.client.ens.SetSubnodeOwner(common.Hash{}, Sha3("meta"), registrarAddr)
+	_, err = d.do(func() (*types.Transaction, error) {
+		return d.ens.SetSubnodeOwner(common.Hash{}, Sha3("meta"), registrarAddr)
 	})
 	if err != nil {
 		return common.Address{}, err

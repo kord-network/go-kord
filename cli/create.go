@@ -23,7 +23,8 @@ import (
 	"context"
 
 	_ "github.com/cayleygraph/cayley/writer"
-	"github.com/meta-network/go-meta/api"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/meta-network/go-meta/meta"
 )
 
 func init() {
@@ -33,11 +34,28 @@ usage: meta create [options] <name>
 Create META graph with name <name>.
 
 options:
-        -u, --url <url>   URL of the META node [default: http://localhost:5000]
+        -u, --url <url>   URL of the META node [default: dev/meta.ipc]
+	--verbosity <n>   Logging verbosity: 0=silent, 1=error, 2=warn, 3=info, 4=debug, 5=detail [default: 3]
 `[1:])
 }
 
 func RunCreate(ctx context.Context, args Args) error {
-	client := api.NewClient(args.String("--url"), args.String("<name>"))
-	return client.Create()
+	if v := args.String("--verbosity"); v != "" {
+		if _, err := setLogVerbosity(v); err != nil {
+			return err
+		}
+	}
+	log.Info("creating graph", "url", args.String("--url"), "name", args.String("<name>"))
+
+	client, err := meta.NewClient(args.String("--url"))
+	if err != nil {
+		return err
+	}
+
+	if err := client.CreateGraph(ctx, args.String("<name>")); err != nil {
+		return err
+	}
+
+	log.Info("graph created successfully", "name", args.String("<name>"))
+	return nil
 }

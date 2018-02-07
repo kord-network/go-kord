@@ -21,21 +21,15 @@ package cli
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"fmt"
 	"io/ioutil"
-	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
 	"github.com/meta-network/go-meta/ens"
-	metanode "github.com/meta-network/go-meta/node"
 )
 
 func init() {
@@ -43,124 +37,50 @@ func init() {
 }
 
 func TestLoad(t *testing.T) {
-	// start eth node
-	ensConfig := ens.DefaultConfig
-	ethURL, cleanup := startEthNode(t, ensConfig.Key)
-	defer cleanup()
-
-	// deploy ENS
-	ensConfig.URL = ethURL
-	if err := ens.Deploy(ensConfig, log.New()); err != nil {
+	// generate test config
+	tmpDir, err := ioutil.TempDir("", "meta-cli-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+	ks := keystore.NewKeyStore(
+		filepath.Join(tmpDir, "keystore"),
+		keystore.LightScryptN,
+		keystore.LightScryptP,
+	)
+	if _, err := ks.ImportECDSA(ens.DevKey, ""); err != nil {
 		t.Fatal(err)
 	}
 
-	// start meta node
-	node, cleanup := startMetaNode(t, &ensConfig)
-	defer cleanup()
+	// start a node
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		if err := Run(ctx, "node", "--datadir", tmpDir, "--dev"); err != nil {
+			log.Error("error running node", "err", err)
+		}
+	}()
+
+	// wait for the node to start
+	ipcPath := filepath.Join(tmpDir, "meta.ipc")
+	for start := time.Now(); time.Since(start) < 10*time.Second; time.Sleep(50 * time.Millisecond) {
+		if _, err := os.Stat(ipcPath); err == nil {
+			break
+		}
+	}
+
+	// deploy ENS
+	if err := ens.Deploy(ipcPath, ens.DefaultConfig, log.New()); err != nil {
+		t.Fatal(err)
+	}
 
 	// create a graph
-	if err := RunCreate(context.Background(), Args(map[string]interface{}{
-		"meta":   true,
-		"create": true,
-		"--url":  fmt.Sprintf("http://%s", node.HTTPAddr()),
-		"<name>": "test.meta",
-	})); err != nil {
+	if err := Run(context.Background(), "create", "--url", ipcPath, "test.meta"); err != nil {
 		t.Fatal(err)
 	}
 
 	// load test data
-	if err := RunLoad(context.Background(), Args(map[string]interface{}{
-		"meta":   true,
-		"load":   true,
-		"--url":  fmt.Sprintf("http://%s", node.HTTPAddr()),
-		"<file>": "../graph/data/testdata.nq",
-		"<name>": "test.meta",
-	})); err != nil {
+	if err := Run(context.Background(), "load", "--url", ipcPath, "../graph/data/testdata.nq", "test.meta"); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func startEthNode(t *testing.T, key *ecdsa.PrivateKey) (string, func()) {
-	tmpDir, err := ioutil.TempDir("", "meta-cli-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	config := node.DefaultConfig
-	config.Name = "geth"
-	config.IPCPath = "geth.ipc"
-	config.DataDir = tmpDir
-	config.P2P.MaxPeers = 0
-	config.P2P.ListenAddr = ":0"
-	config.P2P.NoDiscovery = true
-	config.P2P.DiscoveryV5 = false
-	config.P2P.NAT = nil
-	config.NoUSB = true
-	config.UseLightweightKDF = true
-
-	ethConfig := eth.DefaultConfig
-
-	stack, err := node.New(&config)
-	if err != nil {
-		os.RemoveAll(tmpDir)
-		t.Fatal(err)
-	}
-
-	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
-	acct, err := ks.ImportECDSA(key, "")
-	if err != nil {
-		os.RemoveAll(tmpDir)
-		t.Fatal(err)
-	}
-	if err := ks.Unlock(acct, ""); err != nil {
-		os.RemoveAll(tmpDir)
-		t.Fatal(err)
-	}
-
-	ethConfig.Genesis = core.DeveloperGenesisBlock(0, acct.Address)
-	ethConfig.GasPrice = big.NewInt(1)
-
-	var ethereum *eth.Ethereum
-	if err := stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-		var err error
-		ethereum, err = eth.New(ctx, &ethConfig)
-		return ethereum, err
-	}); err != nil {
-		os.RemoveAll(tmpDir)
-		t.Fatal(err)
-	}
-
-	if err := stack.Start(); err != nil {
-		os.RemoveAll(tmpDir)
-		t.Fatal(err)
-	}
-
-	if err := ethereum.StartMining(true); err != nil {
-		os.RemoveAll(tmpDir)
-		t.Fatal(err)
-	}
-
-	return filepath.Join(tmpDir, "geth.ipc"), func() {
-		stack.Stop()
-		os.RemoveAll(tmpDir)
-	}
-}
-
-func startMetaNode(t *testing.T, ensConfig *ens.Config) (*metanode.Node, func()) {
-	tmpDir, err := ioutil.TempDir("", "meta-cli-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	config := metanode.DefaultConfig
-	config.DataDir = tmpDir
-	config.API.HTTPPort = 0
-	config.ENS = *ensConfig
-	node := metanode.New(config)
-	if err := node.Start(); err != nil {
-		os.RemoveAll(tmpDir)
-		t.Fatal(err)
-	}
-	return node, func() {
-		node.Stop()
-		os.RemoveAll(tmpDir)
 	}
 }
