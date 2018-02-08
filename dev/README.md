@@ -38,5 +38,5 @@ $ geth --preload dev/ensutils.js --exec 'getContent("test.meta")' attach ./dev/g
 Load some data into the graph:
 
 ```
-$ meta load db/data/testdata.nq test.meta
+$ meta load graph/data/testdata.nq test.meta
 ```
