@@ -123,6 +123,7 @@ type IdentityInput struct {
 }
 
 type Claim struct {
+	Graph     string
 	Issuer    ID
 	Subject   ID
 	Property  string
@@ -141,6 +142,7 @@ func (c *Claim) ID() common.Hash {
 
 type claimJSON struct {
 	ID        string `json:"id"`
+	Graph     string `json:"graph"`
 	Issuer    string `json:"issuer"`
 	Subject   string `json:"subject"`
 	Property  string `json:"property"`
@@ -151,6 +153,7 @@ type claimJSON struct {
 func (c *Claim) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&claimJSON{
 		ID:        c.ID().String(),
+		Graph:     c.Graph,
 		Issuer:    c.Issuer.String(),
 		Subject:   c.Subject.String(),
 		Property:  c.Property,
@@ -165,6 +168,7 @@ func (c *Claim) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*c = Claim{
+		Graph:     v.Graph,
 		Issuer:    HexToID(v.Issuer),
 		Subject:   HexToID(v.Subject),
 		Property:  v.Property,
@@ -196,8 +200,9 @@ func (c *Claim) Quad() *claimQuad {
 	}
 }
 
-func (c *claimQuad) ToClaim() *Claim {
+func (c *claimQuad) ToClaim(graph string) *Claim {
 	return &Claim{
+		Graph:     graph,
 		Issuer:    HexToID(string(c.Issuer)),
 		Subject:   HexToID(string(c.Subject)),
 		Property:  c.Property,
@@ -207,6 +212,7 @@ func (c *claimQuad) ToClaim() *Claim {
 }
 
 type ClaimFilter struct {
+	Graph    string  `json:"graph"`
 	Issuer   *string `json:"issuer"`
 	Subject  *string `json:"subject"`
 	Property *string `json:"property"`
@@ -214,6 +220,7 @@ type ClaimFilter struct {
 }
 
 type ClaimInput struct {
+	Graph     string `json:"graph"`
 	Issuer    string `json:"issuer"`
 	Subject   string `json:"subject"`
 	Property  string `json:"property"`

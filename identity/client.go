@@ -51,24 +51,6 @@ mutation CreateIdentity($input: IdentityInput!) {
 	return c.Do(query, variables, nil)
 }
 
-func (c *Client) Identity(filter *IdentityFilter) ([]*Identity, error) {
-	query := `
-query GetIdentity($filter: IdentityFilter!) {
-  identity(filter: $filter) {
-    id
-    username
-    owner
-    signature
-  }
-}
-`
-	variables := graphql.Variables{"filter": filter}
-	var v struct {
-		Identities []*Identity `json:"identity"`
-	}
-	return v.Identities, c.Do(query, variables, &v)
-}
-
 func (c *Client) CreateClaim(claim *Claim) error {
 	query := `
 mutation CreateClaim($input: ClaimInput!) {
@@ -83,6 +65,7 @@ mutation CreateClaim($input: ClaimInput!) {
 }
 `
 	variables := graphql.Variables{"input": &ClaimInput{
+		Graph:     claim.Graph,
 		Issuer:    claim.Issuer.String(),
 		Subject:   claim.Subject.String(),
 		Property:  claim.Property,

@@ -27,9 +27,11 @@ import (
 	"github.com/cayleygraph/cayley/graph/path"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/schema"
+	_ "github.com/cayleygraph/cayley/writer"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	metagraph "github.com/meta-network/go-meta/graph"
 )
 
 const GraphQLSchema = `
@@ -39,8 +41,6 @@ schema {
 }
 
 type Query {
-  identity(filter: IdentityFilter!): [Identity]!
-
   claim(filter: ClaimFilter!): [Claim]!
 }
 
@@ -63,14 +63,9 @@ input IdentityInput {
   signature: String!
 }
 
-input IdentityFilter {
-  id:       String
-  username: String
-  owner:    String
-}
-
 type Claim {
   id:        String!
+  graph:     String!
   issuer:    String!
   subject:   String!
   property:  String!
@@ -79,6 +74,7 @@ type Claim {
 }
 
 input ClaimInput {
+  graph:     String!
   issuer:    String!
   subject:   String!
   property:  String!
@@ -87,6 +83,7 @@ input ClaimInput {
 }
 
 input ClaimFilter {
+  graph:     String!
   issuer:    String
   subject:   String
   property:  String
@@ -95,43 +92,11 @@ input ClaimFilter {
 `
 
 type Resolver struct {
-	qs graph.QuadStore
-	qw graph.BatchWriter
+	driver *metagraph.Driver
 }
 
-func NewResolver(qs graph.QuadStore) (*Resolver, error) {
-	qw, err := graph.NewQuadWriter("single", qs, nil)
-	if err != nil {
-		return nil, err
-	}
-	return &Resolver{qs, graph.NewWriter(qw)}, nil
-}
-
-// IdentityArgs are the arguments for a GraphQL identity query.
-type IdentityArgs struct {
-	Filter IdentityFilter
-}
-
-func (r *Resolver) Identity(args IdentityArgs) ([]*IdentityResolver, error) {
-	path := path.NewPath(r.qs)
-	if v := args.Filter.ID; v != nil {
-		path = path.Is(quad.IRI(*v))
-	}
-	if v := args.Filter.Username; v != nil {
-		path = path.Has(quad.IRI("id:username"), quad.StringToValue(*v))
-	}
-	if v := args.Filter.Owner; v != nil {
-		path = path.Has(quad.IRI("id:owner"), quad.StringToValue(*v))
-	}
-	var identities []identityQuad
-	if err := schema.LoadPathTo(context.Background(), r.qs, &identities, path); err != nil {
-		return nil, err
-	}
-	resolvers := make([]*IdentityResolver, len(identities))
-	for i, v := range identities {
-		resolvers[i] = &IdentityResolver{v.Identity()}
-	}
-	return resolvers, nil
+func NewResolver(driver *metagraph.Driver) *Resolver {
+	return &Resolver{driver}
 }
 
 // IdentityResolver defines GraphQL resolver functions for Identity fields.
@@ -169,10 +134,8 @@ func (r *Resolver) CreateIdentity(args CreateIdentityArgs) (*IdentityResolver, e
 	if !verifyIdentity(identity) {
 		return nil, errors.New("identity: invalid identity")
 	}
-	if _, err := schema.WriteAsQuads(r.qw, identity.Quad()); err != nil {
-		return nil, err
-	}
-	if err := r.qw.Flush(); err != nil {
+	name := identity.Username + ".meta"
+	if err := r.driver.Create(name); err != nil {
 		return nil, err
 	}
 	return &IdentityResolver{identity: identity}, nil
@@ -184,7 +147,11 @@ type ClaimArgs struct {
 }
 
 func (r *Resolver) Claim(args ClaimArgs) ([]*ClaimResolver, error) {
-	path := path.NewPath(r.qs)
+	qs, err := r.driver.Get(args.Filter.Graph)
+	if err != nil {
+		return nil, err
+	}
+	path := path.NewPath(qs)
 	if v := args.Filter.Issuer; v != nil {
 		path = path.Has(quad.IRI("id:issuer"), quad.IRI(*v))
 	}
@@ -198,12 +165,12 @@ func (r *Resolver) Claim(args ClaimArgs) ([]*ClaimResolver, error) {
 		path = path.Has(quad.IRI("id:claim"), quad.StringToValue(*v))
 	}
 	var claims []claimQuad
-	if err := schema.LoadPathTo(context.Background(), r.qs, &claims, path); err != nil {
+	if err := schema.LoadPathTo(context.Background(), qs, &claims, path); err != nil {
 		return nil, err
 	}
 	resolvers := make([]*ClaimResolver, len(claims))
 	for i, v := range claims {
-		resolvers[i] = &ClaimResolver{v.ToClaim()}
+		resolvers[i] = &ClaimResolver{v.ToClaim(args.Filter.Graph)}
 	}
 	return resolvers, nil
 }
@@ -215,6 +182,10 @@ type ClaimResolver struct {
 
 func (c *ClaimResolver) ID() string {
 	return c.claim.ID().String()
+}
+
+func (c *ClaimResolver) Graph() string {
+	return c.claim.Graph
 }
 
 func (c *ClaimResolver) Issuer() string {
@@ -243,12 +214,6 @@ type CreateClaimArgs struct {
 }
 
 func (r *Resolver) CreateClaim(args CreateClaimArgs) (*ClaimResolver, error) {
-	var v identityQuad
-	if err := schema.LoadTo(context.Background(), r.qs, &v, quad.IRI(args.Input.Issuer)); err != nil {
-		return nil, err
-	}
-	issuer := v.Identity()
-
 	claim := &Claim{
 		Issuer:    HexToID(args.Input.Issuer),
 		Subject:   HexToID(args.Input.Subject),
@@ -256,13 +221,21 @@ func (r *Resolver) CreateClaim(args CreateClaimArgs) (*ClaimResolver, error) {
 		Claim:     args.Input.Claim,
 		Signature: common.FromHex(args.Input.Signature),
 	}
-	if !verifyClaim(claim, issuer.Owner) {
-		return nil, errors.New("claim: invalid claim")
-	}
-	if _, err := schema.WriteAsQuads(r.qw, claim.Quad()); err != nil {
+
+	qs, err := r.driver.Get(args.Input.Graph)
+	if err != nil {
 		return nil, err
 	}
-	if err := r.qw.Flush(); err != nil {
+	qw, err := graph.NewQuadWriter("single", qs, nil)
+	if err != nil {
+		return nil, err
+	}
+	w := graph.NewWriter(qw)
+
+	if _, err := schema.WriteAsQuads(w, claim.Quad()); err != nil {
+		return nil, err
+	}
+	if err := w.Flush(); err != nil {
 		return nil, err
 	}
 	return &ClaimResolver{claim: claim}, nil
@@ -271,11 +244,6 @@ func (r *Resolver) CreateClaim(args CreateClaimArgs) (*ClaimResolver, error) {
 func verifyIdentity(identity *Identity) bool {
 	id := identity.ID()
 	return verifySignature(identity.Owner, id.Hash[:], identity.Signature)
-}
-
-func verifyClaim(claim *Claim, owner common.Address) bool {
-	id := claim.ID()
-	return verifySignature(owner, id[:], claim.Signature)
 }
 
 func verifySignature(owner common.Address, msg, signature []byte) bool {

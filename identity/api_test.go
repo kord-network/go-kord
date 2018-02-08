@@ -24,14 +24,25 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/cayleygraph/cayley"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/meta-network/go-meta/graph"
+	"github.com/meta-network/go-meta/testutil"
 )
 
 func TestIdentityAPI(t *testing.T) {
 	// create a test API
-	srv := newTestAPI(t)
+	dpa, err := testutil.NewTestDPA()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dpa.Cleanup()
+	driver := graph.NewDriver("meta-id-test", dpa.DPA, testutil.NewTestENS(), dpa.Dir)
+	api, err := NewAPI(driver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(api)
 	defer srv.Close()
 
 	// create an identity
@@ -41,28 +52,6 @@ func TestIdentityAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// get the identity
-	id := identity.ID().String()
-	owner := identity.Owner.String()
-	identities, err := client.Identity(&IdentityFilter{
-		ID:       &id,
-		Username: &identity.Username,
-		Owner:    &owner,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(identities) != 1 {
-		t.Fatalf("expected 1 identity, got %d", len(identities))
-	}
-	gotIdentity := identities[0]
-	if gotIdentity.ID() != identity.ID() {
-		t.Fatalf("expected identity to have ID %s, got %s", identity.ID().String(), gotIdentity.ID().String())
-	}
-	if !bytes.Equal(gotIdentity.Signature, identity.Signature) {
-		t.Fatalf("expected identity to have signature %s, got %s", hexutil.Encode(identity.Signature), hexutil.Encode(gotIdentity.Signature))
-	}
-
 	// create a claim
 	claim := newTestClaim(t, identity, "test.id", "123")
 	if err := client.CreateClaim(claim); err != nil {
@@ -70,7 +59,9 @@ func TestIdentityAPI(t *testing.T) {
 	}
 
 	// get the claim
+	id := identity.ID().String()
 	claims, err := client.Claim(&ClaimFilter{
+		Graph:    claim.Graph,
 		Issuer:   &id,
 		Subject:  &id,
 		Property: &claim.Property,
@@ -91,18 +82,6 @@ func TestIdentityAPI(t *testing.T) {
 	}
 }
 
-func newTestAPI(t *testing.T) *httptest.Server {
-	qs, err := cayley.NewMemoryGraph()
-	if err != nil {
-		t.Fatal(err)
-	}
-	api, err := NewAPI(qs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return httptest.NewServer(api)
-}
-
 var testKey, _ = crypto.HexToECDSA("289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032")
 
 func newTestIdentity(t *testing.T) *Identity {
@@ -121,6 +100,7 @@ func newTestIdentity(t *testing.T) *Identity {
 
 func newTestClaim(t *testing.T, identity *Identity, property, claim string) *Claim {
 	c := &Claim{
+		Graph:    identity.Username + ".meta",
 		Issuer:   identity.ID(),
 		Subject:  identity.ID(),
 		Property: property,

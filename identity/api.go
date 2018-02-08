@@ -22,8 +22,8 @@ package identity
 import (
 	"net/http"
 
-	"github.com/cayleygraph/cayley/graph"
 	"github.com/julienschmidt/httprouter"
+	"github.com/meta-network/go-meta/graph"
 	graphql "github.com/neelance/graphql-go"
 	"github.com/neelance/graphql-go/relay"
 )
@@ -33,11 +33,8 @@ type API struct {
 	resolver *Resolver
 }
 
-func NewAPI(qs graph.QuadStore) (*API, error) {
-	resolver, err := NewResolver(qs)
-	if err != nil {
-		return nil, err
-	}
+func NewAPI(driver *graph.Driver) (*API, error) {
+	resolver := NewResolver(driver)
 	schema, err := graphql.ParseSchema(GraphQLSchema, resolver)
 	if err != nil {
 		return nil, err
