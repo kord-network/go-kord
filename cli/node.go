@@ -48,7 +48,7 @@ import (
 
 func init() {
 	registerCommand("node", RunNode, `
-usage: meta node [--datadir <dir>] [--config=<path>] [--dev] [--testnet] [--verbosity <n>]
+usage: meta node [--datadir <dir>] [--config=<path>] [--dev] [--testnet] [--mine] [--verbosity <n>]
 
 Run a META node.
 
@@ -57,6 +57,7 @@ options:
 	-c, --config <path>  Path to the TOML config file
 	--dev                Run a dev node
 	--testnet            Connect to the testnet
+	--mine               Mine the Ethereum chain
 	--verbosity <n>      Logging verbosity: 0=silent, 1=error, 2=warn, 3=info, 4=debug, 5=detail [default: 3]
 `[1:])
 }
@@ -112,17 +113,11 @@ func RunNode(ctx context.Context, args Args) error {
 		return err
 	}
 
-	// start mining in dev mode
-	if args.Bool("--dev") {
-		var ethereum *eth.Ethereum
-		if err := stack.Service(&ethereum); err != nil {
+	// start mining if required or in dev mode
+	if args.Bool("--mine") || args.Bool("--dev") {
+		if err := startMining(stack, &cfg); err != nil {
 			stack.Stop()
-			return fmt.Errorf("error getting Ethereum service: %s", err)
-		}
-		ethereum.TxPool().SetGasPrice(cfg.Eth.GasPrice)
-		if err := ethereum.StartMining(true); err != nil {
-			stack.Stop()
-			return fmt.Errorf("error starting Ethereum mining: %s", err)
+			return err
 		}
 	}
 
@@ -263,20 +258,15 @@ func setDevConfig(stack *node.Node, cfg *config) error {
 
 	// Create new developer account or reuse existing one
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
-	var (
-		developer accounts.Account
-		err       error
-	)
+	var developer accounts.Account
 	if accs := ks.Accounts(); len(accs) > 0 {
-		developer = ks.Accounts()[0]
+		developer = accs[0]
 	} else {
+		var err error
 		developer, err = ks.NewAccount("")
 		if err != nil {
 			return fmt.Errorf("error creating developer account: %s", err)
 		}
-	}
-	if err := ks.Unlock(developer, ""); err != nil {
-		return fmt.Errorf("error unlocking developer account: %s", err)
 	}
 	log.Info("Using developer account", "address", developer.Address)
 	cfg.Swarm.BzzAccount = developer.Address.String()
@@ -296,4 +286,25 @@ func setLogVerbosity(v string) (int, error) {
 	handler = log.LvlFilterHandler(log.Lvl(lvl), handler)
 	log.Root().SetHandler(handler)
 	return lvl, nil
+}
+
+func startMining(stack *node.Node, cfg *config) error {
+	var ethereum *eth.Ethereum
+	if err := stack.Service(&ethereum); err != nil {
+		return fmt.Errorf("error getting Ethereum service: %s", err)
+	}
+	etherbase, err := ethereum.Etherbase()
+	if err != nil {
+		return fmt.Errorf("error getting Etherbase: %s", err)
+	}
+	// TODO: support keys with non-empty passphrase
+	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	if err := ks.Unlock(accounts.Account{Address: etherbase}, ""); err != nil {
+		return fmt.Errorf("error unlocking Etherbase: %s", err)
+	}
+	ethereum.TxPool().SetGasPrice(cfg.Eth.GasPrice)
+	if err := ethereum.StartMining(true); err != nil {
+		return fmt.Errorf("error starting Ethereum mining: %s", err)
+	}
+	return nil
 }
