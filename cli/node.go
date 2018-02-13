@@ -46,6 +46,10 @@ import (
 	"github.com/naoina/toml"
 )
 
+var testnetBootnodes = []string{
+	"enode://21cd1409c28106062f79dbae8d9a69d4e1050c6f8a40ab63ec507c03970ed152c6f20708262f23a7334061fde7943b10ead6249bb88b2d7375d36f40ff471e82@35.176.243.138:30303",
+}
+
 func init() {
 	registerCommand("node", RunNode, `
 usage: meta node [--datadir <dir>] [--config=<path>] [--dev] [--testnet] [--mine] [--verbosity <n>]
@@ -81,19 +85,34 @@ func RunNode(ctx context.Context, args Args) error {
 		cfg.Node.DataDir = dir
 	}
 
+	if args.Bool("--dev") && args.Bool("--testnet") {
+		return errors.New("--dev and --testnet cannot both be set")
+	} else if args.Bool("--dev") {
+		// --dev mode can't use p2p networking.
+		cfg.Node.P2P.MaxPeers = 0
+		cfg.Node.P2P.ListenAddr = ":0"
+		cfg.Node.P2P.NoDiscovery = true
+		cfg.Node.P2P.DiscoveryV5 = false
+	} else if args.Bool("--testnet") {
+		cfg.Eth.NetworkId = 1035
+
+		cfg.Node.P2P.BootstrapNodes = make([]*discover.Node, 0, len(testnetBootnodes))
+		for _, url := range testnetBootnodes {
+			node, err := discover.ParseNode(url)
+			if err != nil {
+				return fmt.Errorf("invalid testnet bootnode: %s: %s", url, err)
+			}
+			cfg.Node.P2P.BootstrapNodes = append(cfg.Node.P2P.BootstrapNodes, node)
+		}
+	}
+
 	stack, err := node.New(&cfg.Node)
 	if err != nil {
 		return err
 	}
 
-	if args.Bool("--dev") && args.Bool("--testnet") {
-		return errors.New("--dev and --testnet cannot both be set")
-	} else if args.Bool("--dev") {
-		if err := setDevConfig(stack, &cfg); err != nil {
-			return err
-		}
-	} else if args.Bool("--testnet") {
-		if err := setTestnetConfig(stack, &cfg); err != nil {
+	if args.Bool("--dev") {
+		if err := setupDevAccount(stack, &cfg); err != nil {
 			return err
 		}
 	}
@@ -231,31 +250,7 @@ var tomlSettings = toml.Config{
 	},
 }
 
-// TODO: set testnet bootnodes
-var testnetBootnodes = []string{}
-
-func setTestnetConfig(stack *node.Node, cfg *config) error {
-	cfg.Eth.NetworkId = 1035
-
-	cfg.Node.P2P.BootstrapNodes = make([]*discover.Node, 0, len(testnetBootnodes))
-	for _, url := range testnetBootnodes {
-		node, err := discover.ParseNode(url)
-		if err != nil {
-			return fmt.Errorf("invalid testnet bootnode: %s: %s", url, err)
-		}
-		cfg.Node.P2P.BootstrapNodes = append(cfg.Node.P2P.BootstrapNodes, node)
-	}
-
-	return nil
-}
-
-func setDevConfig(stack *node.Node, cfg *config) error {
-	// --dev mode can't use p2p networking.
-	cfg.Node.P2P.MaxPeers = 0
-	cfg.Node.P2P.ListenAddr = ":0"
-	cfg.Node.P2P.NoDiscovery = true
-	cfg.Node.P2P.DiscoveryV5 = false
-
+func setupDevAccount(stack *node.Node, cfg *config) error {
 	// Create new developer account or reuse existing one
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 	var developer accounts.Account
