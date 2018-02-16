@@ -38,11 +38,13 @@ import (
 	"github.com/meta-network/go-meta/ens"
 	"github.com/meta-network/go-meta/graph"
 	"github.com/meta-network/go-meta/identity"
+	"github.com/rs/cors"
 )
 
 type Config struct {
-	HTTPAddr string
-	HTTPPort int
+	HTTPAddr    string
+	HTTPPort    int
+	CORSDomains []string
 }
 
 var DefaultConfig = Config{
@@ -94,6 +96,14 @@ func (m *Meta) Start(_ *p2p.Server) error {
 	router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
 	router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
 
+	// handle OPTIONS requests
+	router.OPTIONS("/", func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
+		w.Header().Set("Allow", "OPTIONS, GET, HEAD, POST")
+		w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET, POST")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.WriteHeader(http.StatusOK)
+	})
+
 	addr := fmt.Sprintf("%s:%d", m.config.HTTPAddr, m.config.HTTPPort)
 	log.Info("starting META HTTP server", "addr", addr)
 	ln, err := net.Listen("tcp", addr)
@@ -104,6 +114,17 @@ func (m *Meta) Start(_ *p2p.Server) error {
 		Addr:    ln.Addr().String(),
 		Handler: router,
 	}
+
+	if len(m.config.CORSDomains) > 0 {
+		log.Info("configuring Cross-Origin Resource Sharing", "domains", m.config.CORSDomains)
+		m.srv.Handler = cors.New(cors.Options{
+			AllowedOrigins: m.config.CORSDomains,
+			AllowedMethods: []string{"POST", "GET", "DELETE", "PATCH", "PUT"},
+			MaxAge:         600,
+			AllowedHeaders: []string{"*"},
+		}).Handler(m.srv.Handler)
+	}
+
 	go func() {
 		if err := m.srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Error("error starting HTTP server", "err", err)

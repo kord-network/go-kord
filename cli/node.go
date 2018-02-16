@@ -29,6 +29,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"unicode"
 
 	"github.com/ethereum/go-ethereum/accounts"
@@ -52,17 +53,18 @@ var testnetBootnodes = []string{
 
 func init() {
 	registerCommand("node", RunNode, `
-usage: meta node [--datadir <dir>] [--config=<path>] [--dev] [--testnet] [--mine] [--verbosity <n>]
+usage: meta node [--datadir <dir>] [--config <path>] [--dev] [--testnet] [--mine] [--cors-domain <domain>...] [--verbosity <n>]
 
 Run a META node.
 
 options:
-        -d, --datadir <dir>  Node data directory
-	-c, --config <path>  Path to the TOML config file
-	--dev                Run a dev node
-	--testnet            Connect to the testnet
-	--mine               Mine the Ethereum chain
-	--verbosity <n>      Logging verbosity: 0=silent, 1=error, 2=warn, 3=info, 4=debug, 5=detail [default: 3]
+	-d, --datadir <dir>         Node data directory
+	-c, --config <path>         Path to the TOML config file
+	--dev                       Run a dev node
+	--testnet                   Connect to the testnet
+	--mine                      Mine the Ethereum chain
+	--cors-domain <domain>...   The allowed CORS domains
+	--verbosity <n>             Logging verbosity: 0=silent, 1=error, 2=warn, 3=info, 4=debug, 5=detail [default: 3]
 `[1:])
 }
 
@@ -83,6 +85,12 @@ func RunNode(ctx context.Context, args Args) error {
 
 	if dir := args.String("--datadir"); dir != "" {
 		cfg.Node.DataDir = dir
+	}
+
+	if _, ok := args["--cors-domain"]; ok {
+		domains := args.List("--cors-domain")
+		cfg.Swarm.Cors = strings.Join(domains, ",")
+		cfg.Meta.CORSDomains = domains
 	}
 
 	if args.Bool("--dev") && args.Bool("--testnet") {
