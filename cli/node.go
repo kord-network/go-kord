@@ -104,13 +104,15 @@ func RunNode(ctx context.Context, args Args) error {
 	} else if args.Bool("--testnet") {
 		cfg.Eth.NetworkId = 1035
 
-		cfg.Node.P2P.BootstrapNodes = make([]*discover.Node, 0, len(testnetBootnodes))
-		for _, url := range testnetBootnodes {
-			node, err := discover.ParseNode(url)
-			if err != nil {
-				return fmt.Errorf("invalid testnet bootnode: %s: %s", url, err)
+		if !args.Bool("--mine") {
+			cfg.Node.P2P.BootstrapNodes = make([]*discover.Node, 0, len(testnetBootnodes))
+			for _, url := range testnetBootnodes {
+				node, err := discover.ParseNode(url)
+				if err != nil {
+					return fmt.Errorf("invalid testnet bootnode: %s: %s", url, err)
+				}
+				cfg.Node.P2P.BootstrapNodes = append(cfg.Node.P2P.BootstrapNodes, node)
 			}
-			cfg.Node.P2P.BootstrapNodes = append(cfg.Node.P2P.BootstrapNodes, node)
 		}
 	}
 
