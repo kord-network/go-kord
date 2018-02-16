@@ -1,9 +1,11 @@
 {
 	"comment": "",
-	"ignore": "test",
 	"heroku": {
-		"install": ["./cmd/meta"]
+		"install": [
+			"./cmd/meta"
+		]
 	},
+	"ignore": "test",
 	"package": [
 		{
 			"checksumSHA1": "b5bkSc2hlmUV7PlLY6JlLwiJpiE=",
@@ -878,10 +880,10 @@
 			"revisionTime": "2018-02-06T20:20:23Z"
 		},
 		{
-			"checksumSHA1": "sn2+U+hFUtDmiSEwmIzqqfYhGdg=",
+			"checksumSHA1": "rylbYOEA1HI2BfUOOz0QRmCf5ks=",
 			"path": "github.com/julienschmidt/httprouter",
-			"revision": "46807412fe50aaceb73bb57061c2230fd26a1640",
-			"revisionTime": "2014-09-25T10:43:56Z"
+			"revision": "e1b9828bc9e5904baec057a154c09ca40fe7fae0",
+			"revisionTime": "2017-10-27T13:37:09Z"
 		},
 		{
 			"checksumSHA1": "zm1lxnzrUD4bq4Fpd9NSqfvNMVA=",
