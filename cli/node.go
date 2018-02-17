@@ -36,11 +36,13 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/swarm"
 	swarmapi "github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/meta-network/go-meta/meta"
@@ -103,6 +105,7 @@ func RunNode(ctx context.Context, args Args) error {
 		cfg.Node.P2P.DiscoveryV5 = false
 	} else if args.Bool("--testnet") {
 		cfg.Eth.NetworkId = 1035
+		cfg.Eth.Genesis = testnetGenesisBlock()
 
 		if !args.Bool("--mine") {
 			cfg.Node.P2P.BootstrapNodes = make([]*discover.Node, 0, len(testnetBootnodes))
@@ -312,4 +315,19 @@ func startMining(stack *node.Node, cfg *config) error {
 		return fmt.Errorf("error starting Ethereum mining: %s", err)
 	}
 	return nil
+}
+
+func testnetGenesisBlock() *core.Genesis {
+	config := *params.AllCliqueProtocolChanges
+	config.ChainId = big.NewInt(1035)
+	return &core.Genesis{
+		Config:     &config,
+		Timestamp:  1518829335,
+		ExtraData:  hexutil.MustDecode("0x0000000000000000000000000000000000000000000000000000000000000000b813999c1df85bb411dfd70b76635e834abc5fb80000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
+		GasLimit:   4700000,
+		Difficulty: big.NewInt(1),
+		Alloc: map[common.Address]core.GenesisAccount{
+			common.HexToAddress("0xb813999c1df85bb411dfd70b76635e834abc5fb8"): {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
+		},
+	}
 }
