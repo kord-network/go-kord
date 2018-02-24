@@ -35,9 +35,9 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/swarm"
 	"github.com/julienschmidt/httprouter"
-	"github.com/meta-network/go-meta/ens"
 	"github.com/meta-network/go-meta/graph"
 	"github.com/meta-network/go-meta/identity"
+	"github.com/meta-network/go-meta/registry"
 	"github.com/rs/cors"
 )
 
@@ -53,9 +53,10 @@ var DefaultConfig = Config{
 }
 
 type Meta struct {
-	driver *graph.Driver
-	config *Config
-	srv    *http.Server
+	driver   *graph.Driver
+	registry registry.Registry
+	config   *Config
+	srv      *http.Server
 }
 
 func New(ctx *node.ServiceContext, stack *node.Node, cfg *Config) (*Meta, error) {
@@ -67,8 +68,13 @@ func New(ctx *node.ServiceContext, stack *node.Node, cfg *Config) (*Meta, error)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
 	}
-	driver := graph.NewDriver("meta", swarm.DPA(), &lazyENS{stack: stack}, dir)
-	return &Meta{driver: driver, config: cfg}, nil
+	registry := &lazyRegistry{stack: stack}
+	driver := graph.NewDriver("meta", swarm.DPA(), registry, dir)
+	return &Meta{
+		driver:   driver,
+		registry: registry,
+		config:   cfg,
+	}, nil
 }
 
 func (m *Meta) Protocols() []p2p.Protocol {
@@ -144,59 +150,51 @@ func (m *Meta) Stop() error {
 	return nil
 }
 
-type lazyENS struct {
-	ens.ENS
+type lazyRegistry struct {
+	registry.Registry
 
 	mtx   sync.Mutex
 	stack *node.Node
 }
 
-func (e *lazyENS) ens() (ens.ENS, error) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	if e.ENS != nil {
-		return e.ENS, nil
+func (r *lazyRegistry) registry() (registry.Registry, error) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	if r.Registry != nil {
+		return r.Registry, nil
 	}
-	client, err := e.stack.Attach()
+	client, err := r.stack.Attach()
 	if err != nil {
 		return nil, err
 	}
-	ens, err := ens.NewClient(client)
+	registry, err := registry.NewClient(client, registry.DefaultConfig)
 	if err != nil {
 		return nil, err
 	}
-	e.ENS = ens
-	return ens, nil
+	r.Registry = registry
+	return registry, nil
 }
 
-func (e *lazyENS) Register(name string) error {
-	ens, err := e.ens()
-	if err != nil {
-		return err
-	}
-	return ens.Register(name)
-}
-
-func (e *lazyENS) Content(name string) (common.Hash, error) {
-	ens, err := e.ens()
+func (r *lazyRegistry) Graph(metaID common.Address) (common.Hash, error) {
+	registry, err := r.registry()
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return ens.Content(name)
+	return registry.Graph(metaID)
 }
 
-func (e *lazyENS) SetContent(name string, hash common.Hash) error {
-	ens, err := e.ens()
+func (r *lazyRegistry) SetGraph(graph common.Hash, sig []byte) error {
+	registry, err := r.registry()
 	if err != nil {
 		return err
 	}
-	return ens.SetContent(name, hash)
+	return registry.SetGraph(graph, sig)
 }
 
-func (e *lazyENS) SubscribeContent(name string, updates chan common.Hash) (ens.Subscription, error) {
-	ens, err := e.ens()
+func (r *lazyRegistry) SubscribeGraph(metaID common.Address, updates chan common.Hash) (registry.Subscription, error) {
+	registry, err := r.registry()
 	if err != nil {
 		return nil, err
 	}
-	return ens.SubscribeContent(name, updates)
+	return registry.SubscribeGraph(metaID, updates)
 }

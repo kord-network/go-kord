@@ -37,7 +37,8 @@ func TestIdentityAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dpa.Cleanup()
-	driver := graph.NewDriver("meta-id-test", dpa.DPA, testutil.NewTestENS(), dpa.Dir)
+	registry := testutil.NewTestRegistry()
+	driver := graph.NewDriver("meta-id-test", dpa.DPA, registry, dpa.Dir)
 	api, err := NewAPI(driver)
 	if err != nil {
 		t.Fatal(err)
@@ -45,23 +46,37 @@ func TestIdentityAPI(t *testing.T) {
 	srv := httptest.NewServer(api)
 	defer srv.Close()
 
-	// create an identity
+	// create a graph
 	client := NewClient(srv.URL + "/graphql")
-	identity := newTestIdentity(t)
-	if err := client.CreateIdentity(identity); err != nil {
+	hash, err := client.CreateGraph(testMetaID.Hex())
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig, err := crypto.Sign(hash[:], testKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.SetGraph(hash, sig); err != nil {
 		t.Fatal(err)
 	}
 
 	// create a claim
-	claim := newTestClaim(t, identity, "test.id", "123")
-	if err := client.CreateClaim(claim); err != nil {
+	claim := newTestClaim(t, "username", "test")
+	hash, err = client.CreateClaim(testMetaID.Hex(), claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig, err = crypto.Sign(hash[:], testKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.SetGraph(hash, sig); err != nil {
 		t.Fatal(err)
 	}
 
 	// get the claim
-	id := identity.ID().String()
-	claims, err := client.Claim(&ClaimFilter{
-		Graph:    claim.Graph,
+	id := testMetaID.Hex()
+	claims, err := client.Claim(testMetaID.Hex(), &ClaimFilter{
 		Issuer:   &id,
 		Subject:  &id,
 		Property: &claim.Property,
@@ -82,27 +97,15 @@ func TestIdentityAPI(t *testing.T) {
 	}
 }
 
-var testKey, _ = crypto.HexToECDSA("289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032")
+var (
+	testKey, _ = crypto.HexToECDSA("289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032")
+	testMetaID = NewID(crypto.PubkeyToAddress(testKey.PublicKey))
+)
 
-func newTestIdentity(t *testing.T) *Identity {
-	identity := &Identity{
-		Username: "test",
-		Owner:    crypto.PubkeyToAddress(testKey.PublicKey),
-	}
-	id := identity.ID()
-	signature, err := crypto.Sign(id.Hash[:], testKey)
-	if err != nil {
-		t.Fatal(err)
-	}
-	identity.Signature = signature
-	return identity
-}
-
-func newTestClaim(t *testing.T, identity *Identity, property, claim string) *Claim {
+func newTestClaim(t *testing.T, property, claim string) *Claim {
 	c := &Claim{
-		Graph:    identity.Username + ".meta",
-		Issuer:   identity.ID(),
-		Subject:  identity.ID(),
+		Issuer:   testMetaID,
+		Subject:  testMetaID,
 		Property: property,
 		Claim:    claim,
 	}

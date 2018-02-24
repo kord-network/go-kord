@@ -23,14 +23,16 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/meta-network/go-meta/ens"
+	"github.com/meta-network/go-meta/registry"
 )
 
 func main() {
-	l := log.New()
-	l.SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 
-	if err := ens.Deploy("dev/meta.ipc", ens.DefaultConfig, l); err != nil {
-		log.Crit("error deploying ENS", "err", err)
+	log.Info("deploying META Registry")
+	addr, err := registry.Deploy("dev/meta.ipc", registry.DefaultConfig)
+	if err != nil {
+		log.Crit("error deploying META registry", "err", err)
 	}
+	log.Info("META registry deployed", "addr", addr)
 }

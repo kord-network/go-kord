@@ -20,17 +20,21 @@
 package identity
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"net/http"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/julienschmidt/httprouter"
 	"github.com/meta-network/go-meta/graph"
 	graphql "github.com/neelance/graphql-go"
-	"github.com/neelance/graphql-go/relay"
 )
 
 type API struct {
 	router   *httprouter.Router
 	resolver *Resolver
+	schema   *graphql.Schema
 }
 
 func NewAPI(driver *graph.Driver) (*API, error) {
@@ -42,14 +46,45 @@ func NewAPI(driver *graph.Driver) (*API, error) {
 	api := &API{
 		router:   httprouter.New(),
 		resolver: resolver,
+		schema:   schema,
 	}
 	api.router.GET("/", api.handleIndex)
-	api.router.Handler("POST", "/graphql", &relay.Handler{Schema: schema})
+	api.router.POST("/graphql", api.handleGraphQL)
 	return api, nil
 }
 
 func (a *API) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	a.router.ServeHTTP(w, req)
+}
+
+func (a *API) handleGraphQL(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var params struct {
+		Query         string                 `json:"query"`
+		OperationName string                 `json:"operationName"`
+		Variables     map[string]interface{} `json:"variables"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+		http.Error(w, fmt.Sprintf("error decoding request: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	swarmHash := common.Hash{}
+	ctx := context.WithValue(r.Context(), "swarmHash", &swarmHash)
+	response := a.schema.Exec(ctx, params.Query, params.OperationName, params.Variables)
+
+	if response.Extensions == nil {
+		response.Extensions = make(map[string]interface{})
+	}
+	response.Extensions["meta"] = map[string]interface{}{"swarmHash": swarmHash}
+
+	responseJSON, err := json.Marshal(response)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(responseJSON)
 }
 
 func (a *API) handleIndex(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {

@@ -24,6 +24,7 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/quad"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -39,8 +40,18 @@ func NewClient(url string) (*Client, error) {
 	return &Client{c}, nil
 }
 
-func (c *Client) CreateGraph(ctx context.Context, name string) error {
-	return c.client.CallContext(ctx, nil, "meta_createGraph", name)
+func (c *Client) CreateGraph(ctx context.Context, id string) (common.Hash, error) {
+	var hash common.Hash
+	return hash, c.client.CallContext(ctx, &hash, "meta_createGraph", id)
+}
+
+func (c *Client) CommitGraph(ctx context.Context, id string) (common.Hash, error) {
+	var hash common.Hash
+	return hash, c.client.CallContext(ctx, &hash, "meta_commitGraph", id)
+}
+
+func (c *Client) SetGraph(ctx context.Context, hash common.Hash, sig []byte) error {
+	return c.client.CallContext(ctx, nil, "meta_setGraph", hash, sig)
 }
 
 func (c *Client) QuadStore(name string) graph.QuadStore {

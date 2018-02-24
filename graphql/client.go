@@ -37,8 +37,9 @@ type Request struct {
 }
 
 type Response struct {
-	Data   json.RawMessage      `json:"data,omitempty"`
-	Errors []*errors.QueryError `json:"errors,omitempty"`
+	Data       json.RawMessage        `json:"data,omitempty"`
+	Errors     []*errors.QueryError   `json:"errors,omitempty"`
+	Extensions map[string]interface{} `json:"extensions,omitempty"`
 }
 
 type Client struct {
@@ -49,37 +50,39 @@ func NewClient(url string) *Client {
 	return &Client{url}
 }
 
-func (c *Client) Do(query string, variables Variables, out interface{}) error {
+func (c *Client) Do(query string, variables Variables, out interface{}) (*Response, error) {
 	data, err := json.Marshal(&Request{
 		Query:     query,
 		Variables: variables,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	httpReq, err := http.NewRequest("POST", c.url, bytes.NewReader(data))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpRes, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer httpRes.Body.Close()
 	if httpRes.StatusCode != http.StatusOK {
 		body, _ := ioutil.ReadAll(httpRes.Body)
-		return fmt.Errorf("graphql: unexpected HTTP response: %s: %s", httpRes.Status, body)
+		return nil, fmt.Errorf("graphql: unexpected HTTP response: %s: %s", httpRes.Status, body)
 	}
 	var res Response
 	if err := json.NewDecoder(httpRes.Body).Decode(&res); err != nil {
-		return fmt.Errorf("graphql: error decoding GraphQL response: %s", err)
+		return nil, fmt.Errorf("graphql: error decoding GraphQL response: %s", err)
 	}
 	if len(res.Errors) > 0 {
-		return fmt.Errorf("graphql: unexpected errors in GraphQL response: %v", res.Errors)
+		return nil, fmt.Errorf("graphql: unexpected errors in GraphQL response: %v", res.Errors)
 	}
 	if out != nil {
-		return json.Unmarshal(res.Data, out)
+		if err := json.Unmarshal(res.Data, out); err != nil {
+			return nil, err
+		}
 	}
-	return nil
+	return &res, nil
 }

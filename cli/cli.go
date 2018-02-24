@@ -22,6 +22,8 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 
 	docopt "github.com/docopt/docopt-go"
 )
@@ -30,8 +32,9 @@ var usage = `
 usage: meta [options] <command> [<args>...]
 
 Options:
-        -h, --help      show this usage message
-        --version       print the version
+        -h, --help        show this usage message
+        --version         print the version
+        --verbosity <n>   logging verbosity: 0=silent, 1=error, 2=warn, 3=info, 4=debug, 5=detail [default: 3]
 
 Commands:
         help     show usage for a specific command
@@ -41,7 +44,29 @@ Commands:
 See 'meta help <command>' for more information on a specific command.
 `[1:]
 
-func Run(ctx context.Context, argv ...string) error {
+type Context struct {
+	context.Context
+
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+func NewContext(ctx context.Context) *Context {
+	return &Context{Context: ctx}
+}
+
+func Run(ctx *Context, argv ...string) error {
+	if ctx.Stdin == nil {
+		ctx.Stdin = os.Stdin
+	}
+	if ctx.Stdout == nil {
+		ctx.Stdout = os.Stdout
+	}
+	if ctx.Stderr == nil {
+		ctx.Stderr = os.Stderr
+	}
+
 	v, err := docopt.Parse(usage, argv, true, "0.0.1", true)
 	if err != nil {
 		return err
@@ -65,10 +90,16 @@ func Run(ctx context.Context, argv ...string) error {
 		cmdArgs = []string{"--help"}
 	}
 
+	if v := args.String("--verbosity"); v != "" {
+		if _, err := setLogVerbosity(v); err != nil {
+			return err
+		}
+	}
+
 	return runCommand(ctx, cmd, cmdArgs...)
 }
 
-func runCommand(ctx context.Context, name string, argv ...string) error {
+func runCommand(ctx *Context, name string, argv ...string) error {
 	argv = append([]string{name}, argv...)
 
 	cmd, ok := commands[name]
@@ -85,7 +116,7 @@ func runCommand(ctx context.Context, name string, argv ...string) error {
 	return cmd.run(ctx, args)
 }
 
-type runFn func(context.Context, Args) error
+type runFn func(*Context, Args) error
 
 type command struct {
 	run   runFn

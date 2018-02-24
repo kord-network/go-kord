@@ -20,16 +20,19 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/meta-network/go-meta/ens"
+	"github.com/meta-network/go-meta/registry"
 )
 
 func init() {
@@ -48,15 +51,15 @@ func TestLoad(t *testing.T) {
 		keystore.LightScryptN,
 		keystore.LightScryptP,
 	)
-	if _, err := ks.ImportECDSA(ens.DevKey, ""); err != nil {
+	if _, err := ks.ImportECDSA(registry.DevKey, ""); err != nil {
 		t.Fatal(err)
 	}
 
-	// start a node
+	// start a dev node
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		if err := Run(ctx, "node", "--datadir", tmpDir, "--dev"); err != nil {
+		if err := Run(NewContext(ctx), "node", "--dev", "--datadir", tmpDir); err != nil {
 			log.Error("error running node", "err", err)
 		}
 	}()
@@ -69,18 +72,56 @@ func TestLoad(t *testing.T) {
 		}
 	}
 
-	// deploy ENS
-	if err := ens.Deploy(ipcPath, ens.DefaultConfig, log.New()); err != nil {
+	// deploy the META registry
+	if _, err := registry.Deploy(ipcPath, registry.DefaultConfig); err != nil {
 		t.Fatal(err)
 	}
 
+	// create an ID
+	cliCtx := NewContext(context.Background())
+	cliCtx.Stdin = bytes.NewReader([]byte{'\n', '\n'})
+	var stdout bytes.Buffer
+	cliCtx.Stdout = &stdout
+	if err := Run(
+		cliCtx,
+		"id",
+		"new",
+		"--keystore", filepath.Join(tmpDir, "keystore"),
+	); err != nil {
+		t.Fatal(err)
+	}
+	out := strings.TrimSpace(stdout.String())
+	if !common.IsHexAddress(out) {
+		t.Fatalf("unexpected ID output: %s", out)
+	}
+	id := common.HexToAddress(out)
+
 	// create a graph
-	if err := Run(context.Background(), "create", "--url", ipcPath, "test.meta"); err != nil {
+	cliCtx = NewContext(context.Background())
+	cliCtx.Stdin = bytes.NewReader([]byte{'\n'})
+	if err := Run(
+		cliCtx,
+		"graph",
+		"create",
+		"--url", ipcPath,
+		"--keystore", filepath.Join(tmpDir, "keystore"),
+		id.Hex(),
+	); err != nil {
 		t.Fatal(err)
 	}
 
 	// load test data
-	if err := Run(context.Background(), "load", "--url", ipcPath, "../graph/data/testdata.nq", "test.meta"); err != nil {
+	cliCtx = NewContext(context.Background())
+	cliCtx.Stdin = bytes.NewReader([]byte{'\n'})
+	if err := Run(
+		cliCtx,
+		"graph",
+		"load",
+		"--url", ipcPath,
+		"--keystore", filepath.Join(tmpDir, "keystore"),
+		id.Hex(),
+		"../graph/data/testdata.nq",
+	); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -20,6 +20,9 @@
 package identity
 
 import (
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/meta-network/go-meta/graphql"
 )
@@ -32,26 +35,37 @@ func NewClient(url string) *Client {
 	return &Client{graphql.NewClient(url)}
 }
 
-func (c *Client) CreateIdentity(identity *Identity) error {
+func (c *Client) CreateGraph(graph string) (common.Hash, error) {
 	query := `
-mutation CreateIdentity($input: IdentityInput!) {
-  createIdentity(input: $input) {
+mutation CreateGraph($input: GraphInput!) {
+  createGraph(input: $input) {
     id
-    username
-    owner
-    signature
   }
 }
 `
-	variables := graphql.Variables{"input": &IdentityInput{
-		Username:  identity.Username,
-		Owner:     identity.Owner.Hex(),
-		Signature: hexutil.Encode(identity.Signature),
+	variables := graphql.Variables{"input": &GraphInput{
+		ID: graph,
 	}}
-	return c.Do(query, variables, nil)
+	res, err := c.Do(query, variables, nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	var hash common.Hash
+	if extension, ok := res.Extensions["meta"]; ok {
+		v, ok := extension.(map[string]interface{})
+		if !ok {
+			return common.Hash{}, fmt.Errorf("unexpected meta extension type: %T", extension)
+		}
+		h, ok := v["swarmHash"].(string)
+		if !ok {
+			return common.Hash{}, fmt.Errorf("unexpected swarmHash type: %T", v["swarmHash"])
+		}
+		hash = common.HexToHash(h)
+	}
+	return hash, nil
 }
 
-func (c *Client) CreateClaim(claim *Claim) error {
+func (c *Client) CreateClaim(graph string, claim *Claim) (common.Hash, error) {
 	query := `
 mutation CreateClaim($input: ClaimInput!) {
   createClaim(input: $input) {
@@ -65,32 +79,55 @@ mutation CreateClaim($input: ClaimInput!) {
 }
 `
 	variables := graphql.Variables{"input": &ClaimInput{
-		Graph:     claim.Graph,
-		Issuer:    claim.Issuer.String(),
-		Subject:   claim.Subject.String(),
+		Graph:     graph,
+		Issuer:    claim.Issuer.Hex(),
+		Subject:   claim.Subject.Hex(),
 		Property:  claim.Property,
 		Claim:     claim.Claim,
 		Signature: hexutil.Encode(claim.Signature),
 	}}
-	return c.Do(query, variables, nil)
+	res, err := c.Do(query, variables, nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	var hash common.Hash
+	if extension, ok := res.Extensions["meta"]; ok {
+		v, ok := extension.(map[string]interface{})
+		if !ok {
+			return common.Hash{}, fmt.Errorf("unexpected meta extension type: %T", extension)
+		}
+		h, ok := v["swarmHash"].(string)
+		if !ok {
+			return common.Hash{}, fmt.Errorf("unexpected swarmHash type: %T", v["swarmHash"])
+		}
+		hash = common.HexToHash(h)
+	}
+	return hash, nil
 }
 
-func (c *Client) Claim(filter *ClaimFilter) ([]*Claim, error) {
+func (c *Client) Claim(graph string, filter *ClaimFilter) ([]*Claim, error) {
 	query := `
-query GetClaim($filter: ClaimFilter!) {
-  claim(filter: $filter) {
-    id
-    issuer
-    subject
-    property
-    claim
-    signature
+query GetClaim($id: String!, $filter: ClaimFilter!) {
+  graph(id: $id) {
+    claim(filter: $filter) {
+      id
+      issuer
+      subject
+      property
+      claim
+      signature
+    }
   }
 }
 `
-	variables := graphql.Variables{"filter": filter}
+	variables := graphql.Variables{"id": graph, "filter": filter}
 	var v struct {
-		Claims []*Claim `json:"claim"`
+		Graph struct {
+			Claims []*Claim `json:"claim"`
+		} `json:"graph"`
 	}
-	return v.Claims, c.Do(query, variables, &v)
+	if _, err := c.Do(query, variables, &v); err != nil {
+		return nil, err
+	}
+	return v.Graph.Claims, nil
 }

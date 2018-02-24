@@ -25,8 +25,9 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	"github.com/meta-network/go-meta/ens"
+	"github.com/meta-network/go-meta/registry"
 )
 
 type TestDPA struct {
@@ -67,34 +68,35 @@ func (t *TestDPA) Cleanup() {
 	os.RemoveAll(t.Dir)
 }
 
-type ENS struct {
+type Registry struct {
 	mtx    sync.Mutex
-	hashes map[string]common.Hash
-	subs   map[string]map[*ENSSubscription]struct{}
+	hashes map[common.Address]common.Hash
+	subs   map[common.Address]map[*RegistrySubscription]struct{}
 }
 
-func NewTestENS() *ENS {
-	return &ENS{
-		hashes: make(map[string]common.Hash),
-		subs:   make(map[string]map[*ENSSubscription]struct{}),
+func NewTestRegistry() *Registry {
+	return &Registry{
+		hashes: make(map[common.Address]common.Hash),
+		subs:   make(map[common.Address]map[*RegistrySubscription]struct{}),
 	}
 }
 
-func (e *ENS) Register(name string) error {
-	return nil
+func (r *Registry) Graph(metaID common.Address) (common.Hash, error) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	return r.hashes[metaID], nil
 }
 
-func (e *ENS) Content(name string) (common.Hash, error) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	return e.hashes[name], nil
-}
-
-func (e *ENS) SetContent(name string, hash common.Hash) error {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	e.hashes[name] = hash
-	if subs, ok := e.subs[name]; ok {
+func (r *Registry) SetGraph(hash common.Hash, sig []byte) error {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	pub, err := crypto.SigToPub(hash[:], sig)
+	if err != nil {
+		return err
+	}
+	metaID := crypto.PubkeyToAddress(*pub)
+	r.hashes[metaID] = hash
+	if subs, ok := r.subs[metaID]; ok {
 		for sub := range subs {
 			sub.updates <- hash
 		}
@@ -102,32 +104,32 @@ func (e *ENS) SetContent(name string, hash common.Hash) error {
 	return nil
 }
 
-func (e *ENS) SubscribeContent(name string, updates chan common.Hash) (ens.Subscription, error) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	subs, ok := e.subs[name]
+func (r *Registry) SubscribeGraph(metaID common.Address, updates chan common.Hash) (registry.Subscription, error) {
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+	subs, ok := r.subs[metaID]
 	if !ok {
-		subs = make(map[*ENSSubscription]struct{})
-		e.subs[name] = subs
+		subs = make(map[*RegistrySubscription]struct{})
+		r.subs[metaID] = subs
 	}
-	sub := &ENSSubscription{e, name, updates}
+	sub := &RegistrySubscription{r, metaID, updates}
 	subs[sub] = struct{}{}
 	return sub, nil
 }
 
-type ENSSubscription struct {
-	ens     *ENS
-	name    string
-	updates chan common.Hash
+type RegistrySubscription struct {
+	registry *Registry
+	metaID   common.Address
+	updates  chan common.Hash
 }
 
-func (e *ENSSubscription) Close() error {
-	e.ens.mtx.Lock()
-	defer e.ens.mtx.Unlock()
-	delete(e.ens.subs[e.name], e)
+func (r *RegistrySubscription) Close() error {
+	r.registry.mtx.Lock()
+	defer r.registry.mtx.Unlock()
+	delete(r.registry.subs[r.metaID], r)
 	return nil
 }
 
-func (e *ENSSubscription) Err() error {
+func (r *RegistrySubscription) Err() error {
 	return nil
 }

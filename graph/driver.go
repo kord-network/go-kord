@@ -24,23 +24,23 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	cayleysql "github.com/cayleygraph/cayley/graph/sql"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/meta-network/go-meta/db"
-	"github.com/meta-network/go-meta/ens"
+	"github.com/meta-network/go-meta/registry"
 )
 
 type Driver struct {
 	name string
 	db   *db.Driver
-	ens  ens.ENS
 
 	stores   map[string]graph.QuadStore
 	storeMtx sync.Mutex
 }
 
-func NewDriver(name string, dpa *storage.DPA, ens ens.ENS, tmpDir string) *Driver {
+func NewDriver(name string, dpa *storage.DPA, registry registry.Registry, tmpDir string) *Driver {
 	// create a Swarm backed SQLite database driver
-	db := db.NewDriver(name, dpa, ens, tmpDir)
+	db := db.NewDriver(name, dpa, registry, tmpDir)
 
 	// register the db driver as a Cayley SQL backend
 	cayleysql.Register(name, db.GraphRegistration())
@@ -49,24 +49,16 @@ func NewDriver(name string, dpa *storage.DPA, ens ens.ENS, tmpDir string) *Drive
 	return &Driver{
 		name:   name,
 		db:     db,
-		ens:    ens,
 		stores: make(map[string]graph.QuadStore),
 	}
 }
 
 // Create creates a new graph.
-func (d *Driver) Create(name string) error {
-	if err := d.ens.Register(name); err != nil {
-		return err
-	}
+func (d *Driver) Create(name string) (common.Hash, error) {
 	if err := graph.InitQuadStore(d.name, name, graph.Options{}); err != nil {
-		return err
+		return common.Hash{}, err
 	}
-	hash, err := d.db.Commit(name)
-	if err != nil {
-		return err
-	}
-	return d.ens.SetContent(name, hash)
+	return d.Commit(name)
 }
 
 func (d *Driver) Get(name string) (graph.QuadStore, error) {
@@ -83,10 +75,6 @@ func (d *Driver) Get(name string) (graph.QuadStore, error) {
 	return store, nil
 }
 
-func (d *Driver) Commit(name string) error {
-	hash, err := d.db.Commit(name)
-	if err != nil {
-		return err
-	}
-	return d.ens.SetContent(name, hash)
+func (d *Driver) Commit(name string) (common.Hash, error) {
+	return d.db.Commit(name)
 }

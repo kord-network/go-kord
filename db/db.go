@@ -34,16 +34,16 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	sqlite3 "github.com/mattn/go-sqlite3"
-	"github.com/meta-network/go-meta/ens"
+	"github.com/meta-network/go-meta/registry"
 )
 
 // Driver implements the driver.Conn interface by wrapping a SQLite3 driver
 // with connections that use databases stored in Swarm.
 type Driver struct {
-	name string
-	dpa  *storage.DPA
-	ens  ens.ENS
-	dir  string
+	name     string
+	dpa      *storage.DPA
+	registry registry.Registry
+	dir      string
 
 	sqlite sqlite3.SQLiteDriver
 
@@ -52,20 +52,20 @@ type Driver struct {
 }
 
 // NewDriver creates and registers a new database driver.
-func NewDriver(name string, dpa *storage.DPA, ens ens.ENS, dir string) *Driver {
+func NewDriver(name string, dpa *storage.DPA, registry registry.Registry, dir string) *Driver {
 	d := &Driver{
-		name: name,
-		dpa:  dpa,
-		ens:  ens,
-		dir:  dir,
-		dbs:  make(map[string]*db),
+		name:     name,
+		dpa:      dpa,
+		registry: registry,
+		dir:      dir,
+		dbs:      make(map[string]*db),
 	}
 	sql.Register(name, d)
 	return d
 }
 
 // Open opens the SQLite graph database with the given name, wrapping it in a
-// connection which is re-opened if the ENS name is updated.
+// connection which is re-opened if the underlying graph is updated.
 func (d *Driver) Open(name string) (driver.Conn, error) {
 	db, err := d.openDB(name)
 	if err != nil {
@@ -103,8 +103,9 @@ func (d *Driver) openDB(name string) (*db, error) {
 		return db, nil
 	}
 
-	// get the current hash from ENS
-	hash, err := d.ens.Content(name)
+	// get the current hash from the registry
+	addr := common.HexToAddress(name)
+	hash, err := d.registry.Graph(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -115,9 +116,9 @@ func (d *Driver) openDB(name string) (*db, error) {
 		return nil, err
 	}
 
-	// subscribe to ENS updates
+	// subscribe to registry updates
 	updates := make(chan common.Hash)
-	sub, err := d.ens.SubscribeContent(name, updates)
+	sub, err := d.registry.SubscribeGraph(addr, updates)
 	if err != nil {
 		return nil, err
 	}

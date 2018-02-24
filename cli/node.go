@@ -21,7 +21,6 @@ package cli
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -70,7 +69,7 @@ options:
 `[1:])
 }
 
-func RunNode(ctx context.Context, args Args) error {
+func RunNode(ctx *Context, args Args) error {
 	cfg := defaultConfig()
 
 	if v := args.String("--verbosity"); v != "" {

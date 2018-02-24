@@ -40,7 +40,7 @@ func main() {
 		fmt.Println("received signal, exiting...")
 	}()
 
-	if err := cli.Run(ctx, os.Args[1:]...); err != nil {
+	if err := cli.Run(cli.NewContext(ctx), os.Args[1:]...); err != nil {
 		fmt.Fprintln(os.Stderr, "ERROR:", err)
 		os.Exit(1)
 	}

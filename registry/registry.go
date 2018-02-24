@@ -17,39 +17,39 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package ens
+package registry
 
 import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	ethereum "github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/contracts/ens"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/meta-network/go-meta/registry/contract"
 )
+
+//go:generate abigen --sol ../contracts/METARegistry.sol --pkg contract --out contract/registry.go
 
 var (
-	DevRegistryAddr = common.HexToAddress("0x241be96854Fc2f0172dAA660EE7A14410957C15d")
-	DevResolverAddr = common.HexToAddress("0xD277b08f085121d287878A991e0C496488AAaEc6")
 	DevKey          = mustKey("476e921a198fd2744f270da0bb80dce2dab24e9105473d9bb19e540fcbd04bb0")
+	DevAddr         = crypto.PubkeyToAddress(DevKey.PublicKey)
+	DevContractAddr = common.HexToAddress("0x241be96854Fc2f0172dAA660EE7A14410957C15d")
 )
 
-type ENS interface {
-	Register(name string) error
-	Content(name string) (common.Hash, error)
-	SetContent(name string, hash common.Hash) error
-	SubscribeContent(name string, updates chan common.Hash) (Subscription, error)
+type Registry interface {
+	Graph(metaID common.Address) (common.Hash, error)
+	SetGraph(graph common.Hash, sig []byte) error
+	SubscribeGraph(metaID common.Address, updates chan common.Hash) (Subscription, error)
 }
 
 type Subscription interface {
@@ -59,32 +59,25 @@ type Subscription interface {
 
 type Config struct {
 	Key          *ecdsa.PrivateKey
-	RegistryAddr common.Address
-	ResolverAddr common.Address
+	ContractAddr common.Address
 }
 
 var DefaultConfig = Config{
 	Key:          DevKey,
-	RegistryAddr: DevRegistryAddr,
-	ResolverAddr: DevResolverAddr,
+	ContractAddr: DevContractAddr,
 }
 
 type Client struct {
 	*ethclient.Client
 
-	ens          *ens.ENS
+	registry     *contract.METARegistrySession
 	blocks       event.Feed
 	transactOpts *bind.TransactOpts
-	resolverAddr common.Address
 	closed       chan struct{}
 	closeOnce    sync.Once
 }
 
-func NewClient(client *rpc.Client) (*Client, error) {
-	return NewClientWithConfig(client, DefaultConfig)
-}
-
-func NewClientWithConfig(client *rpc.Client, config Config) (*Client, error) {
+func NewClient(client *rpc.Client, config Config) (*Client, error) {
 	if config.Key == nil {
 		key, err := crypto.GenerateKey()
 		if err != nil {
@@ -98,20 +91,19 @@ func NewClientWithConfig(client *rpc.Client, config Config) (*Client, error) {
 	transactOpts := bind.NewKeyedTransactor(config.Key)
 	transactOpts.GasLimit = params.GenesisGasLimit
 
-	ens, err := ens.NewENS(
-		transactOpts,
-		config.RegistryAddr,
-		ethClient,
-	)
+	registry, err := contract.NewMETARegistry(config.ContractAddr, ethClient)
 	if err != nil {
 		return nil, err
+	}
+	session := &contract.METARegistrySession{
+		Contract:     registry,
+		TransactOpts: *transactOpts,
 	}
 
 	c := &Client{
 		Client:       ethClient,
-		ens:          ens,
+		registry:     session,
 		transactOpts: transactOpts,
-		resolverAddr: DevResolverAddr,
 		closed:       make(chan struct{}),
 	}
 	if err := c.subscribeBlocks(); err != nil {
@@ -121,22 +113,15 @@ func NewClientWithConfig(client *rpc.Client, config Config) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) Register(name string) error {
-	if err := c.register(name); err != nil {
-		return err
-	}
-	return c.setResolver(name)
+func (c *Client) Graph(metaID common.Address) (common.Hash, error) {
+	return c.registry.Graph(metaID)
 }
 
-func (c *Client) Content(name string) (common.Hash, error) {
-	return c.ens.Resolve(name)
+func (c *Client) SetGraph(graph common.Hash, sig []byte) error {
+	return c.setGraph(graph, sig)
 }
 
-func (c *Client) SetContent(name string, hash common.Hash) error {
-	return c.setContent(name, hash)
-}
-
-func (c *Client) SubscribeContent(name string, updates chan common.Hash) (Subscription, error) {
+func (c *Client) SubscribeGraph(metaID common.Address, updates chan common.Hash) (Subscription, error) {
 	// TODO
 	return nil, nil
 }
@@ -145,23 +130,9 @@ func (c *Client) Close() {
 	c.closeOnce.Do(func() { close(c.closed) })
 }
 
-func (c *Client) register(name string) error {
+func (c *Client) setGraph(hash common.Hash, sig []byte) error {
 	_, err := c.do(func() (*types.Transaction, error) {
-		return c.ens.Register(name)
-	})
-	return err
-}
-
-func (c *Client) setResolver(name string) error {
-	_, err := c.do(func() (*types.Transaction, error) {
-		return c.ens.SetResolver(Namehash(name), c.resolverAddr)
-	})
-	return err
-}
-
-func (c *Client) setContent(name string, hash common.Hash) error {
-	_, err := c.do(func() (*types.Transaction, error) {
-		return c.ens.SetContentHash(name, hash)
+		return c.registry.SetGraph(hash, sig)
 	})
 	return err
 }
@@ -231,19 +202,4 @@ func mustKey(hex string) *ecdsa.PrivateKey {
 		panic(err)
 	}
 	return key
-}
-
-func Sha3(s string) common.Hash {
-	return crypto.Keccak256Hash([]byte(s))
-}
-
-func Namehash(name string) (node common.Hash) {
-	if name != "" {
-		parts := strings.Split(name, ".")
-		for i := len(parts) - 1; i >= 0; i-- {
-			label := Sha3(parts[i])
-			node = crypto.Keccak256Hash(append(node[:], label[:]...))
-		}
-	}
-	return
 }

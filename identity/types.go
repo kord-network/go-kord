@@ -34,96 +34,22 @@ func init() {
 }
 
 type ID struct {
-	common.Hash
+	common.Address
 }
 
-func NewID(hash common.Hash) ID {
-	return ID{Hash: hash}
+func NewID(addr common.Address) ID {
+	return ID{Address: addr}
 }
 
 func HexToID(s string) ID {
-	return NewID(common.HexToHash(s))
+	return NewID(common.HexToAddress(s))
 }
 
-type Identity struct {
-	Username  string
-	Owner     common.Address
-	Signature []byte
-}
-
-func (i *Identity) ID() ID {
-	return NewID(crypto.Keccak256Hash([]byte(i.Username)))
-}
-
-type identityJSON struct {
-	ID        string `json:"id"`
-	Username  string `json:"username"`
-	Owner     string `json:"owner"`
-	Signature string `json:"signature"`
-}
-
-func (i *Identity) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&identityJSON{
-		ID:        i.ID().String(),
-		Username:  i.Username,
-		Owner:     i.Owner.String(),
-		Signature: hexutil.Encode(i.Signature),
-	})
-}
-
-func (i *Identity) UnmarshalJSON(b []byte) error {
-	var v identityJSON
-	if err := json.Unmarshal(b, &v); err != nil {
-		return err
-	}
-	*i = Identity{
-		Username:  v.Username,
-		Owner:     common.HexToAddress(v.Owner),
-		Signature: common.FromHex(v.Signature),
-	}
-	return nil
-}
-
-type identityQuad struct {
-	rdfType struct{} `quad:"@type > id:Identity"`
-
-	ID        quad.IRI `quad:"@id"`
-	Username  string   `quad:"id:username"`
-	Owner     string   `quad:"id:owner"`
-	Signature string   `quad:"id:signature"`
-}
-
-func (i *Identity) Quad() *identityQuad {
-	return &identityQuad{
-		ID:        quad.IRI(i.ID().String()),
-		Username:  i.Username,
-		Owner:     i.Owner.String(),
-		Signature: hexutil.Encode(i.Signature),
-	}
-}
-
-func (i *identityQuad) Identity() *Identity {
-	return &Identity{
-		Username:  i.Username,
-		Owner:     common.HexToAddress(i.Owner),
-		Signature: common.FromHex(i.Signature),
-	}
-}
-
-type IdentityFilter struct {
-	ID       *string `json:"id"`
-	Username *string `json:"username"`
-	Owner    *string `json:"owner"`
-}
-
-type IdentityInput struct {
-	Username  string `json:"username"`
-	Owner     string `json:"owner"`
-	Signature string `json:"signature"`
+type GraphInput struct {
+	ID string `json:"id"`
 }
 
 type Claim struct {
-	Graph     string
 	Issuer    ID
 	Subject   ID
 	Property  string
@@ -133,8 +59,8 @@ type Claim struct {
 
 func (c *Claim) ID() common.Hash {
 	return crypto.Keccak256Hash(
-		c.Issuer.Hash[:],
-		c.Subject.Hash[:],
+		c.Issuer.Address[:],
+		c.Subject.Address[:],
 		[]byte(c.Property),
 		[]byte(c.Claim),
 	)
@@ -142,7 +68,6 @@ func (c *Claim) ID() common.Hash {
 
 type claimJSON struct {
 	ID        string `json:"id"`
-	Graph     string `json:"graph"`
 	Issuer    string `json:"issuer"`
 	Subject   string `json:"subject"`
 	Property  string `json:"property"`
@@ -153,9 +78,8 @@ type claimJSON struct {
 func (c *Claim) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&claimJSON{
 		ID:        c.ID().String(),
-		Graph:     c.Graph,
-		Issuer:    c.Issuer.String(),
-		Subject:   c.Subject.String(),
+		Issuer:    c.Issuer.Hex(),
+		Subject:   c.Subject.Hex(),
 		Property:  c.Property,
 		Claim:     c.Claim,
 		Signature: hexutil.Encode(c.Signature),
@@ -168,7 +92,6 @@ func (c *Claim) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	*c = Claim{
-		Graph:     v.Graph,
 		Issuer:    HexToID(v.Issuer),
 		Subject:   HexToID(v.Subject),
 		Property:  v.Property,
@@ -192,17 +115,16 @@ type claimQuad struct {
 func (c *Claim) Quad() *claimQuad {
 	return &claimQuad{
 		ID:        quad.IRI(c.ID().String()),
-		Issuer:    quad.IRI(c.Issuer.String()),
-		Subject:   quad.IRI(c.Subject.String()),
+		Issuer:    quad.IRI(c.Issuer.Hex()),
+		Subject:   quad.IRI(c.Subject.Hex()),
 		Property:  c.Property,
 		Claim:     c.Claim,
 		Signature: hexutil.Encode(c.Signature),
 	}
 }
 
-func (c *claimQuad) ToClaim(graph string) *Claim {
+func (c *claimQuad) ToClaim() *Claim {
 	return &Claim{
-		Graph:     graph,
 		Issuer:    HexToID(string(c.Issuer)),
 		Subject:   HexToID(string(c.Subject)),
 		Property:  c.Property,
@@ -212,7 +134,6 @@ func (c *claimQuad) ToClaim(graph string) *Claim {
 }
 
 type ClaimFilter struct {
-	Graph    string  `json:"graph"`
 	Issuer   *string `json:"issuer"`
 	Subject  *string `json:"subject"`
 	Property *string `json:"property"`

@@ -19,7 +19,10 @@
 
 package meta
 
-import "github.com/cayleygraph/cayley/graph"
+import (
+	"github.com/cayleygraph/cayley/graph"
+	"github.com/ethereum/go-ethereum/common"
+)
 
 type PublicAPI struct {
 	meta *Meta
@@ -29,17 +32,25 @@ func NewPublicAPI(meta *Meta) *PublicAPI {
 	return &PublicAPI{meta}
 }
 
-func (api *PublicAPI) CreateGraph(name string) error {
+func (api *PublicAPI) CreateGraph(name string) (common.Hash, error) {
 	return api.meta.driver.Create(name)
 }
 
-func (api *PublicAPI) ApplyDeltas(name string, in []graph.Delta, opts graph.IgnoreOpts) error {
+func (api *PublicAPI) CommitGraph(name string) (common.Hash, error) {
+	return api.meta.driver.Commit(name)
+}
+
+func (api *PublicAPI) SetGraph(hash common.Hash, sig []byte) error {
+	return api.meta.registry.SetGraph(hash, sig)
+}
+
+func (api *PublicAPI) ApplyDeltas(name string, in []graph.Delta, opts graph.IgnoreOpts) (common.Hash, error) {
 	qs, err := api.meta.driver.Get(name)
 	if err != nil {
-		return err
+		return common.Hash{}, err
 	}
 	if err := qs.ApplyDeltas(in, opts); err != nil {
-		return err
+		return common.Hash{}, err
 	}
 	return api.meta.driver.Commit(name)
 }
