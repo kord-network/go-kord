@@ -54,7 +54,7 @@ var testnetBootnodes = []string{
 
 func init() {
 	registerCommand("node", RunNode, `
-usage: meta node [--datadir <dir>] [--config <path>] [--dev] [--testnet] [--mine] [--cors-domain <domain>...] [--verbosity <n>]
+usage: meta node [--datadir <dir>] [--config <path>] [--dev] [--testnet] [--mine] [--root-dapp <uri>] [--cors-domain <domain>...]
 
 Run a META node.
 
@@ -64,19 +64,13 @@ options:
 	--dev                       Run a dev node
 	--testnet                   Connect to the testnet
 	--mine                      Mine the Ethereum chain
+	--root-dapp <uri>           Dapp to serve at root of META API
 	--cors-domain <domain>...   The allowed CORS domains
-	--verbosity <n>             Logging verbosity: 0=silent, 1=error, 2=warn, 3=info, 4=debug, 5=detail [default: 3]
 `[1:])
 }
 
 func RunNode(ctx *Context, args Args) error {
 	cfg := defaultConfig()
-
-	if v := args.String("--verbosity"); v != "" {
-		if _, err := setLogVerbosity(v); err != nil {
-			return err
-		}
-	}
 
 	if file := args.String("--config"); file != "" {
 		if err := loadConfig(file, &cfg); err != nil {
@@ -86,6 +80,10 @@ func RunNode(ctx *Context, args Args) error {
 
 	if dir := args.String("--datadir"); dir != "" {
 		cfg.Node.DataDir = dir
+	}
+
+	if dapp := args.String("--root-dapp"); dapp != "" {
+		cfg.Meta.RootDapp = dapp
 	}
 
 	if _, ok := args["--cors-domain"]; ok {

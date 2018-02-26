@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package identity
+package api
 
 import (
 	"context"
@@ -26,15 +26,12 @@ import (
 	"net/http"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/julienschmidt/httprouter"
 	"github.com/meta-network/go-meta/graph"
 	graphql "github.com/neelance/graphql-go"
 )
 
 type API struct {
-	router   *httprouter.Router
-	resolver *Resolver
-	schema   *graphql.Schema
+	schema *graphql.Schema
 }
 
 func NewAPI(driver *graph.Driver) (*API, error) {
@@ -43,21 +40,12 @@ func NewAPI(driver *graph.Driver) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
-	api := &API{
-		router:   httprouter.New(),
-		resolver: resolver,
-		schema:   schema,
-	}
-	api.router.GET("/", api.handleIndex)
-	api.router.POST("/graphql", api.handleGraphQL)
-	return api, nil
+	return &API{
+		schema: schema,
+	}, nil
 }
 
-func (a *API) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	a.router.ServeHTTP(w, req)
-}
-
-func (a *API) handleGraphQL(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var params struct {
 		Query         string                 `json:"query"`
 		OperationName string                 `json:"operationName"`
@@ -86,45 +74,3 @@ func (a *API) handleGraphQL(w http.ResponseWriter, r *http.Request, _ httprouter
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(responseJSON)
 }
-
-func (a *API) handleIndex(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-	w.Header().Set("Content-Type", "text/html")
-	w.Write(indexHTML)
-}
-
-var indexHTML = []byte(`
-<!DOCTYPE html>
-<html>
-	<head>
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/graphiql/0.10.2/graphiql.css" />
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/fetch/1.1.0/fetch.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.5.4/react.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/react/15.5.4/react-dom.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/graphiql/0.10.2/graphiql.js"></script>
-	</head>
-	<body style="width: 100%; height: 100%; margin: 0; overflow: hidden;">
-		<div id="graphiql" style="height: 100vh;">Loading...</div>
-		<script>
-			function graphQLFetcher(graphQLParams) {
-				return fetch("graphql", {
-					method: "post",
-					body: JSON.stringify(graphQLParams),
-					credentials: "include",
-				}).then(function (response) {
-					return response.text();
-				}).then(function (responseBody) {
-					try {
-						return JSON.parse(responseBody);
-					} catch (error) {
-						return responseBody;
-					}
-				});
-			}
-			ReactDOM.render(
-				React.createElement(GraphiQL, {fetcher: graphQLFetcher}),
-				document.getElementById("graphiql")
-			);
-		</script>
-	</body>
-</html>
-`)

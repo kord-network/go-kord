@@ -28,15 +28,19 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cayleygraph/cayley/graph/path"
+	"github.com/cayleygraph/cayley/quad"
+	"github.com/cayleygraph/cayley/schema"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/swarm"
-	"github.com/julienschmidt/httprouter"
+	"github.com/meta-network/go-meta/api"
+	"github.com/meta-network/go-meta/dapp"
 	"github.com/meta-network/go-meta/graph"
-	"github.com/meta-network/go-meta/identity"
+	"github.com/meta-network/go-meta/pkg/uri"
 	"github.com/meta-network/go-meta/registry"
 	"github.com/rs/cors"
 )
@@ -44,6 +48,7 @@ import (
 type Config struct {
 	HTTPAddr    string
 	HTTPPort    int
+	RootDapp    string
 	CORSDomains []string
 }
 
@@ -57,6 +62,7 @@ type Meta struct {
 	registry registry.Registry
 	config   *Config
 	srv      *http.Server
+	metaSrv  *Server
 }
 
 func New(ctx *node.ServiceContext, stack *node.Node, cfg *Config) (*Meta, error) {
@@ -70,10 +76,15 @@ func New(ctx *node.ServiceContext, stack *node.Node, cfg *Config) (*Meta, error)
 	}
 	registry := &lazyRegistry{stack: stack}
 	driver := graph.NewDriver("meta", swarm.DPA(), registry, dir)
+	api, err := api.NewAPI(driver)
+	if err != nil {
+		return nil, err
+	}
 	return &Meta{
 		driver:   driver,
 		registry: registry,
 		config:   cfg,
+		metaSrv:  NewServer(api, swarm.Api()),
 	}, nil
 }
 
@@ -93,22 +104,11 @@ func (m *Meta) APIs() []rpc.API {
 }
 
 func (m *Meta) Start(_ *p2p.Server) error {
-	router := httprouter.New()
-
-	identityAPI, err := identity.NewAPI(m.driver)
-	if err != nil {
-		return err
+	if m.config.RootDapp != "" {
+		if err := m.setRootDapp(m.config.RootDapp); err != nil {
+			return err
+		}
 	}
-	router.Handler("GET", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
-	router.Handler("POST", "/meta-id/*path", http.StripPrefix("/meta-id", identityAPI))
-
-	// handle OPTIONS requests
-	router.OPTIONS("/", func(w http.ResponseWriter, req *http.Request, _ httprouter.Params) {
-		w.Header().Set("Allow", "OPTIONS, GET, HEAD, POST")
-		w.Header().Set("Access-Control-Allow-Methods", "OPTIONS, GET, POST")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		w.WriteHeader(http.StatusOK)
-	})
 
 	addr := fmt.Sprintf("%s:%d", m.config.HTTPAddr, m.config.HTTPPort)
 	log.Info("starting META HTTP server", "addr", addr)
@@ -118,7 +118,7 @@ func (m *Meta) Start(_ *p2p.Server) error {
 	}
 	m.srv = &http.Server{
 		Addr:    ln.Addr().String(),
-		Handler: router,
+		Handler: m.metaSrv,
 	}
 
 	if len(m.config.CORSDomains) > 0 {
@@ -147,6 +147,24 @@ func (m *Meta) Stop() error {
 		defer cancel()
 		return m.srv.Shutdown(ctx)
 	}
+	return nil
+}
+
+func (m *Meta) setRootDapp(dappURI string) error {
+	u, err := uri.Parse(dappURI)
+	if err != nil {
+		return err
+	}
+	qs, err := m.driver.Get(u.ID.Hex())
+	if err != nil {
+		return err
+	}
+	var dapp dapp.Dapp
+	path := path.StartPathNodes(qs, qs.ValueOf(quad.IRI(dappURI)))
+	if err := schema.LoadPathTo(context.Background(), qs, &dapp, path); err != nil {
+		return err
+	}
+	m.metaSrv.setDapp(&dapp)
 	return nil
 }
 

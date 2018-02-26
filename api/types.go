@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package identity
+package api
 
 import (
 	"encoding/json"
@@ -30,7 +30,7 @@ import (
 )
 
 func init() {
-	voc.RegisterPrefix("id:", "http://schema.meta-network.io/identity/")
+	voc.RegisterPrefix("meta:", "http://schema.meta-network.io/")
 }
 
 type ID struct {
@@ -105,11 +105,11 @@ type claimQuad struct {
 	rdfType struct{} `quad:"@type > id:Claim"`
 
 	ID        quad.IRI `quad:"@id"`
-	Issuer    quad.IRI `quad:"id:issuer"`
-	Subject   quad.IRI `quad:"id:subject"`
-	Property  string   `quad:"id:property"`
-	Claim     string   `quad:"id:claim"`
-	Signature string   `quad:"id:signature"`
+	Issuer    quad.IRI `quad:"meta:issuer"`
+	Subject   quad.IRI `quad:"meta:subject"`
+	Property  string   `quad:"meta:property"`
+	Claim     string   `quad:"meta:claim"`
+	Signature string   `quad:"meta:signature"`
 }
 
 func (c *Claim) Quad() *claimQuad {

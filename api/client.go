@@ -17,9 +17,10 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package identity
+package api
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -50,19 +51,7 @@ mutation CreateGraph($input: GraphInput!) {
 	if err != nil {
 		return common.Hash{}, err
 	}
-	var hash common.Hash
-	if extension, ok := res.Extensions["meta"]; ok {
-		v, ok := extension.(map[string]interface{})
-		if !ok {
-			return common.Hash{}, fmt.Errorf("unexpected meta extension type: %T", extension)
-		}
-		h, ok := v["swarmHash"].(string)
-		if !ok {
-			return common.Hash{}, fmt.Errorf("unexpected swarmHash type: %T", v["swarmHash"])
-		}
-		hash = common.HexToHash(h)
-	}
-	return hash, nil
+	return swarmHash(res)
 }
 
 func (c *Client) CreateClaim(graph string, claim *Claim) (common.Hash, error) {
@@ -90,19 +79,7 @@ mutation CreateClaim($input: ClaimInput!) {
 	if err != nil {
 		return common.Hash{}, err
 	}
-	var hash common.Hash
-	if extension, ok := res.Extensions["meta"]; ok {
-		v, ok := extension.(map[string]interface{})
-		if !ok {
-			return common.Hash{}, fmt.Errorf("unexpected meta extension type: %T", extension)
-		}
-		h, ok := v["swarmHash"].(string)
-		if !ok {
-			return common.Hash{}, fmt.Errorf("unexpected swarmHash type: %T", v["swarmHash"])
-		}
-		hash = common.HexToHash(h)
-	}
-	return hash, nil
+	return swarmHash(res)
 }
 
 func (c *Client) Claim(graph string, filter *ClaimFilter) ([]*Claim, error) {
@@ -130,4 +107,20 @@ query GetClaim($id: String!, $filter: ClaimFilter!) {
 		return nil, err
 	}
 	return v.Graph.Claims, nil
+}
+
+func swarmHash(res *graphql.Response) (common.Hash, error) {
+	extension, ok := res.Extensions["meta"]
+	if !ok {
+		return common.Hash{}, errors.New("missing meta extension in GraphQL response")
+	}
+	v, ok := extension.(map[string]interface{})
+	if !ok {
+		return common.Hash{}, fmt.Errorf("unexpected meta extension type: %T", extension)
+	}
+	h, ok := v["swarmHash"].(string)
+	if !ok {
+		return common.Hash{}, fmt.Errorf("unexpected swarmHash type: %T", v["swarmHash"])
+	}
+	return common.HexToHash(h), nil
 }

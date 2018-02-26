@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package identity
+package api
 
 import (
 	"context"
@@ -136,16 +136,16 @@ type ClaimArgs struct {
 func (r *GraphResolver) Claim(args ClaimArgs) ([]*ClaimResolver, error) {
 	path := path.NewPath(r.qs)
 	if v := args.Filter.Issuer; v != nil {
-		path = path.Has(quad.IRI("id:issuer"), quad.IRI(*v))
+		path = path.Has(quad.IRI("meta:issuer"), quad.IRI(*v))
 	}
 	if v := args.Filter.Subject; v != nil {
-		path = path.Has(quad.IRI("id:subject"), quad.IRI(*v))
+		path = path.Has(quad.IRI("meta:subject"), quad.IRI(*v))
 	}
 	if v := args.Filter.Property; v != nil {
-		path = path.Has(quad.IRI("id:property"), quad.StringToValue(*v))
+		path = path.Has(quad.IRI("meta:property"), quad.StringToValue(*v))
 	}
 	if v := args.Filter.Claim; v != nil {
-		path = path.Has(quad.IRI("id:claim"), quad.StringToValue(*v))
+		path = path.Has(quad.IRI("meta:claim"), quad.StringToValue(*v))
 	}
 	var claims []claimQuad
 	if err := schema.LoadPathTo(context.Background(), r.qs, &claims, path); err != nil {

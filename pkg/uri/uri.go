@@ -17,44 +17,33 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package meta
+package uri
 
 import (
-	"github.com/cayleygraph/cayley/graph"
+	"fmt"
+	"net/url"
+
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type PublicAPI struct {
-	meta *Meta
+type URI struct {
+	ID   common.Address
+	Path string
 }
 
-func NewPublicAPI(meta *Meta) *PublicAPI {
-	return &PublicAPI{meta}
-}
-
-func (api *PublicAPI) CreateGraph(name string) (common.Hash, error) {
-	return api.meta.driver.Create(name)
-}
-
-func (api *PublicAPI) CommitGraph(name string) (common.Hash, error) {
-	return api.meta.driver.Commit(name)
-}
-
-func (api *PublicAPI) SetGraph(hash common.Hash, sig []byte) error {
-	return api.meta.registry.SetGraph(hash, sig)
-}
-
-func (api *PublicAPI) SetRootDapp(dappURI string) error {
-	return api.meta.setRootDapp(dappURI)
-}
-
-func (api *PublicAPI) ApplyDeltas(name string, in []graph.Delta, opts graph.IgnoreOpts) (common.Hash, error) {
-	qs, err := api.meta.driver.Get(name)
+func Parse(s string) (*URI, error) {
+	u, err := url.Parse(s)
 	if err != nil {
-		return common.Hash{}, err
+		return nil, err
 	}
-	if err := qs.ApplyDeltas(in, opts); err != nil {
-		return common.Hash{}, err
+	if u.Scheme != "meta" {
+		return nil, fmt.Errorf("invalid META URI scheme: %s", u.Scheme)
 	}
-	return api.meta.driver.Commit(name)
+	if !common.IsHexAddress(u.Host) {
+		return nil, fmt.Errorf("invalid META ID in uri: %s", u.Host)
+	}
+	return &URI{
+		ID:   common.HexToAddress(u.Host),
+		Path: u.Path,
+	}, nil
 }

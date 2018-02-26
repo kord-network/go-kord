@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package identity
+package api
 
 import (
 	"bytes"
@@ -30,7 +30,7 @@ import (
 	"github.com/meta-network/go-meta/testutil"
 )
 
-func TestIdentityAPI(t *testing.T) {
+func TestAPI(t *testing.T) {
 	// create a test API
 	dpa, err := testutil.NewTestDPA()
 	if err != nil {
@@ -47,7 +47,7 @@ func TestIdentityAPI(t *testing.T) {
 	defer srv.Close()
 
 	// create a graph
-	client := NewClient(srv.URL + "/graphql")
+	client := NewClient(srv.URL)
 	hash, err := client.CreateGraph(testMetaID.Hex())
 	if err != nil {
 		t.Fatal(err)

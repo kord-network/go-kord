@@ -54,6 +54,10 @@ func (c *Client) SetGraph(ctx context.Context, hash common.Hash, sig []byte) err
 	return c.client.CallContext(ctx, nil, "meta_setGraph", hash, sig)
 }
 
+func (c *Client) SetRootDapp(ctx context.Context, uri string) error {
+	return c.client.CallContext(ctx, nil, "meta_setRootDapp", uri)
+}
+
 func (c *Client) QuadStore(name string) graph.QuadStore {
 	return &clientQuadStore{c.client, name}
 }

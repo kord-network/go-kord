@@ -696,6 +696,12 @@
 			"revisionTime": "2018-02-21T14:34:49Z"
 		},
 		{
+			"checksumSHA1": "6huLG4gnwBg1l6CYwifCRc9R9+Q=",
+			"path": "github.com/ethereum/go-ethereum/swarm/api/client",
+			"revision": "5bc73eff447e722224093d28826018699986a2b4",
+			"revisionTime": "2018-02-21T14:34:49Z"
+		},
+		{
 			"checksumSHA1": "gehYEP7dihgzuGDM/F4TrWWRLXg=",
 			"path": "github.com/ethereum/go-ethereum/swarm/api/http",
 			"revision": "5bc73eff447e722224093d28826018699986a2b4",

@@ -22,7 +22,9 @@ package cli
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,44 +41,24 @@ func init() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 }
 
+var n *testNode
+
+func TestMain(m *testing.M) {
+	os.Exit(func() int {
+		// start the test node
+		var err error
+		n, err = startTestNode()
+		if err != nil {
+			log.Error("error starting test node", "err", err)
+			return 1
+		}
+		defer n.stop()
+
+		return m.Run()
+	}())
+}
+
 func TestLoad(t *testing.T) {
-	// generate test config
-	tmpDir, err := ioutil.TempDir("", "meta-cli-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-	ks := keystore.NewKeyStore(
-		filepath.Join(tmpDir, "keystore"),
-		keystore.LightScryptN,
-		keystore.LightScryptP,
-	)
-	if _, err := ks.ImportECDSA(registry.DevKey, ""); err != nil {
-		t.Fatal(err)
-	}
-
-	// start a dev node
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		if err := Run(NewContext(ctx), "node", "--dev", "--datadir", tmpDir); err != nil {
-			log.Error("error running node", "err", err)
-		}
-	}()
-
-	// wait for the node to start
-	ipcPath := filepath.Join(tmpDir, "meta.ipc")
-	for start := time.Now(); time.Since(start) < 10*time.Second; time.Sleep(50 * time.Millisecond) {
-		if _, err := os.Stat(ipcPath); err == nil {
-			break
-		}
-	}
-
-	// deploy the META registry
-	if _, err := registry.Deploy(ipcPath, registry.DefaultConfig); err != nil {
-		t.Fatal(err)
-	}
-
 	// create an ID
 	cliCtx := NewContext(context.Background())
 	cliCtx.Stdin = bytes.NewReader([]byte{'\n', '\n'})
@@ -86,7 +68,7 @@ func TestLoad(t *testing.T) {
 		cliCtx,
 		"id",
 		"new",
-		"--keystore", filepath.Join(tmpDir, "keystore"),
+		"--keystore", n.keystore,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -103,8 +85,8 @@ func TestLoad(t *testing.T) {
 		cliCtx,
 		"graph",
 		"create",
-		"--url", ipcPath,
-		"--keystore", filepath.Join(tmpDir, "keystore"),
+		"--url", n.ipcPath,
+		"--keystore", n.keystore,
 		id.Hex(),
 	); err != nil {
 		t.Fatal(err)
@@ -117,11 +99,154 @@ func TestLoad(t *testing.T) {
 		cliCtx,
 		"graph",
 		"load",
-		"--url", ipcPath,
-		"--keystore", filepath.Join(tmpDir, "keystore"),
+		"--url", n.ipcPath,
+		"--keystore", n.keystore,
 		id.Hex(),
 		"../graph/data/testdata.nq",
 	); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestDapp(t *testing.T) {
+	// create an ID
+	cliCtx := NewContext(context.Background())
+	cliCtx.Stdin = bytes.NewReader([]byte{'\n', '\n'})
+	var stdout bytes.Buffer
+	cliCtx.Stdout = &stdout
+	if err := Run(
+		cliCtx,
+		"id",
+		"new",
+		"--keystore", n.keystore,
+	); err != nil {
+		t.Fatal(err)
+	}
+	out := strings.TrimSpace(stdout.String())
+	if !common.IsHexAddress(out) {
+		t.Fatalf("unexpected ID output: %s", out)
+	}
+	id := common.HexToAddress(out)
+
+	// create a graph
+	cliCtx = NewContext(context.Background())
+	cliCtx.Stdin = bytes.NewReader([]byte{'\n'})
+	if err := Run(
+		cliCtx,
+		"graph",
+		"create",
+		"--url", n.ipcPath,
+		"--keystore", n.keystore,
+		id.Hex(),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	// deploy a dapp
+	dappDir, err := ioutil.TempDir("", "meta-cli-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dappHTML := []byte(`<html><head><title>Test Dapp</title><body><h1>Test Dapp</h1></body></html>`)
+	if err := ioutil.WriteFile(filepath.Join(dappDir, "index.html"), dappHTML, 0644); err != nil {
+		t.Fatal(err)
+	}
+	dappURI := fmt.Sprintf("meta://%s/test-dapp", id.Hex())
+	cliCtx = NewContext(context.Background())
+	cliCtx.Stdin = bytes.NewReader([]byte{'\n'})
+	if err := Run(
+		cliCtx,
+		"dapp",
+		"deploy",
+		"--url", n.ipcPath,
+		"--keystore", n.keystore,
+		dappDir,
+		dappURI,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	// set the dapp as root
+	cliCtx = NewContext(context.Background())
+	if err := Run(
+		cliCtx,
+		"dapp",
+		"set-root",
+		"--url", n.ipcPath,
+		dappURI,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	// check the dapp is available
+	res, err := http.Get("http://localhost:5000/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected HTTP status: %s", res.Status)
+	}
+	html, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(html, dappHTML) {
+		t.Fatalf(`unexpected HTML:\nexpected: %s\nactual:   %s`, dappHTML, html)
+	}
+}
+
+type testNode struct {
+	keystore string
+	ipcPath  string
+	stop     func()
+}
+
+func startTestNode() (*testNode, error) {
+	// generate test config
+	tmpDir, err := ioutil.TempDir("", "meta-cli-test")
+	if err != nil {
+		return nil, err
+	}
+	ks := keystore.NewKeyStore(
+		filepath.Join(tmpDir, "keystore"),
+		keystore.LightScryptN,
+		keystore.LightScryptP,
+	)
+	if _, err := ks.ImportECDSA(registry.DevKey, ""); err != nil {
+		os.RemoveAll(tmpDir)
+		return nil, err
+	}
+
+	// start a dev node
+	ctx, stopNode := context.WithCancel(context.Background())
+	go func() {
+		if err := Run(NewContext(ctx), "node", "--dev", "--datadir", tmpDir); err != nil {
+			log.Error("error running node", "err", err)
+		}
+	}()
+
+	// wait for the node to start
+	ipcPath := filepath.Join(tmpDir, "meta.ipc")
+	for start := time.Now(); time.Since(start) < 10*time.Second; time.Sleep(50 * time.Millisecond) {
+		if _, err := os.Stat(ipcPath); err == nil {
+			break
+		}
+	}
+
+	// deploy the META registry
+	if _, err := registry.Deploy(ipcPath, registry.DefaultConfig); err != nil {
+		stopNode()
+		os.RemoveAll(tmpDir)
+		return nil, err
+	}
+
+	return &testNode{
+		keystore: filepath.Join(tmpDir, "keystore"),
+		ipcPath:  ipcPath,
+		stop: func() {
+			stopNode()
+			os.RemoveAll(tmpDir)
+		},
+	}, nil
 }
