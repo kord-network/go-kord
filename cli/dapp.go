@@ -46,7 +46,7 @@ usage: meta dapp deploy [options] <dir> <uri>
 Deploy a META Dapp.
 
 options:
-        -u, --url <url>        URL of the META node [default: dev/meta.ipc]
+        -u, --url <url>        URL of the META node
         -s, --swarm-api <url>  URL of the Swarm API [default: http://localhost:8500]
         -k, --keystore <dir>   Keystore directory [default: dev/keystore]
 
@@ -91,8 +91,7 @@ func RunDappDeploy(ctx *Context, args Args) error {
 		return err
 	}
 
-	url := args.String("--url")
-	client, err := meta.NewClient(url)
+	client, err := meta.NewClient(args.NodeURL())
 	if err != nil {
 		return err
 	}
@@ -149,8 +148,7 @@ func RunDappDeploy(ctx *Context, args Args) error {
 }
 
 func RunDappSetRoot(ctx *Context, args Args) error {
-	url := args.String("--url")
-	client, err := meta.NewClient(url)
+	client, err := meta.NewClient(args.NodeURL())
 	if err != nil {
 		return err
 	}

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	docopt "github.com/docopt/docopt-go"
 )
@@ -177,4 +178,11 @@ func (a Args) Bool(name string) bool {
 		panic(fmt.Sprintf("invalid bool arg: %s", name))
 	}
 	return s
+}
+
+func (a Args) NodeURL() string {
+	if url := a.String("--url"); url != "" {
+		return url
+	}
+	return filepath.Join(os.TempDir(), "meta.ipc")
 }

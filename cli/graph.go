@@ -46,7 +46,7 @@ usage: meta graph create [options] <id>
 Create, update or query a META graph.
 
 options:
-        -u, --url <url>        URL of the META node [default: dev/meta.ipc]
+        -u, --url <url>        URL of the META node
 	-k, --keystore <dir>   Keystore directory [default: dev/keystore]
 `[1:])
 }
@@ -80,8 +80,7 @@ func RunGraphCreate(ctx *Context, args Args) error {
 	}
 
 	log.Info("creating graph", "id", id)
-	url := args.String("--url")
-	client, err := meta.NewClient(url)
+	client, err := meta.NewClient(args.NodeURL())
 	if err != nil {
 		return err
 	}
@@ -126,8 +125,7 @@ func RunGraphLoad(ctx *Context, args Args) error {
 		return err
 	}
 
-	url := args.String("--url")
-	client, err := meta.NewClient(url)
+	client, err := meta.NewClient(args.NodeURL())
 	if err != nil {
 		return err
 	}

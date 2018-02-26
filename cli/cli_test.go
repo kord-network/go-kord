@@ -31,7 +31,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/meta-network/go-meta/registry"
@@ -206,15 +205,6 @@ func startTestNode() (*testNode, error) {
 	// generate test config
 	tmpDir, err := ioutil.TempDir("", "meta-cli-test")
 	if err != nil {
-		return nil, err
-	}
-	ks := keystore.NewKeyStore(
-		filepath.Join(tmpDir, "keystore"),
-		keystore.LightScryptN,
-		keystore.LightScryptP,
-	)
-	if _, err := ks.ImportECDSA(registry.DevKey, ""); err != nil {
-		os.RemoveAll(tmpDir)
 		return nil, err
 	}
 

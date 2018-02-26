@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -45,6 +46,7 @@ import (
 	"github.com/ethereum/go-ethereum/swarm"
 	swarmapi "github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/meta-network/go-meta/meta"
+	"github.com/meta-network/go-meta/registry"
 	"github.com/naoina/toml"
 )
 
@@ -78,8 +80,17 @@ func RunNode(ctx *Context, args Args) error {
 		}
 	}
 
-	if dir := args.String("--datadir"); dir != "" {
-		cfg.Node.DataDir = dir
+	switch {
+	case args.String("--datadir") != "":
+		cfg.Node.DataDir = args.String("--datadir")
+	case args.Bool("--dev"):
+		tmpDir, err := ioutil.TempDir("", "meta-datadir")
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(tmpDir)
+		cfg.Node.DataDir = tmpDir
+		cfg.Node.IPCPath = filepath.Join(os.TempDir(), cfg.Node.IPCPath)
 	}
 
 	if dapp := args.String("--root-dapp"); dapp != "" {
@@ -148,6 +159,17 @@ func RunNode(ctx *Context, args Args) error {
 			stack.Stop()
 			return err
 		}
+	}
+
+	if args.Bool("--dev") {
+		log.Info("deploying META registry")
+		addr, err := registry.Deploy(stack.IPCEndpoint(), registry.DefaultConfig)
+		if err != nil {
+			log.Error("error deploying META registry", "err", err)
+			stack.Stop()
+			return err
+		}
+		log.Info("deployed META registry", "addr", addr)
 	}
 
 	// stop the node if the context is cancelled
@@ -261,24 +283,16 @@ var tomlSettings = toml.Config{
 }
 
 func setupDevAccount(stack *node.Node, cfg *config) error {
-	// Create new developer account or reuse existing one
+	// Import the developer account
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
-	var developer accounts.Account
-	if accs := ks.Accounts(); len(accs) > 0 {
-		developer = accs[0]
-	} else {
-		var err error
-		developer, err = ks.NewAccount("")
-		if err != nil {
-			return fmt.Errorf("error creating developer account: %s", err)
-		}
+	developer, err := ks.ImportECDSA(registry.DevKey, "")
+	if err != nil {
+		return fmt.Errorf("error importing developer account: %s", err)
 	}
 	log.Info("Using developer account", "address", developer.Address)
 	cfg.Swarm.BzzAccount = developer.Address.String()
-
 	cfg.Eth.Genesis = core.DeveloperGenesisBlock(0, developer.Address)
 	cfg.Eth.GasPrice = big.NewInt(1)
-
 	return nil
 }
 
