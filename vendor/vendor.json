@@ -931,6 +931,12 @@
 			"revisionTime": "2017-09-01T08:40:05Z"
 		},
 		{
+			"checksumSHA1": "kwIQ8Jyn3Ld9sK3L+L9NX8IGXSc=",
+			"path": "github.com/moby/moby/pkg/term",
+			"revision": "e1101b1295f05ef3c6f1a684a51cd508b3c7874c",
+			"revisionTime": "2017-04-25T08:25:58Z"
+		},
+		{
 			"checksumSHA1": "A6nZdZ1/lTOVINhIndyw2ZWN9JU=",
 			"path": "github.com/naoina/go-stringutil",
 			"revision": "6b638e95a32d0c1131db0e7fe83775cbea4a0d0b",
