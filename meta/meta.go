@@ -111,11 +111,11 @@ func (m *Meta) Start(_ *p2p.Server) error {
 	}
 
 	addr := fmt.Sprintf("%s:%d", m.config.HTTPAddr, m.config.HTTPPort)
-	log.Info("starting META HTTP server", "addr", addr)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
+	log.Info("starting META HTTP server", "addr", ln.Addr().String())
 	m.srv = &http.Server{
 		Addr:    ln.Addr().String(),
 		Handler: m.metaSrv,

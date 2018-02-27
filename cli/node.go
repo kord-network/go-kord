@@ -71,19 +71,19 @@ options:
 `[1:])
 }
 
-func RunNode(ctx *Context, args Args) error {
+func RunNode(ctx *Context) error {
 	cfg := defaultConfig()
 
-	if file := args.String("--config"); file != "" {
+	if file := ctx.Args.String("--config"); file != "" {
 		if err := loadConfig(file, &cfg); err != nil {
 			return err
 		}
 	}
 
 	switch {
-	case args.String("--datadir") != "":
-		cfg.Node.DataDir = args.String("--datadir")
-	case args.Bool("--dev"):
+	case ctx.Args.String("--datadir") != "":
+		cfg.Node.DataDir = ctx.Args.String("--datadir")
+	case ctx.Args.Bool("--dev"):
 		tmpDir, err := ioutil.TempDir("", "meta-datadir")
 		if err != nil {
 			return err
@@ -93,29 +93,29 @@ func RunNode(ctx *Context, args Args) error {
 		cfg.Node.IPCPath = filepath.Join(os.TempDir(), cfg.Node.IPCPath)
 	}
 
-	if dapp := args.String("--root-dapp"); dapp != "" {
+	if dapp := ctx.Args.String("--root-dapp"); dapp != "" {
 		cfg.Meta.RootDapp = dapp
 	}
 
-	if _, ok := args["--cors-domain"]; ok {
-		domains := args.List("--cors-domain")
+	if _, ok := ctx.Args["--cors-domain"]; ok {
+		domains := ctx.Args.List("--cors-domain")
 		cfg.Swarm.Cors = strings.Join(domains, ",")
 		cfg.Meta.CORSDomains = domains
 	}
 
-	if args.Bool("--dev") && args.Bool("--testnet") {
+	if ctx.Args.Bool("--dev") && ctx.Args.Bool("--testnet") {
 		return errors.New("--dev and --testnet cannot both be set")
-	} else if args.Bool("--dev") {
+	} else if ctx.Args.Bool("--dev") {
 		// --dev mode can't use p2p networking.
 		cfg.Node.P2P.MaxPeers = 0
 		cfg.Node.P2P.ListenAddr = ":0"
 		cfg.Node.P2P.NoDiscovery = true
 		cfg.Node.P2P.DiscoveryV5 = false
-	} else if args.Bool("--testnet") {
+	} else if ctx.Args.Bool("--testnet") {
 		cfg.Eth.NetworkId = 1035
 		cfg.Eth.Genesis = testnetGenesisBlock()
 
-		if !args.Bool("--mine") {
+		if !ctx.Args.Bool("--mine") {
 			cfg.Node.P2P.BootstrapNodes = make([]*discover.Node, 0, len(testnetBootnodes))
 			for _, url := range testnetBootnodes {
 				node, err := discover.ParseNode(url)
@@ -132,7 +132,7 @@ func RunNode(ctx *Context, args Args) error {
 		return err
 	}
 
-	if args.Bool("--dev") {
+	if ctx.Args.Bool("--dev") {
 		if err := setupDevAccount(stack, &cfg); err != nil {
 			return err
 		}
@@ -154,14 +154,14 @@ func RunNode(ctx *Context, args Args) error {
 	}
 
 	// start mining if required or in dev mode
-	if args.Bool("--mine") || args.Bool("--dev") {
+	if ctx.Args.Bool("--mine") || ctx.Args.Bool("--dev") {
 		if err := startMining(stack, &cfg); err != nil {
 			stack.Stop()
 			return err
 		}
 	}
 
-	if args.Bool("--dev") {
+	if ctx.Args.Bool("--dev") {
 		log.Info("deploying META registry")
 		addr, err := registry.Deploy(stack.IPCEndpoint(), registry.DefaultConfig)
 		if err != nil {

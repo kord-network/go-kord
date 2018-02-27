@@ -38,27 +38,27 @@ usage: meta id new [options]
 Create a new META ID.
 
 options:
-	-k, --keystore <dir>   Keystore directory [default: dev/keystore]
+	-k, --keystore <dir>   Keystore directory
 `[1:])
 }
 
-func RunID(ctx *Context, args Args) error {
+func RunID(ctx *Context) error {
 	switch {
-	case args.Bool("new"):
-		return RunIDNew(ctx, args)
+	case ctx.Args.Bool("new"):
+		return RunIDNew(ctx)
 	default:
 		return errors.New("unknown id command")
 	}
 }
 
-func RunIDNew(ctx *Context, args Args) error {
+func RunIDNew(ctx *Context) error {
 	log.Info("creating new META ID")
 	passphrase, err := getPassphrase(ctx, true)
 	if err != nil {
 		return fmt.Errorf("error reading passphrase: %s", err)
 	}
 	ks := keystore.NewKeyStore(
-		args.String("--keystore"),
+		ctx.Args.String("--keystore"),
 		keystore.StandardScryptN,
 		keystore.StandardScryptP,
 	)

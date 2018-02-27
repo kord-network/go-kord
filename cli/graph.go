@@ -33,8 +33,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/meta-network/go-meta/meta"
+	"github.com/meta-network/go-meta/registry"
 	"github.com/moby/moby/pkg/term"
 )
 
@@ -47,60 +49,40 @@ Create, update or query a META graph.
 
 options:
         -u, --url <url>        URL of the META node
-	-k, --keystore <dir>   Keystore directory [default: dev/keystore]
+	-k, --keystore <dir>   Keystore directory
 `[1:])
 }
 
-func RunGraph(ctx *Context, args Args) error {
+func RunGraph(ctx *Context) error {
 	switch {
-	case args.Bool("create"):
-		return RunGraphCreate(ctx, args)
-	case args.Bool("load"):
-		return RunGraphLoad(ctx, args)
+	case ctx.Args.Bool("create"):
+		return RunGraphCreate(ctx)
+	case ctx.Args.Bool("load"):
+		return RunGraphLoad(ctx)
 	default:
 		return errors.New("unknown graph command")
 	}
 }
 
-func RunGraphCreate(ctx *Context, args Args) error {
-	idArg := args.String("<id>")
+func RunGraphCreate(ctx *Context) error {
+	idArg := ctx.Args.String("<id>")
 	if !common.IsHexAddress(idArg) {
 		return fmt.Errorf("invalid META ID, must be a hex string: %s", idArg)
 	}
 	id := common.HexToAddress(idArg)
 
-	ks := keystore.NewKeyStore(
-		args.String("--keystore"),
-		keystore.StandardScryptN,
-		keystore.StandardScryptP,
-	)
-	account, err := ks.Find(accounts.Account{Address: id})
+	client, err := ctx.Client()
 	if err != nil {
 		return err
 	}
 
 	log.Info("creating graph", "id", id)
-	client, err := meta.NewClient(args.NodeURL())
-	if err != nil {
-		return err
-	}
 	hash, err := client.CreateGraph(ctx, id.Hex())
 	if err != nil {
 		return err
 	}
 
-	log.Info("signing graph hash", "hash", hash)
-	passphrase, err := getPassphrase(ctx, false)
-	if err != nil {
-		return fmt.Errorf("error reading passphrase: %s", err)
-	}
-	sig, err := ks.SignHashWithPassphrase(account, string(passphrase), hash[:])
-	if err != nil {
-		return err
-	}
-
-	log.Info("updating registry")
-	if err := client.SetGraph(ctx, hash, sig); err != nil {
+	if err := setGraph(ctx, client, id, hash); err != nil {
 		return err
 	}
 
@@ -108,29 +90,19 @@ func RunGraphCreate(ctx *Context, args Args) error {
 	return nil
 }
 
-func RunGraphLoad(ctx *Context, args Args) error {
-	idArg := args.String("<id>")
+func RunGraphLoad(ctx *Context) error {
+	idArg := ctx.Args.String("<id>")
 	if !common.IsHexAddress(idArg) {
 		return fmt.Errorf("invalid META ID, must be a hex string: %s", idArg)
 	}
 	id := common.HexToAddress(idArg)
 
-	ks := keystore.NewKeyStore(
-		args.String("--keystore"),
-		keystore.StandardScryptN,
-		keystore.StandardScryptP,
-	)
-	account, err := ks.Find(accounts.Account{Address: id})
+	client, err := ctx.Client()
 	if err != nil {
 		return err
 	}
 
-	client, err := meta.NewClient(args.NodeURL())
-	if err != nil {
-		return err
-	}
-
-	file := args.String("<file>")
+	file := ctx.Args.String("<file>")
 	log.Info("loading quads", "id", id, "file", file)
 	count, err := loadQuads(ctx, client, id, file)
 	if err != nil {
@@ -143,18 +115,7 @@ func RunGraphLoad(ctx *Context, args Args) error {
 		return err
 	}
 
-	log.Info("signing graph hash", "hash", hash)
-	passphrase, err := getPassphrase(ctx, false)
-	if err != nil {
-		return fmt.Errorf("error reading passphrase: %s", err)
-	}
-	sig, err := ks.SignHashWithPassphrase(account, string(passphrase), hash[:])
-	if err != nil {
-		return err
-	}
-
-	log.Info("updating registry")
-	if err := client.SetGraph(ctx, hash, sig); err != nil {
+	if err := setGraph(ctx, client, id, hash); err != nil {
 		return err
 	}
 
@@ -190,4 +151,35 @@ func loadQuads(ctx *Context, client *meta.Client, id common.Address, file string
 	}
 	qr := nquads.NewReader(in, false)
 	return quad.CopyBatch(graph.NewWriter(qw), qr, quad.DefaultBatch)
+}
+
+func setGraph(ctx *Context, client *meta.Client, id common.Address, hash common.Hash) error {
+	log.Info("signing graph hash", "hash", hash)
+	sig, err := signHash(ctx, id, hash)
+	if err != nil {
+		return err
+	}
+
+	log.Info("updating registry")
+	return client.SetGraph(ctx, hash, sig)
+}
+
+func signHash(ctx *Context, id common.Address, hash common.Hash) ([]byte, error) {
+	if id == registry.DevAddr {
+		return crypto.Sign(hash[:], registry.DevKey)
+	}
+	ks := keystore.NewKeyStore(
+		ctx.Args.String("--keystore"),
+		keystore.StandardScryptN,
+		keystore.StandardScryptP,
+	)
+	account, err := ks.Find(accounts.Account{Address: id})
+	if err != nil {
+		return nil, err
+	}
+	passphrase, err := getPassphrase(ctx, false)
+	if err != nil {
+		return nil, fmt.Errorf("error reading passphrase: %s", err)
+	}
+	return ks.SignHashWithPassphrase(account, string(passphrase), hash[:])
 }

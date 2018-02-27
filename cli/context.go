@@ -17,41 +17,43 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package uri
+package cli
 
 import (
-	"fmt"
-	"net/url"
+	"context"
+	"io"
+	"os"
+	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/meta-network/go-meta/meta"
+	"github.com/meta-network/go-meta/pkg/uri"
 )
 
-type URI struct {
-	ID   common.Address
-	Path string
+type Context struct {
+	context.Context
+
+	Args Args
+
+	Stdin  io.Reader
+	Stdout io.Writer
+	Stderr io.Writer
 }
 
-func Parse(s string) (*URI, error) {
-	u, err := url.Parse(s)
-	if err != nil {
-		return nil, err
-	}
-	if u.Scheme != "meta" {
-		return nil, fmt.Errorf("invalid META URI scheme: %s", u.Scheme)
-	}
-	if !common.IsHexAddress(u.Host) {
-		return nil, fmt.Errorf("invalid META ID in uri: %s", u.Host)
-	}
-	return &URI{
-		ID:   common.HexToAddress(u.Host),
-		Path: u.Path,
-	}, nil
+func NewContext(ctx context.Context) *Context {
+	return &Context{Context: ctx}
 }
 
-func (u *URI) String() string {
-	return (&url.URL{
-		Scheme: "meta",
-		Host:   u.ID.Hex(),
-		Path:   u.Path,
-	}).String()
+func (c *Context) NodeURL() string {
+	if url := c.Args.String("--url"); url != "" {
+		return url
+	}
+	return filepath.Join(os.TempDir(), "meta.ipc")
+}
+
+func (c *Context) URI() (*uri.URI, error) {
+	return uri.Parse(c.Args.String("<uri>"))
+}
+
+func (c *Context) Client() (*meta.Client, error) {
+	return meta.NewClient(c.NodeURL())
 }

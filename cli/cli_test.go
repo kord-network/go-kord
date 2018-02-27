@@ -33,7 +33,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/meta-network/go-meta/registry"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 func init() {
@@ -178,7 +178,7 @@ func TestDapp(t *testing.T) {
 	}
 
 	// check the dapp is available
-	res, err := http.Get("http://localhost:5000/")
+	res, err := http.Get(fmt.Sprintf("http://%s/", n.httpAddr))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,6 +198,7 @@ func TestDapp(t *testing.T) {
 type testNode struct {
 	keystore string
 	ipcPath  string
+	httpAddr string
 	stop     func()
 }
 
@@ -207,11 +208,20 @@ func startTestNode() (*testNode, error) {
 	if err != nil {
 		return nil, err
 	}
+	cfgPath := filepath.Join(tmpDir, "config")
+	cfgData := []byte(`
+[Meta]
+HTTPPort = 0
+	`)
+	if err := ioutil.WriteFile(cfgPath, cfgData, 0644); err != nil {
+		os.RemoveAll(tmpDir)
+		return nil, err
+	}
 
 	// start a dev node
 	ctx, stopNode := context.WithCancel(context.Background())
 	go func() {
-		if err := Run(NewContext(ctx), "node", "--dev", "--datadir", tmpDir); err != nil {
+		if err := Run(NewContext(ctx), "node", "--dev", "--datadir", tmpDir, "--config", cfgPath); err != nil {
 			log.Error("error running node", "err", err)
 		}
 	}()
@@ -224,8 +234,14 @@ func startTestNode() (*testNode, error) {
 		}
 	}
 
-	// deploy the META registry
-	if _, err := registry.Deploy(ipcPath, registry.DefaultConfig); err != nil {
+	var httpAddr string
+	if err := func() error {
+		client, err := rpc.Dial(ipcPath)
+		if err != nil {
+			return err
+		}
+		return client.Call(&httpAddr, "meta_httpAddr")
+	}(); err != nil {
 		stopNode()
 		os.RemoveAll(tmpDir)
 		return nil, err
@@ -234,6 +250,7 @@ func startTestNode() (*testNode, error) {
 	return &testNode{
 		keystore: filepath.Join(tmpDir, "keystore"),
 		ipcPath:  ipcPath,
+		httpAddr: httpAddr,
 		stop: func() {
 			stopNode()
 			os.RemoveAll(tmpDir)

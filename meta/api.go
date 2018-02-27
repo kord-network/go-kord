@@ -48,6 +48,10 @@ func (api *PublicAPI) SetRootDapp(dappURI string) error {
 	return api.meta.setRootDapp(dappURI)
 }
 
+func (api *PublicAPI) HttpAddr() string {
+	return api.meta.srv.Addr
+}
+
 func (api *PublicAPI) ApplyDeltas(name string, in []graph.Delta, opts graph.IgnoreOpts) (common.Hash, error) {
 	qs, err := api.meta.driver.Get(name)
 	if err != nil {

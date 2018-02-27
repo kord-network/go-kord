@@ -20,11 +20,8 @@
 package cli
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 
 	docopt "github.com/docopt/docopt-go"
 )
@@ -44,18 +41,6 @@ Commands:
 
 See 'meta help <command>' for more information on a specific command.
 `[1:]
-
-type Context struct {
-	context.Context
-
-	Stdin  io.Reader
-	Stdout io.Writer
-	Stderr io.Writer
-}
-
-func NewContext(ctx context.Context) *Context {
-	return &Context{Context: ctx}
-}
 
 func Run(ctx *Context, argv ...string) error {
 	if ctx.Stdin == nil {
@@ -112,12 +97,12 @@ func runCommand(ctx *Context, name string, argv ...string) error {
 	if err != nil {
 		return err
 	}
-	args := Args(v)
+	ctx.Args = Args(v)
 
-	return cmd.run(ctx, args)
+	return cmd.run(ctx)
 }
 
-type runFn func(*Context, Args) error
+type runFn func(*Context) error
 
 type command struct {
 	run   runFn
@@ -178,11 +163,4 @@ func (a Args) Bool(name string) bool {
 		panic(fmt.Sprintf("invalid bool arg: %s", name))
 	}
 	return s
-}
-
-func (a Args) NodeURL() string {
-	if url := a.String("--url"); url != "" {
-		return url
-	}
-	return filepath.Join(os.TempDir(), "meta.ipc")
 }

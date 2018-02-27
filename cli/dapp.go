@@ -21,21 +21,15 @@ package cli
 
 import (
 	"errors"
-	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/quad"
 	"github.com/cayleygraph/cayley/schema"
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	swarm "github.com/ethereum/go-ethereum/swarm/api/client"
 	"github.com/meta-network/go-meta/dapp"
-	"github.com/meta-network/go-meta/meta"
 )
 
 func init() {
@@ -48,7 +42,7 @@ Deploy a META Dapp.
 options:
         -u, --url <url>        URL of the META node
         -s, --swarm-api <url>  URL of the Swarm API [default: http://localhost:8500]
-        -k, --keystore <dir>   Keystore directory [default: dev/keystore]
+        -k, --keystore <dir>   Keystore directory
 
 example:
         meta dapp deploy path/to/dapp meta://xyz123/cool-dapp
@@ -57,47 +51,31 @@ example:
 `[1:])
 }
 
-func RunDapp(ctx *Context, args Args) error {
+func RunDapp(ctx *Context) error {
 	switch {
-	case args.Bool("deploy"):
-		return RunDappDeploy(ctx, args)
-	case args.Bool("set-root"):
-		return RunDappSetRoot(ctx, args)
+	case ctx.Args.Bool("deploy"):
+		return RunDappDeploy(ctx)
+	case ctx.Args.Bool("set-root"):
+		return RunDappSetRoot(ctx)
 	default:
 		return errors.New("unknown dapp command")
 	}
 }
 
-func RunDappDeploy(ctx *Context, args Args) error {
-	u, err := url.Parse(args.String("<uri>"))
+func RunDappDeploy(ctx *Context) error {
+	u, err := ctx.URI()
 	if err != nil {
 		return err
 	}
-	if u.Scheme != "meta" {
-		return fmt.Errorf("<uri> must have meta scheme, not %s", u.Scheme)
-	}
-	if !common.IsHexAddress(u.Host) {
-		return fmt.Errorf("invalid META ID: %s", u.Host)
-	}
-	id := common.HexToAddress(u.Host)
+	id := u.ID
 
-	ks := keystore.NewKeyStore(
-		args.String("--keystore"),
-		keystore.StandardScryptN,
-		keystore.StandardScryptP,
-	)
-	account, err := ks.Find(accounts.Account{Address: id})
+	client, err := ctx.Client()
 	if err != nil {
 		return err
 	}
 
-	client, err := meta.NewClient(args.NodeURL())
-	if err != nil {
-		return err
-	}
-
-	swarm := swarm.NewClient(args.String("--swarm-api"))
-	dir := args.String("<dir>")
+	swarm := swarm.NewClient(ctx.Args.String("--swarm-api"))
+	dir := ctx.Args.String("<dir>")
 	var defaultPath string
 	if _, err := os.Stat(filepath.Join(dir, "index.html")); err == nil {
 		defaultPath = filepath.Join(dir, "index.html")
@@ -124,33 +102,28 @@ func RunDappDeploy(ctx *Context, args Args) error {
 		return err
 	}
 
+	log.Info("committing graph")
 	hash, err := client.CommitGraph(ctx, id.Hex())
 	if err != nil {
 		return err
 	}
 
-	log.Info("signing graph hash", "hash", hash)
-	passphrase, err := getPassphrase(ctx, false)
-	if err != nil {
-		return fmt.Errorf("error reading passphrase: %s", err)
-	}
-	sig, err := ks.SignHashWithPassphrase(account, string(passphrase), hash[:])
-	if err != nil {
+	if err := setGraph(ctx, client, id, hash); err != nil {
 		return err
 	}
 
-	log.Info("updating registry")
-	if err := client.SetGraph(ctx, hash, sig); err != nil {
-		return err
-	}
-
+	log.Info("dapp deployed", "uri", d.ID, "hash", hash)
 	return nil
 }
 
-func RunDappSetRoot(ctx *Context, args Args) error {
-	client, err := meta.NewClient(args.NodeURL())
+func RunDappSetRoot(ctx *Context) error {
+	client, err := ctx.Client()
 	if err != nil {
 		return err
 	}
-	return client.SetRootDapp(ctx, args.String("<uri>"))
+	if err := client.SetRootDapp(ctx, ctx.Args.String("<uri>")); err != nil {
+		return err
+	}
+	log.Info("root dapp set", "uri", ctx.Args.String("<uri>"))
+	return nil
 }
