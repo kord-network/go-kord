@@ -56,7 +56,7 @@ func TestAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := registry.SetGraph(hash, sig); err != nil {
+	if err := client.SetGraph(testMetaID.Hex(), hash, sig); err != nil {
 		t.Fatal(err)
 	}
 
@@ -70,7 +70,7 @@ func TestAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := registry.SetGraph(hash, sig); err != nil {
+	if err := client.SetGraph(testMetaID.Hex(), hash, sig); err != nil {
 		t.Fatal(err)
 	}
 

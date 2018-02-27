@@ -31,8 +31,9 @@ import (
 )
 
 type Driver struct {
-	name string
-	db   *db.Driver
+	name     string
+	db       *db.Driver
+	registry registry.Registry
 
 	stores   map[string]graph.QuadStore
 	storeMtx sync.Mutex
@@ -47,9 +48,10 @@ func NewDriver(name string, dpa *storage.DPA, registry registry.Registry, tmpDir
 
 	// return a graph driver
 	return &Driver{
-		name:   name,
-		db:     db,
-		stores: make(map[string]graph.QuadStore),
+		name:     name,
+		db:       db,
+		registry: registry,
+		stores:   make(map[string]graph.QuadStore),
 	}
 }
 
@@ -59,6 +61,10 @@ func (d *Driver) Create(name string) (common.Hash, error) {
 		return common.Hash{}, err
 	}
 	return d.Commit(name)
+}
+
+func (d *Driver) SetGraph(hash common.Hash, sig []byte) error {
+	return d.registry.SetGraph(hash, sig)
 }
 
 func (d *Driver) Get(name string) (graph.QuadStore, error) {

@@ -49,6 +49,12 @@ type GraphInput struct {
 	ID string `json:"id"`
 }
 
+type SetGraphInput struct {
+	ID        string `json:"id"`
+	Hash      string `json:"hash"`
+	Signature string `json:"signature"`
+}
+
 type Claim struct {
 	Issuer    ID
 	Subject   ID

@@ -54,6 +54,23 @@ mutation CreateGraph($input: GraphInput!) {
 	return swarmHash(res)
 }
 
+func (c *Client) SetGraph(graph string, hash common.Hash, sig []byte) error {
+	query := `
+mutation SetGraph($input: SetGraphInput!) {
+  setGraph(input: $input) {
+    id
+  }
+}
+`
+	variables := graphql.Variables{"input": &SetGraphInput{
+		ID:        graph,
+		Hash:      hash.Hex(),
+		Signature: hexutil.Encode(sig),
+	}}
+	_, err := c.Do(query, variables, nil)
+	return err
+}
+
 func (c *Client) CreateClaim(graph string, claim *Claim) (common.Hash, error) {
 	query := `
 mutation CreateClaim($input: ClaimInput!) {

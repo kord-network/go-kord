@@ -22,6 +22,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/path"
@@ -46,6 +47,9 @@ type Query {
 
 type Mutation {
   createGraph(input: GraphInput!): Graph!
+
+  setGraph(input: SetGraphInput!): Graph!
+
   createClaim(input: ClaimInput!): Claim!
 }
 
@@ -57,6 +61,12 @@ type Graph {
 
 input GraphInput {
   id: String!
+}
+
+input SetGraphInput {
+  id:        String!
+  hash:      String!
+  signature: String!
 }
 
 type Claim {
@@ -122,6 +132,23 @@ type CreateGraphArgs struct {
 func (r *Resolver) CreateGraph(ctx context.Context, args CreateGraphArgs) (*GraphResolver, error) {
 	hash, err := r.driver.Create(args.Input.ID)
 	if err != nil {
+		return nil, err
+	}
+	ctx.Value("swarmHash").(*common.Hash).Set(hash)
+	return r.Graph(GraphArgs{ID: args.Input.ID})
+}
+
+type SetGraphArgs struct {
+	Input SetGraphInput
+}
+
+func (r *Resolver) SetGraph(ctx context.Context, args SetGraphArgs) (*GraphResolver, error) {
+	hash := common.HexToHash(args.Input.Hash)
+	sig, err := hexutil.Decode(args.Input.Signature)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding signature: %s", err)
+	}
+	if err := r.driver.SetGraph(hash, sig); err != nil {
 		return nil, err
 	}
 	ctx.Value("swarmHash").(*common.Hash).Set(hash)
