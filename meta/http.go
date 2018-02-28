@@ -27,6 +27,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	swarmapi "github.com/ethereum/go-ethereum/swarm/api"
+	swarmhttp "github.com/ethereum/go-ethereum/swarm/api/http"
 	"github.com/meta-network/go-meta/api"
 	"github.com/meta-network/go-meta/dapp"
 )
@@ -45,6 +46,10 @@ func NewServer(api *api.API, swarm *swarmapi.Api) *Server {
 		mux:   http.NewServeMux(),
 		swarm: swarm,
 	}
+	swarmSrv := swarmhttp.NewServer(swarm)
+	s.mux.Handle("/bzz:/", swarmSrv)
+	s.mux.Handle("/bzzr:/", swarmSrv)
+	s.mux.Handle("/bzz-raw:/", swarmSrv)
 	s.mux.Handle("/api/graphql", api)
 	s.mux.HandleFunc("/", s.ServeDapp)
 	return s

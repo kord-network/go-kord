@@ -41,7 +41,7 @@ Deploy a META Dapp.
 
 options:
         -u, --url <url>        URL of the META node
-        -s, --swarm-api <url>  URL of the Swarm API [default: http://localhost:8500]
+        -s, --swarm-api <url>  URL of the Swarm API [default: http://localhost:5000]
         -k, --keystore <dir>   Keystore directory
 
 example:

@@ -158,6 +158,7 @@ func TestDapp(t *testing.T) {
 		"dapp",
 		"deploy",
 		"--url", n.ipcPath,
+		"--swarm-api", fmt.Sprintf("http://%s", n.httpAddr),
 		"--keystore", n.keystore,
 		dappDir,
 		dappURI,

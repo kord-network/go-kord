@@ -247,6 +247,7 @@ func loadConfig(file string, cfg *config) error {
 
 func defaultConfig() config {
 	swarmCfg := swarmapi.NewDefaultConfig()
+	swarmCfg.Port = ""
 	return config{
 		Node:  defaultNodeConfig(),
 		Eth:   eth.DefaultConfig,
