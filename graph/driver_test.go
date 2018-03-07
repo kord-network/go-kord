@@ -45,7 +45,7 @@ func TestMain(m *testing.M) {
 			return 1
 		}
 		defer dpa.Cleanup()
-		testDriver = NewDriver("kord-test", dpa.DPA, testutil.NewTestENS(), dpa.Dir)
+		testDriver = NewDriver("kord-test", dpa.DPA, testutil.NewTestRegistry(), dpa.Dir)
 		return m.Run()
 	}())
 }
