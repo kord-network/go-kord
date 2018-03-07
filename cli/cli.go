@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -27,7 +27,7 @@ import (
 )
 
 var usage = `
-usage: meta [options] <command> [<args>...]
+usage: kord [options] <command> [<args>...]
 
 Options:
         -h, --help        show this usage message
@@ -36,10 +36,10 @@ Options:
 
 Commands:
         help     show usage for a specific command
-        node     run a META node
-        load     load quads into META
+        node     run a KORD node
+        load     load quads into KORD
 
-See 'meta help <command>' for more information on a specific command.
+See 'kord help <command>' for more information on a specific command.
 `[1:]
 
 func Run(ctx *Context, argv ...string) error {
@@ -64,13 +64,13 @@ func Run(ctx *Context, argv ...string) error {
 
 	if cmd == "help" {
 		if len(cmdArgs) == 0 {
-			// 'meta help' so just print usage
+			// 'kord help' so just print usage
 			fmt.Println(usage)
 			return nil
 		}
 
-		// 'meta help <command>' so translate to
-		// 'meta <command> --help' and let docopt
+		// 'kord help <command>' so translate to
+		// 'kord <command> --help' and let docopt
 		// print the command's usage
 		cmd = cmdArgs[0]
 		cmdArgs = []string{"--help"}
@@ -90,7 +90,7 @@ func runCommand(ctx *Context, name string, argv ...string) error {
 
 	cmd, ok := commands[name]
 	if !ok {
-		return fmt.Errorf("%s is not a valid meta command. See 'meta help'", name)
+		return fmt.Errorf("%s is not a valid kord command. See 'kord help'", name)
 	}
 
 	v, err := docopt.Parse(cmd.usage, argv, true, "", false)

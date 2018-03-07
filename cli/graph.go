@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -35,20 +35,20 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/meta-network/go-meta/meta"
-	"github.com/meta-network/go-meta/registry"
+	"github.com/kord-network/go-kord/kord"
+	"github.com/kord-network/go-kord/registry"
 	"github.com/moby/moby/pkg/term"
 )
 
 func init() {
 	registerCommand("graph", RunGraph, `
-usage: meta graph create [options] <id>
-       meta graph load [options] <id> <file>
+usage: kord graph create [options] <id>
+       kord graph load [options] <id> <file>
 
-Create, update or query a META graph.
+Create, update or query a KORD graph.
 
 options:
-        -u, --url <url>        URL of the META node
+        -u, --url <url>        URL of the KORD node
 	-k, --keystore <dir>   Keystore directory
 `[1:])
 }
@@ -67,7 +67,7 @@ func RunGraph(ctx *Context) error {
 func RunGraphCreate(ctx *Context) error {
 	idArg := ctx.Args.String("<id>")
 	if !common.IsHexAddress(idArg) {
-		return fmt.Errorf("invalid META ID, must be a hex string: %s", idArg)
+		return fmt.Errorf("invalid KORD ID, must be a hex string: %s", idArg)
 	}
 	id := common.HexToAddress(idArg)
 
@@ -93,7 +93,7 @@ func RunGraphCreate(ctx *Context) error {
 func RunGraphLoad(ctx *Context) error {
 	idArg := ctx.Args.String("<id>")
 	if !common.IsHexAddress(idArg) {
-		return fmt.Errorf("invalid META ID, must be a hex string: %s", idArg)
+		return fmt.Errorf("invalid KORD ID, must be a hex string: %s", idArg)
 	}
 	id := common.HexToAddress(idArg)
 
@@ -123,7 +123,7 @@ func RunGraphLoad(ctx *Context) error {
 	return nil
 }
 
-func loadQuads(ctx *Context, client *meta.Client, id common.Address, file string) (int, error) {
+func loadQuads(ctx *Context, client *kord.Client, id common.Address, file string) (int, error) {
 	var in io.Reader
 	f, err := os.Open(file)
 	if err != nil {
@@ -153,7 +153,7 @@ func loadQuads(ctx *Context, client *meta.Client, id common.Address, file string
 	return quad.CopyBatch(graph.NewWriter(qw), qr, quad.DefaultBatch)
 }
 
-func setGraph(ctx *Context, client *meta.Client, id common.Address, hash common.Hash) error {
+func setGraph(ctx *Context, client *kord.Client, id common.Address, hash common.Hash) error {
 	log.Info("signing graph hash", "hash", hash)
 	sig, err := signHash(ctx, id, hash)
 	if err != nil {

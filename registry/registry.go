@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -35,10 +35,10 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/meta-network/go-meta/registry/contract"
+	"github.com/kord-network/go-kord/registry/contract"
 )
 
-//go:generate abigen --sol ../contracts/METARegistry.sol --pkg contract --out contract/registry.go
+//go:generate abigen --sol ../contracts/KORDRegistry.sol --pkg contract --out contract/registry.go
 
 var (
 	DevKey          = mustKey("476e921a198fd2744f270da0bb80dce2dab24e9105473d9bb19e540fcbd04bb0")
@@ -47,9 +47,9 @@ var (
 )
 
 type Registry interface {
-	Graph(metaID common.Address) (common.Hash, error)
+	Graph(kordID common.Address) (common.Hash, error)
 	SetGraph(graph common.Hash, sig []byte) error
-	SubscribeGraph(metaID common.Address, updates chan common.Hash) (Subscription, error)
+	SubscribeGraph(kordID common.Address, updates chan common.Hash) (Subscription, error)
 }
 
 type Subscription interface {
@@ -70,7 +70,7 @@ var DefaultConfig = Config{
 type Client struct {
 	*ethclient.Client
 
-	registry     *contract.METARegistrySession
+	registry     *contract.KORDRegistrySession
 	blocks       event.Feed
 	transactOpts *bind.TransactOpts
 	closed       chan struct{}
@@ -91,11 +91,11 @@ func NewClient(client *rpc.Client, config Config) (*Client, error) {
 	transactOpts := bind.NewKeyedTransactor(config.Key)
 	transactOpts.GasLimit = params.GenesisGasLimit
 
-	registry, err := contract.NewMETARegistry(config.ContractAddr, ethClient)
+	registry, err := contract.NewKORDRegistry(config.ContractAddr, ethClient)
 	if err != nil {
 		return nil, err
 	}
-	session := &contract.METARegistrySession{
+	session := &contract.KORDRegistrySession{
 		Contract:     registry,
 		TransactOpts: *transactOpts,
 	}
@@ -113,15 +113,15 @@ func NewClient(client *rpc.Client, config Config) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) Graph(metaID common.Address) (common.Hash, error) {
-	return c.registry.Graph(metaID)
+func (c *Client) Graph(kordID common.Address) (common.Hash, error) {
+	return c.registry.Graph(kordID)
 }
 
 func (c *Client) SetGraph(graph common.Hash, sig []byte) error {
 	return c.setGraph(graph, sig)
 }
 
-func (c *Client) SubscribeGraph(metaID common.Address, updates chan common.Hash) (Subscription, error) {
+func (c *Client) SubscribeGraph(kordID common.Address, updates chan common.Hash) (Subscription, error) {
 	// TODO
 	return nil, nil
 }

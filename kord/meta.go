@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package meta
+package kord
 
 import (
 	"context"
@@ -37,11 +37,11 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/swarm"
-	"github.com/meta-network/go-meta/api"
-	"github.com/meta-network/go-meta/dapp"
-	"github.com/meta-network/go-meta/graph"
-	"github.com/meta-network/go-meta/pkg/uri"
-	"github.com/meta-network/go-meta/registry"
+	"github.com/kord-network/go-kord/api"
+	"github.com/kord-network/go-kord/dapp"
+	"github.com/kord-network/go-kord/graph"
+	"github.com/kord-network/go-kord/pkg/uri"
+	"github.com/kord-network/go-kord/registry"
 	"github.com/rs/cors"
 )
 
@@ -57,15 +57,15 @@ var DefaultConfig = Config{
 	HTTPPort: 5000,
 }
 
-type Meta struct {
+type Kord struct {
 	driver   *graph.Driver
 	registry registry.Registry
 	config   *Config
 	srv      *http.Server
-	metaSrv  *Server
+	kordSrv  *Server
 }
 
-func New(ctx *node.ServiceContext, stack *node.Node, cfg *Config) (*Meta, error) {
+func New(ctx *node.ServiceContext, stack *node.Node, cfg *Config) (*Kord, error) {
 	var swarm *swarm.Swarm
 	if err := ctx.Service(&swarm); err != nil {
 		return nil, fmt.Errorf("error getting Swarm service: %s", err)
@@ -75,27 +75,27 @@ func New(ctx *node.ServiceContext, stack *node.Node, cfg *Config) (*Meta, error)
 		return nil, err
 	}
 	registry := &lazyRegistry{stack: stack}
-	driver := graph.NewDriver("meta", swarm.DPA(), registry, dir)
+	driver := graph.NewDriver("kord", swarm.DPA(), registry, dir)
 	api, err := api.NewAPI(driver)
 	if err != nil {
 		return nil, err
 	}
-	return &Meta{
+	return &Kord{
 		driver:   driver,
 		registry: registry,
 		config:   cfg,
-		metaSrv:  NewServer(api, swarm.Api()),
+		kordSrv:  NewServer(api, swarm.Api()),
 	}, nil
 }
 
-func (m *Meta) Protocols() []p2p.Protocol {
+func (m *Kord) Protocols() []p2p.Protocol {
 	return nil
 }
 
-func (m *Meta) APIs() []rpc.API {
+func (m *Kord) APIs() []rpc.API {
 	return []rpc.API{
 		{
-			Namespace: "meta",
+			Namespace: "kord",
 			Version:   "0.1",
 			Service:   NewPublicAPI(m),
 			Public:    true,
@@ -103,7 +103,7 @@ func (m *Meta) APIs() []rpc.API {
 	}
 }
 
-func (m *Meta) Start(_ *p2p.Server) error {
+func (m *Kord) Start(_ *p2p.Server) error {
 	if m.config.RootDapp != "" {
 		if err := m.setRootDapp(m.config.RootDapp); err != nil {
 			return err
@@ -115,10 +115,10 @@ func (m *Meta) Start(_ *p2p.Server) error {
 	if err != nil {
 		return err
 	}
-	log.Info("starting META HTTP server", "addr", ln.Addr().String())
+	log.Info("starting KORD HTTP server", "addr", ln.Addr().String())
 	m.srv = &http.Server{
 		Addr:    ln.Addr().String(),
-		Handler: m.metaSrv,
+		Handler: m.kordSrv,
 	}
 
 	if len(m.config.CORSDomains) > 0 {
@@ -140,9 +140,9 @@ func (m *Meta) Start(_ *p2p.Server) error {
 	return nil
 }
 
-func (m *Meta) Stop() error {
+func (m *Kord) Stop() error {
 	if m.srv != nil {
-		log.Info("stopping META HTTP server")
+		log.Info("stopping KORD HTTP server")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		return m.srv.Shutdown(ctx)
@@ -150,7 +150,7 @@ func (m *Meta) Stop() error {
 	return nil
 }
 
-func (m *Meta) setRootDapp(dappURI string) error {
+func (m *Kord) setRootDapp(dappURI string) error {
 	u, err := uri.Parse(dappURI)
 	if err != nil {
 		return err
@@ -164,7 +164,7 @@ func (m *Meta) setRootDapp(dappURI string) error {
 	if err := schema.LoadPathTo(context.Background(), qs, &dapp, path); err != nil {
 		return err
 	}
-	m.metaSrv.setDapp(&dapp)
+	m.kordSrv.setDapp(&dapp)
 	return nil
 }
 
@@ -193,12 +193,12 @@ func (r *lazyRegistry) registry() (registry.Registry, error) {
 	return registry, nil
 }
 
-func (r *lazyRegistry) Graph(metaID common.Address) (common.Hash, error) {
+func (r *lazyRegistry) Graph(kordID common.Address) (common.Hash, error) {
 	registry, err := r.registry()
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return registry.Graph(metaID)
+	return registry.Graph(kordID)
 }
 
 func (r *lazyRegistry) SetGraph(graph common.Hash, sig []byte) error {
@@ -209,10 +209,10 @@ func (r *lazyRegistry) SetGraph(graph common.Hash, sig []byte) error {
 	return registry.SetGraph(graph, sig)
 }
 
-func (r *lazyRegistry) SubscribeGraph(metaID common.Address, updates chan common.Hash) (registry.Subscription, error) {
+func (r *lazyRegistry) SubscribeGraph(kordID common.Address, updates chan common.Hash) (registry.Subscription, error) {
 	registry, err := r.registry()
 	if err != nil {
 		return nil, err
 	}
-	return registry.SubscribeGraph(metaID, updates)
+	return registry.SubscribeGraph(kordID, updates)
 }

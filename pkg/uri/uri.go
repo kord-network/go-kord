@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -36,11 +36,11 @@ func Parse(s string) (*URI, error) {
 	if err != nil {
 		return nil, err
 	}
-	if u.Scheme != "meta" {
-		return nil, fmt.Errorf("invalid META URI scheme: %s", u.Scheme)
+	if u.Scheme != "kord" {
+		return nil, fmt.Errorf("invalid KORD URI scheme: %s", u.Scheme)
 	}
 	if !common.IsHexAddress(u.Host) {
-		return nil, fmt.Errorf("invalid META ID in uri: %s", u.Host)
+		return nil, fmt.Errorf("invalid KORD ID in uri: %s", u.Host)
 	}
 	return &URI{
 		ID:   common.HexToAddress(u.Host),
@@ -50,7 +50,7 @@ func Parse(s string) (*URI, error) {
 
 func (u *URI) String() string {
 	return (&url.URL{
-		Scheme: "meta",
+		Scheme: "kord",
 		Host:   u.ID.Hex(),
 		Path:   u.Path,
 	}).String()

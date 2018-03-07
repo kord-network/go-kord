@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -27,7 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	"github.com/meta-network/go-meta/registry"
+	"github.com/kord-network/go-kord/registry"
 )
 
 type TestDPA struct {
@@ -37,7 +37,7 @@ type TestDPA struct {
 }
 
 func NewTestDPA() (*TestDPA, error) {
-	dir, err := ioutil.TempDir("", "meta-testutil")
+	dir, err := ioutil.TempDir("", "kord-testutil")
 	if err != nil {
 		return nil, err
 	}
@@ -81,10 +81,10 @@ func NewTestRegistry() *Registry {
 	}
 }
 
-func (r *Registry) Graph(metaID common.Address) (common.Hash, error) {
+func (r *Registry) Graph(kordID common.Address) (common.Hash, error) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
-	return r.hashes[metaID], nil
+	return r.hashes[kordID], nil
 }
 
 func (r *Registry) SetGraph(hash common.Hash, sig []byte) error {
@@ -94,9 +94,9 @@ func (r *Registry) SetGraph(hash common.Hash, sig []byte) error {
 	if err != nil {
 		return err
 	}
-	metaID := crypto.PubkeyToAddress(*pub)
-	r.hashes[metaID] = hash
-	if subs, ok := r.subs[metaID]; ok {
+	kordID := crypto.PubkeyToAddress(*pub)
+	r.hashes[kordID] = hash
+	if subs, ok := r.subs[kordID]; ok {
 		for sub := range subs {
 			sub.updates <- hash
 		}
@@ -104,29 +104,29 @@ func (r *Registry) SetGraph(hash common.Hash, sig []byte) error {
 	return nil
 }
 
-func (r *Registry) SubscribeGraph(metaID common.Address, updates chan common.Hash) (registry.Subscription, error) {
+func (r *Registry) SubscribeGraph(kordID common.Address, updates chan common.Hash) (registry.Subscription, error) {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
-	subs, ok := r.subs[metaID]
+	subs, ok := r.subs[kordID]
 	if !ok {
 		subs = make(map[*RegistrySubscription]struct{})
-		r.subs[metaID] = subs
+		r.subs[kordID] = subs
 	}
-	sub := &RegistrySubscription{r, metaID, updates}
+	sub := &RegistrySubscription{r, kordID, updates}
 	subs[sub] = struct{}{}
 	return sub, nil
 }
 
 type RegistrySubscription struct {
 	registry *Registry
-	metaID   common.Address
+	kordID   common.Address
 	updates  chan common.Hash
 }
 
 func (r *RegistrySubscription) Close() error {
 	r.registry.mtx.Lock()
 	defer r.registry.mtx.Unlock()
-	delete(r.registry.subs[r.metaID], r)
+	delete(r.registry.subs[r.kordID], r)
 	return nil
 }
 

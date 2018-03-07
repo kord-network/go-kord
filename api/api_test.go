@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -26,8 +26,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/meta-network/go-meta/graph"
-	"github.com/meta-network/go-meta/testutil"
+	"github.com/kord-network/go-kord/graph"
+	"github.com/kord-network/go-kord/testutil"
 )
 
 func TestAPI(t *testing.T) {
@@ -38,7 +38,7 @@ func TestAPI(t *testing.T) {
 	}
 	defer dpa.Cleanup()
 	registry := testutil.NewTestRegistry()
-	driver := graph.NewDriver("meta-id-test", dpa.DPA, registry, dpa.Dir)
+	driver := graph.NewDriver("kord-id-test", dpa.DPA, registry, dpa.Dir)
 	api, err := NewAPI(driver)
 	if err != nil {
 		t.Fatal(err)
@@ -48,7 +48,7 @@ func TestAPI(t *testing.T) {
 
 	// create a graph
 	client := NewClient(srv.URL)
-	hash, err := client.CreateGraph(testMetaID.Hex())
+	hash, err := client.CreateGraph(testKordID.Hex())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,13 +56,13 @@ func TestAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := client.SetGraph(testMetaID.Hex(), hash, sig); err != nil {
+	if err := client.SetGraph(testKordID.Hex(), hash, sig); err != nil {
 		t.Fatal(err)
 	}
 
 	// create a claim
 	claim := newTestClaim(t, "username", "test")
-	hash, err = client.CreateClaim(testMetaID.Hex(), claim)
+	hash, err = client.CreateClaim(testKordID.Hex(), claim)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,13 +70,13 @@ func TestAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := client.SetGraph(testMetaID.Hex(), hash, sig); err != nil {
+	if err := client.SetGraph(testKordID.Hex(), hash, sig); err != nil {
 		t.Fatal(err)
 	}
 
 	// get the claim
-	id := testMetaID.Hex()
-	claims, err := client.Claim(testMetaID.Hex(), &ClaimFilter{
+	id := testKordID.Hex()
+	claims, err := client.Claim(testKordID.Hex(), &ClaimFilter{
 		Issuer:   &id,
 		Subject:  &id,
 		Property: &claim.Property,
@@ -99,13 +99,13 @@ func TestAPI(t *testing.T) {
 
 var (
 	testKey, _ = crypto.HexToECDSA("289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032")
-	testMetaID = NewID(crypto.PubkeyToAddress(testKey.PublicKey))
+	testKordID = NewID(crypto.PubkeyToAddress(testKey.PublicKey))
 )
 
 func newTestClaim(t *testing.T, property, claim string) *Claim {
 	c := &Claim{
-		Issuer:   testMetaID,
-		Subject:  testMetaID,
+		Issuer:   testKordID,
+		Subject:  testKordID,
 		Property: property,
 		Claim:    claim,
 	}

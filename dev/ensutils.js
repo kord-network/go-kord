@@ -288,7 +288,7 @@ var fifsRegistrarContract = web3.eth.contract([
     "type": "constructor"
   }
 ]);
-var fifsRegistrar = fifsRegistrarContract.at(ens.owner(namehash('meta')));
+var fifsRegistrar = fifsRegistrarContract.at(ens.owner(namehash('kord')));
 
 var resolverContract = web3.eth.contract([
   {

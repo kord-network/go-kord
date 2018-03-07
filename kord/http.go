@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package meta
+package kord
 
 import (
 	"net/http"
@@ -28,8 +28,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	swarmapi "github.com/ethereum/go-ethereum/swarm/api"
 	swarmhttp "github.com/ethereum/go-ethereum/swarm/api/http"
-	"github.com/meta-network/go-meta/api"
-	"github.com/meta-network/go-meta/dapp"
+	"github.com/kord-network/go-kord/api"
+	"github.com/kord-network/go-kord/dapp"
 )
 
 type Server struct {

@@ -1,4 +1,24 @@
-# go-meta
+# Go KORD
+
+Golang implementation of the KORD protocol.
+
+## Build
+
+Building the kord binary requires a Go compiler. Once installed, run:
+
+```
+go build -o bin/kord ./cmd/kord
+```
+
+The binary will now be available in `bin/kord`.
+
+## Development Node
+
+To run a local development node, run:
+
+```
+kord node --dev
+```
 
 ## Testnet
 
@@ -13,5 +33,5 @@ $ geth account new --keystore testnet/keystore
 Run the node pointing at the testnet data directory:
 
 ```
-$ meta node --testnet --datadir testnet
+$ kord node --testnet --datadir testnet
 ```

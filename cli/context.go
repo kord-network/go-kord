@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -25,8 +25,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/meta-network/go-meta/meta"
-	"github.com/meta-network/go-meta/pkg/uri"
+	"github.com/kord-network/go-kord/kord"
+	"github.com/kord-network/go-kord/pkg/uri"
 )
 
 type Context struct {
@@ -47,13 +47,13 @@ func (c *Context) NodeURL() string {
 	if url := c.Args.String("--url"); url != "" {
 		return url
 	}
-	return filepath.Join(os.TempDir(), "meta.ipc")
+	return filepath.Join(os.TempDir(), "kord.ipc")
 }
 
 func (c *Context) URI() (*uri.URI, error) {
 	return uri.Parse(c.Args.String("<uri>"))
 }
 
-func (c *Context) Client() (*meta.Client, error) {
-	return meta.NewClient(c.NodeURL())
+func (c *Context) Client() (*kord.Client, error) {
+	return kord.NewClient(c.NodeURL())
 }

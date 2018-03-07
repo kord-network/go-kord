@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -32,7 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	metagraph "github.com/meta-network/go-meta/graph"
+	kordgraph "github.com/kord-network/go-kord/graph"
 )
 
 const GraphQLSchema = `
@@ -96,10 +96,10 @@ input ClaimFilter {
 `
 
 type Resolver struct {
-	driver *metagraph.Driver
+	driver *kordgraph.Driver
 }
 
-func NewResolver(driver *metagraph.Driver) *Resolver {
+func NewResolver(driver *kordgraph.Driver) *Resolver {
 	return &Resolver{driver}
 }
 
@@ -163,16 +163,16 @@ type ClaimArgs struct {
 func (r *GraphResolver) Claim(args ClaimArgs) ([]*ClaimResolver, error) {
 	path := path.NewPath(r.qs)
 	if v := args.Filter.Issuer; v != nil {
-		path = path.Has(quad.IRI("meta:issuer"), quad.IRI(*v))
+		path = path.Has(quad.IRI("kord:issuer"), quad.IRI(*v))
 	}
 	if v := args.Filter.Subject; v != nil {
-		path = path.Has(quad.IRI("meta:subject"), quad.IRI(*v))
+		path = path.Has(quad.IRI("kord:subject"), quad.IRI(*v))
 	}
 	if v := args.Filter.Property; v != nil {
-		path = path.Has(quad.IRI("meta:property"), quad.StringToValue(*v))
+		path = path.Has(quad.IRI("kord:property"), quad.StringToValue(*v))
 	}
 	if v := args.Filter.Claim; v != nil {
-		path = path.Has(quad.IRI("meta:claim"), quad.StringToValue(*v))
+		path = path.Has(quad.IRI("kord:claim"), quad.StringToValue(*v))
 	}
 	var claims []claimQuad
 	if err := schema.LoadPathTo(context.Background(), r.qs, &claims, path); err != nil {

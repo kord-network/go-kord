@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -30,7 +30,7 @@ import (
 )
 
 func init() {
-	voc.RegisterPrefix("meta:", "http://schema.meta-network.io/")
+	voc.RegisterPrefix("kord:", "http://schema.kord-network.io/")
 }
 
 type ID struct {
@@ -111,11 +111,11 @@ type claimQuad struct {
 	rdfType struct{} `quad:"@type > id:Claim"`
 
 	ID        quad.IRI `quad:"@id"`
-	Issuer    quad.IRI `quad:"meta:issuer"`
-	Subject   quad.IRI `quad:"meta:subject"`
-	Property  string   `quad:"meta:property"`
-	Claim     string   `quad:"meta:claim"`
-	Signature string   `quad:"meta:signature"`
+	Issuer    quad.IRI `quad:"kord:issuer"`
+	Subject   quad.IRI `quad:"kord:subject"`
+	Property  string   `quad:"kord:property"`
+	Claim     string   `quad:"kord:claim"`
+	Signature string   `quad:"kord:signature"`
 }
 
 func (c *Claim) Quad() *claimQuad {

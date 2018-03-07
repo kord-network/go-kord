@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -19,12 +19,12 @@
 
 pragma solidity ^0.4.0;
 
-// The META registry contract.
-contract METARegistry {
+// The KORD registry contract.
+contract KORDRegistry {
     mapping(address=>bytes32) graphs;
 
-    function graph(address metaID) constant returns (bytes32) {
-        return graphs[metaID];
+    function graph(address kordID) constant returns (bytes32) {
+        return graphs[kordID];
     }
 
     // ref: https://gist.github.com/axic/5b33912c6f61ae6fd96d6c4a47afde6d
@@ -47,8 +47,8 @@ contract METARegistry {
 
         if (v != 27 && v != 28) throw;
 
-        address metaID = ecrecover(hash, v, r, s);
+        address kordID = ecrecover(hash, v, r, s);
 
-        graphs[metaID] = hash;
+        graphs[kordID] = hash;
     }
 }

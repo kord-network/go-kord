@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/meta-network/go-meta/registry/contract"
+	"github.com/kord-network/go-kord/registry/contract"
 )
 
 func Deploy(url string, config Config) (common.Address, error) {
@@ -48,7 +48,7 @@ func deployRegistry(client *Client, addr common.Address) (common.Address, error)
 		return addr, nil
 	}
 	receipt, err := client.do(func() (tx *types.Transaction, err error) {
-		_, tx, _, err = contract.DeployMETARegistry(client.transactOpts, client)
+		_, tx, _, err = contract.DeployKORDRegistry(client.transactOpts, client)
 		return
 	})
 	if err != nil {

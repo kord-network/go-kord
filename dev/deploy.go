@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -23,16 +23,16 @@ import (
 	"os"
 
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/meta-network/go-meta/registry"
+	"github.com/kord-network/go-kord/registry"
 )
 
 func main() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 
-	log.Info("deploying META Registry")
-	addr, err := registry.Deploy("dev/meta.ipc", registry.DefaultConfig)
+	log.Info("deploying KORD Registry")
+	addr, err := registry.Deploy("dev/kord.ipc", registry.DefaultConfig)
 	if err != nil {
-		log.Crit("error deploying META registry", "err", err)
+		log.Crit("error deploying KORD registry", "err", err)
 	}
-	log.Info("META registry deployed", "addr", addr)
+	log.Info("KORD registry deployed", "addr", addr)
 }

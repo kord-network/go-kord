@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -26,8 +26,8 @@ import (
 	cayleysql "github.com/cayleygraph/cayley/graph/sql"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	"github.com/meta-network/go-meta/db"
-	"github.com/meta-network/go-meta/registry"
+	"github.com/kord-network/go-kord/db"
+	"github.com/kord-network/go-kord/registry"
 )
 
 type Driver struct {

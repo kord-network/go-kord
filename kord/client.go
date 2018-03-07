@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package meta
+package kord
 
 import (
 	"context"
@@ -42,20 +42,20 @@ func NewClient(url string) (*Client, error) {
 
 func (c *Client) CreateGraph(ctx context.Context, id string) (common.Hash, error) {
 	var hash common.Hash
-	return hash, c.client.CallContext(ctx, &hash, "meta_createGraph", id)
+	return hash, c.client.CallContext(ctx, &hash, "kord_createGraph", id)
 }
 
 func (c *Client) CommitGraph(ctx context.Context, id string) (common.Hash, error) {
 	var hash common.Hash
-	return hash, c.client.CallContext(ctx, &hash, "meta_commitGraph", id)
+	return hash, c.client.CallContext(ctx, &hash, "kord_commitGraph", id)
 }
 
 func (c *Client) SetGraph(ctx context.Context, hash common.Hash, sig []byte) error {
-	return c.client.CallContext(ctx, nil, "meta_setGraph", hash, sig)
+	return c.client.CallContext(ctx, nil, "kord_setGraph", hash, sig)
 }
 
 func (c *Client) SetRootDapp(ctx context.Context, uri string) error {
-	return c.client.CallContext(ctx, nil, "meta_setRootDapp", uri)
+	return c.client.CallContext(ctx, nil, "kord_setRootDapp", uri)
 }
 
 func (c *Client) QuadStore(name string) graph.QuadStore {
@@ -68,7 +68,7 @@ type clientQuadStore struct {
 }
 
 func (c *clientQuadStore) ApplyDeltas(in []graph.Delta, opts graph.IgnoreOpts) error {
-	return c.client.Call(nil, "meta_applyDeltas", c.name, in, opts)
+	return c.client.Call(nil, "kord_applyDeltas", c.name, in, opts)
 }
 
 func (c *clientQuadStore) Quad(graph.Value) quad.Quad {

@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -25,7 +25,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/meta-network/go-meta/graphql"
+	"github.com/kord-network/go-kord/graphql"
 )
 
 type Client struct {
@@ -127,13 +127,13 @@ query GetClaim($id: String!, $filter: ClaimFilter!) {
 }
 
 func swarmHash(res *graphql.Response) (common.Hash, error) {
-	extension, ok := res.Extensions["meta"]
+	extension, ok := res.Extensions["kord"]
 	if !ok {
-		return common.Hash{}, errors.New("missing meta extension in GraphQL response")
+		return common.Hash{}, errors.New("missing kord extension in GraphQL response")
 	}
 	v, ok := extension.(map[string]interface{})
 	if !ok {
-		return common.Hash{}, fmt.Errorf("unexpected meta extension type: %T", extension)
+		return common.Hash{}, fmt.Errorf("unexpected kord extension type: %T", extension)
 	}
 	h, ok := v["swarmHash"].(string)
 	if !ok {

@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -33,9 +33,9 @@ import (
 
 func init() {
 	registerCommand("id", RunID, `
-usage: meta id new [options]
+usage: kord id new [options]
 
-Create a new META ID.
+Create a new KORD ID.
 
 options:
 	-k, --keystore <dir>   Keystore directory
@@ -52,7 +52,7 @@ func RunID(ctx *Context) error {
 }
 
 func RunIDNew(ctx *Context) error {
-	log.Info("creating new META ID")
+	log.Info("creating new KORD ID")
 	passphrase, err := getPassphrase(ctx, true)
 	if err != nil {
 		return fmt.Errorf("error reading passphrase: %s", err)

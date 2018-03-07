@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -27,7 +27,7 @@ import (
 
 	"github.com/cayleygraph/cayley/graph"
 	"github.com/cayleygraph/cayley/graph/sql/sqltest"
-	"github.com/meta-network/go-meta/testutil"
+	"github.com/kord-network/go-kord/testutil"
 )
 
 var testDriver *Driver
@@ -45,7 +45,7 @@ func TestMain(m *testing.M) {
 			return 1
 		}
 		defer dpa.Cleanup()
-		testDriver = NewDriver("meta-test", dpa.DPA, testutil.NewTestENS(), dpa.Dir)
+		testDriver = NewDriver("kord-test", dpa.DPA, testutil.NewTestENS(), dpa.Dir)
 		return m.Run()
 	}())
 }
@@ -55,5 +55,5 @@ func TestSQLBackend(t *testing.T) {
 }
 
 func newTestDB(t testing.TB) (string, graph.Options, func()) {
-	return fmt.Sprintf("%d.test.meta", rand.Int()), nil, func() {}
+	return fmt.Sprintf("%d.test.kord", rand.Int()), nil, func() {}
 }

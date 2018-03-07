@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -34,7 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	sqlite3 "github.com/mattn/go-sqlite3"
-	"github.com/meta-network/go-meta/registry"
+	"github.com/kord-network/go-kord/registry"
 )
 
 // Driver implements the driver.Conn interface by wrapping a SQLite3 driver
@@ -155,7 +155,7 @@ func (d *Driver) openDB(name string) (*db, error) {
 }
 
 func (d *Driver) fetchDB(hash common.Hash, path string) error {
-	tmp, err := ioutil.TempFile("", "meta-db")
+	tmp, err := ioutil.TempFile("", "kord-db")
 	if err != nil {
 		return err
 	}

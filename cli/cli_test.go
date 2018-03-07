@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -142,7 +142,7 @@ func TestDapp(t *testing.T) {
 	}
 
 	// deploy a dapp
-	dappDir, err := ioutil.TempDir("", "meta-cli-test")
+	dappDir, err := ioutil.TempDir("", "kord-cli-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +150,7 @@ func TestDapp(t *testing.T) {
 	if err := ioutil.WriteFile(filepath.Join(dappDir, "index.html"), dappHTML, 0644); err != nil {
 		t.Fatal(err)
 	}
-	dappURI := fmt.Sprintf("meta://%s/test-dapp", id.Hex())
+	dappURI := fmt.Sprintf("kord://%s/test-dapp", id.Hex())
 	cliCtx = NewContext(context.Background())
 	cliCtx.Stdin = bytes.NewReader([]byte{'\n'})
 	if err := Run(
@@ -205,13 +205,13 @@ type testNode struct {
 
 func startTestNode() (*testNode, error) {
 	// generate test config
-	tmpDir, err := ioutil.TempDir("", "meta-cli-test")
+	tmpDir, err := ioutil.TempDir("", "kord-cli-test")
 	if err != nil {
 		return nil, err
 	}
 	cfgPath := filepath.Join(tmpDir, "config")
 	cfgData := []byte(`
-[Meta]
+[Kord]
 HTTPPort = 0
 	`)
 	if err := ioutil.WriteFile(cfgPath, cfgData, 0644); err != nil {
@@ -228,7 +228,7 @@ HTTPPort = 0
 	}()
 
 	// wait for the node to start
-	ipcPath := filepath.Join(tmpDir, "meta.ipc")
+	ipcPath := filepath.Join(tmpDir, "kord.ipc")
 	for start := time.Now(); time.Since(start) < 10*time.Second; time.Sleep(50 * time.Millisecond) {
 		if _, err := os.Stat(ipcPath); err == nil {
 			break
@@ -241,7 +241,7 @@ HTTPPort = 0
 		if err != nil {
 			return err
 		}
-		return client.Call(&httpAddr, "meta_httpAddr")
+		return client.Call(&httpAddr, "kord_httpAddr")
 	}(); err != nil {
 		stopNode()
 		os.RemoveAll(tmpDir)

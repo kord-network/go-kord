@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -25,7 +25,7 @@ import (
 )
 
 func init() {
-	voc.RegisterPrefix("dapp:", "http://schema.meta-network.io/dapp/")
+	voc.RegisterPrefix("dapp:", "http://schema.kord-network.io/dapp/")
 }
 
 type Dapp struct {

@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -17,7 +17,7 @@
 //
 // If you have any questions please contact yo@jaak.io
 
-package meta
+package kord
 
 import (
 	"github.com/cayleygraph/cayley/graph"
@@ -25,40 +25,40 @@ import (
 )
 
 type PublicAPI struct {
-	meta *Meta
+	kord *Kord
 }
 
-func NewPublicAPI(meta *Meta) *PublicAPI {
-	return &PublicAPI{meta}
+func NewPublicAPI(kord *Kord) *PublicAPI {
+	return &PublicAPI{kord}
 }
 
 func (api *PublicAPI) CreateGraph(name string) (common.Hash, error) {
-	return api.meta.driver.Create(name)
+	return api.kord.driver.Create(name)
 }
 
 func (api *PublicAPI) CommitGraph(name string) (common.Hash, error) {
-	return api.meta.driver.Commit(name)
+	return api.kord.driver.Commit(name)
 }
 
 func (api *PublicAPI) SetGraph(hash common.Hash, sig []byte) error {
-	return api.meta.registry.SetGraph(hash, sig)
+	return api.kord.registry.SetGraph(hash, sig)
 }
 
 func (api *PublicAPI) SetRootDapp(dappURI string) error {
-	return api.meta.setRootDapp(dappURI)
+	return api.kord.setRootDapp(dappURI)
 }
 
 func (api *PublicAPI) HttpAddr() string {
-	return api.meta.srv.Addr
+	return api.kord.srv.Addr
 }
 
 func (api *PublicAPI) ApplyDeltas(name string, in []graph.Delta, opts graph.IgnoreOpts) (common.Hash, error) {
-	qs, err := api.meta.driver.Get(name)
+	qs, err := api.kord.driver.Get(name)
 	if err != nil {
 		return common.Hash{}, err
 	}
 	if err := qs.ApplyDeltas(in, opts); err != nil {
 		return common.Hash{}, err
 	}
-	return api.meta.driver.Commit(name)
+	return api.kord.driver.Commit(name)
 }

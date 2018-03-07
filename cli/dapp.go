@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -29,25 +29,25 @@ import (
 	"github.com/cayleygraph/cayley/schema"
 	"github.com/ethereum/go-ethereum/log"
 	swarm "github.com/ethereum/go-ethereum/swarm/api/client"
-	"github.com/meta-network/go-meta/dapp"
+	"github.com/kord-network/go-kord/dapp"
 )
 
 func init() {
 	registerCommand("dapp", RunDapp, `
-usage: meta dapp deploy [options] <dir> <uri>
-       meta dapp set-root [options] <uri>
+usage: kord dapp deploy [options] <dir> <uri>
+       kord dapp set-root [options] <uri>
 
-Deploy a META Dapp.
+Deploy a KORD Dapp.
 
 options:
-        -u, --url <url>        URL of the META node
+        -u, --url <url>        URL of the KORD node
         -s, --swarm-api <url>  URL of the Swarm API [default: http://localhost:5000]
         -k, --keystore <dir>   Keystore directory
 
 example:
-        meta dapp deploy path/to/dapp meta://xyz123/cool-dapp
+        kord dapp deploy path/to/dapp kord://xyz123/cool-dapp
 
-        meta dapp set-root meta://xyz123/cool-dapp
+        kord dapp set-root kord://xyz123/cool-dapp
 `[1:])
 }
 

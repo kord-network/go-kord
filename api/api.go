@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -26,7 +26,7 @@ import (
 	"net/http"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/meta-network/go-meta/graph"
+	"github.com/kord-network/go-kord/graph"
 	graphql "github.com/neelance/graphql-go"
 )
 
@@ -63,7 +63,7 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if response.Extensions == nil {
 		response.Extensions = make(map[string]interface{})
 	}
-	response.Extensions["meta"] = map[string]interface{}{"swarmHash": swarmHash}
+	response.Extensions["kord"] = map[string]interface{}{"swarmHash": swarmHash}
 
 	responseJSON, err := json.Marshal(response)
 	if err != nil {

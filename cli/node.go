@@ -1,4 +1,4 @@
-// This file is part of the go-meta library.
+// This file is part of the go-kord library.
 //
 // Copyright (C) 2018 JAAK MUSIC LTD
 //
@@ -45,8 +45,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/swarm"
 	swarmapi "github.com/ethereum/go-ethereum/swarm/api"
-	"github.com/meta-network/go-meta/meta"
-	"github.com/meta-network/go-meta/registry"
+	"github.com/kord-network/go-kord/kord"
+	"github.com/kord-network/go-kord/registry"
 	"github.com/naoina/toml"
 )
 
@@ -56,9 +56,9 @@ var testnetBootnodes = []string{
 
 func init() {
 	registerCommand("node", RunNode, `
-usage: meta node [--datadir <dir>] [--config <path>] [--dev] [--testnet] [--mine] [--root-dapp <uri>] [--cors-domain <domain>...]
+usage: kord node [--datadir <dir>] [--config <path>] [--dev] [--testnet] [--mine] [--root-dapp <uri>] [--cors-domain <domain>...]
 
-Run a META node.
+Run a KORD node.
 
 options:
 	-d, --datadir <dir>         Node data directory
@@ -66,7 +66,7 @@ options:
 	--dev                       Run a dev node
 	--testnet                   Connect to the testnet
 	--mine                      Mine the Ethereum chain
-	--root-dapp <uri>           Dapp to serve at root of META API
+	--root-dapp <uri>           Dapp to serve at root of KORD API
 	--cors-domain <domain>...   The allowed CORS domains
 `[1:])
 }
@@ -84,7 +84,7 @@ func RunNode(ctx *Context) error {
 	case ctx.Args.String("--datadir") != "":
 		cfg.Node.DataDir = ctx.Args.String("--datadir")
 	case ctx.Args.Bool("--dev"):
-		tmpDir, err := ioutil.TempDir("", "meta-datadir")
+		tmpDir, err := ioutil.TempDir("", "kord-datadir")
 		if err != nil {
 			return err
 		}
@@ -94,13 +94,13 @@ func RunNode(ctx *Context) error {
 	}
 
 	if dapp := ctx.Args.String("--root-dapp"); dapp != "" {
-		cfg.Meta.RootDapp = dapp
+		cfg.Kord.RootDapp = dapp
 	}
 
 	if _, ok := ctx.Args["--cors-domain"]; ok {
 		domains := ctx.Args.List("--cors-domain")
 		cfg.Swarm.Cors = strings.Join(domains, ",")
-		cfg.Meta.CORSDomains = domains
+		cfg.Kord.CORSDomains = domains
 	}
 
 	if ctx.Args.Bool("--dev") && ctx.Args.Bool("--testnet") {
@@ -144,7 +144,7 @@ func RunNode(ctx *Context) error {
 		return err
 	}
 
-	if err := registerMetaService(stack, &cfg.Meta); err != nil {
+	if err := registerKordService(stack, &cfg.Kord); err != nil {
 		return err
 	}
 
@@ -162,14 +162,14 @@ func RunNode(ctx *Context) error {
 	}
 
 	if ctx.Args.Bool("--dev") {
-		log.Info("deploying META registry")
+		log.Info("deploying KORD registry")
 		addr, err := registry.Deploy(stack.IPCEndpoint(), registry.DefaultConfig)
 		if err != nil {
-			log.Error("error deploying META registry", "err", err)
+			log.Error("error deploying KORD registry", "err", err)
 			stack.Stop()
 			return err
 		}
-		log.Info("deployed META registry", "addr", addr)
+		log.Info("deployed KORD registry", "addr", addr)
 	}
 
 	// stop the node if the context is cancelled
@@ -217,9 +217,9 @@ func registerSwarmService(stack *node.Node, cfg *swarmapi.Config) error {
 	})
 }
 
-func registerMetaService(stack *node.Node, cfg *meta.Config) error {
+func registerKordService(stack *node.Node, cfg *kord.Config) error {
 	return stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
-		return meta.New(ctx, stack, cfg)
+		return kord.New(ctx, stack, cfg)
 	})
 }
 
@@ -227,7 +227,7 @@ type config struct {
 	Node  node.Config
 	Eth   eth.Config
 	Swarm swarmapi.Config
-	Meta  meta.Config
+	Kord  kord.Config
 }
 
 func loadConfig(file string, cfg *config) error {
@@ -252,17 +252,17 @@ func defaultConfig() config {
 		Node:  defaultNodeConfig(),
 		Eth:   eth.DefaultConfig,
 		Swarm: *swarmCfg,
-		Meta:  meta.DefaultConfig,
+		Kord:  kord.DefaultConfig,
 	}
 }
 
 func defaultNodeConfig() node.Config {
 	cfg := node.DefaultConfig
-	cfg.Name = "meta"
+	cfg.Name = "kord"
 	cfg.Version = "0.0.1"
 	cfg.HTTPModules = append(cfg.HTTPModules, "eth")
 	cfg.WSModules = append(cfg.WSModules, "eth")
-	cfg.IPCPath = "meta.ipc"
+	cfg.IPCPath = "kord.ipc"
 	return cfg
 }
 
