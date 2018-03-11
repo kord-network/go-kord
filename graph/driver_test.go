@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 	os.Exit(func() int {
 		dpa, err := testutil.NewTestDPA()
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "error creating test storage: %s", err)
+			fmt.Fprintln(os.Stderr, "error creating test storage:", err)
 			return 1
 		}
 		defer dpa.Cleanup()
